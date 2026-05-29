@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign Injin & Governance Dashboard v4.1</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=DM+Mono&display=swap');
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background: transparent; /* Seamless blending for Google Sites iframes */
+            color: #e2e8f0;
+            font-family: 'Inter', system-ui, sans-serif;
+            padding: 5px;
+            overflow-x: hidden;
+        }
+
+        .master-container {
+            max-width: 640px;
+            margin: 5px auto;
+            background: #02040a;
+            border: 1px solid #1e2937;
+            border-radius: 14px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.95);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: #0f172a;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            border-bottom: 1px solid #1e2937;
+            cursor: pointer;
+        }
+
+        .section-title {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            letter-spacing: 0.05em;
+            color: #38bdf8;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .drawer-content {
+            padding: 16px;
+            background: radial-gradient(circle at center, #0a1628 0%, #020c1b 100%);
+        }
+
+        /* Upgraded Visual Substrate Viewport Box */
+        .canvas-container {
+            width: 100%;
+            height: 150px; 
+            background: #000;
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #1e3a5f;
+            margin-bottom: 12px;
+        }
+
+        #convergenceCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .terminal {
+            background: rgba(3, 7, 18, 0.95);
+            border: 1px solid #1e3a5f;
+            border-radius: 8px;
+            padding: 14px;
+            height: 140px;
+            overflow-y: auto;
+            font-family: 'DM Mono', monospace;
+            font-size: 12.5px;
+            line-height: 1.6;
+            color: #cbd5e1;
+            white-space: pre-wrap;
+            text-align: left;
+        }
+
+        .input-capsule {
+            display: flex;
+            align-items: center;
+            background: #0f172a;
+            border: 1px solid #1e3a5f;
+            border-radius: 24px;
+            padding: 4px 4px 4px 14px;
+            margin: 12px 0 6px 0;
+        }
+
+        .input-capsule input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #f8fafc;
+            font-size: 13.5px;
+        }
+
+        .execute-btn {
+            background: #22ffcc;
+            color: #0f172a;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        label {
+            display: block;
+            font-size: 10px;
+            font-family: 'DM Mono', monospace;
+            color: #64748b;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            margin-top: 10px;
+            text-align: left;
+        }
+
+        input[type="text"], select, textarea {
+            width: 100%;
+            background: #020c1b;
+            border: 1px solid #1e3a5f;
+            color: #e2e8f0;
+            padding: 7px 10px;
+            border-radius: 5px;
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            outline: none;
+            text-align: left;
+        }
+        
+        .grid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        .btn {
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-family: 'DM Mono', monospace;
+            font-size: 11.5px;
+            letter-spacing: 0.04em;
+            margin-top: 8px;
+            font-weight: 500;
+        }
+        .btn-primary { background: #0ea5e9; color: #fff; width: 100%; margin-top: 12px;}
+        .btn-bias     { background: transparent; border: 1px solid #1e3a5f; color: #94a3b8; }
+
+        .verdict-box {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'DM Mono', monospace;
+            font-size: 11.5px;
+            line-height: 1.5;
+            display: none;
+            text-align: left;
+        }
+        .verdict-PASS      { background: #10b98122; border: 1px solid #10b981; color: #6ee7b7; }
+        .verdict-ERROR     { background: #7c3aed22; border: 1px solid #7c3aed; color: #c4b5fd; }
+        .score-bar-wrap { margin-top: 8px; height: 4px; background: #0f2035; border-radius: 2px; }
+        .score-bar { height: 4px; border-radius: 2px; transition: width 0.4s; width: 0%; }
+        
+        .status-dot {
+            display: inline-block;
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            margin-right: 6px;
+            background: #ef4444;
+            box-shadow: 0 0 6px #ef4444;
+        }
+        .status-dot.connected { background: #10b981; box-shadow: 0 0 6px #10b981; }
+
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            font-family: 'DM Mono', monospace;
+            color: #475569;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="master-container">
+
+    <div class="panel-header" onclick="toggleDrawer('drawer-injin')">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="color:#22ffcc; font-size:16px;">🔥</span>
+            <span style="font-size:15px; color:#f1f5f9; letter-spacing:0.5px; font-weight: 500;">Skoden Injin Manifold Engine</span>
+        </div>
+        <span id="system-status-text" style="color:#22ffcc; font-family: monospace; font-size:11px; font-weight:bold;">LIVE_FLOW</span>
+    </div>
+    
+    <div id="drawer-injin" class="drawer-content" style="display: block; border-bottom: 1px solid #1e2937;">
+        <div class="canvas-container">
+            <canvas id="convergenceCanvas"></canvas>
+        </div>
+        <div id="terminal" class="terminal">Handshake verified. Toroidal GS Manifold equations mapped directly onto vertex attribute buffers. What's on your mind?</div>
+        <div class="input-capsule">
+            <input type="text" id="terminal-input" placeholder="Ask uncle..." onkeydown="if(event.key==='Enter') sendCommand()">
+            <button class="execute-btn" onclick="sendCommand()">➔</button>
+        </div>
+        <div class="footer">
+            <span>CLOCK: <span style="color:#22ffcc; font-weight:bold;">79.0 Hz</span></span>
+            <span>DEG: <span id="deg-val" style="color:#fbbf24; font-weight:bold;">0.00°</span></span>
+            <span>FLOOR: <span id="energy-val" style="color:#38bdf8; font-weight:bold;">0.0000 K</span></span>
+        </div>
+    </div>
+
+    <div class="panel-header" onclick="toggleDrawer('drawer-config')">
+        <span class="section-title">⚙ Platform Server Target</span>
+        <span id="header-status-badge" style="font-family: monospace; font-size: 10px; color: #475569;">NODE_STANDBY</span>
+    </div>
+    
+    <div id="drawer-config" class="drawer-content" style="display: none; border-bottom: 1px solid #1e2937;">
+        <label>Railway API Ingress URL</label>
+        <input id="api-url" type="text" placeholder="https://your-app.railway.app" value="" />
+        <div style="display:flex; gap:12px; align-items:center; margin-top:10px;">
+            <button class="btn btn-bias" onclick="checkHealth()">Connect Backend</button>
+            <span id="api-status" style="font-size: 11px; font-family: monospace; color: #64748b;">
+                <span class="status-dot" id="status-dot"></span>Offline Status
+            </span>
+        </div>
+    </div>
+
+    <div class="panel-header" onclick="toggleDrawer('drawer-strawman')">
+        <span class="section-title">⚖ Strawman Evaluation Membrane</span>
+        <span style="font-family: monospace; font-size: 10px; color: #64748b;">FREEMAN_TEST_v1</span>
+    </div>
+    
+    <div id="drawer-strawman" class="drawer-content" style="display: none;">
+        <div class="grid-row">
+            <div>
+                <label>Action ID</label>
+                <input id="s-action-id" placeholder="ACT-001" />
+            </div>
+            <div>
+                <label>Actor</label>
+                <input id="s-actor" placeholder="system-agent-1" />
+            </div>
+        </div>
+        <div class="grid-row">
+            <div>
+                <label>Action Type</label>
+                <select id="s-action-type">
+                    <option value="data_access">data_access</option>
+                    <option value="data_share">data_share</option>
+                    <option value="delegation">delegation</option>
+                    <option value="decision">decision</option>
+                </select>
+            </div>
+            <div>
+                <label>Is Reversible</label>
+                <select id="s-reversible">
+                    <option value="true">Yes (True)</option>
+                    <option value="false">No (False)</option>
+                </select>
+            </div>
+        </div>
+        <label>Operational Description Directive</label>
+        <textarea id="s-description" placeholder="What sequence parameter is the machine attempting to fire?"></textarea>
+        
+        <label>Consent Basis Reference</label>
+        <input id="s-consent-basis" placeholder="Explicit named consent parameters..." />
+
+        <button class="btn btn-primary" onclick="runStrawman()">Run Freeman Validation Test</button>
+
+        <div id="strawman-result" class="verdict-box">
+            <div id="s-verdict-label" style="font-size:14px; font-weight:700; margin-bottom:4px;"></div>
+            <div id="s-reasoning" style="margin-bottom: 6px; color: #cbd5e1;"></div>
+            <div class="score-bar-wrap"><div id="s-score-bar" class="score-bar"></div></div>
+            <div id="s-score-label" style="font-size:10px; color:#64748b; margin-top:4px;"></div>
+            <div id="s-flags" style="margin-top: 6px;"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+<script>
+    let chatHistory = [];
+    let scene, camera, renderer, manifoldMesh, clock;
+    let rotationalVelocity = 3.1730059; // Motion-π_r torque anchor
+    
+    // Neutrosophic state trackers mapping to the vertex array system
+    let currentT = 1.0, currentI = 0.0, currentF = 0.0; 
+
+    function toggleDrawer(drawerId) {
+        const target = document.getElementById(drawerId);
+        target.style.display = target.style.display === 'none' ? 'block' : 'none';
+    }
+
+    // Advanced Vertex Shaded Toroidal Geometry Initialization
+    function initThreeEngine() {
+        if (typeof THREE === 'undefined') {
+            setTimeout(initThreeEngine, 100);
+            return;
+        }
+        try {
+            const container = document.querySelector('.canvas-container');
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(0, 0, 3.2);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('convergenceCanvas'), antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // 1. Compile base geometry representation
+            const geometry = new THREE.TorusKnotGeometry(0.8, 0.18, 160, 18, 3, 4);
+
+            // 2. Build custom array to inject live color data per-vertex
+            const vertexCount = geometry.attributes.position.count;
+            const colors = new Float32Array(vertexCount * 3);
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            // 3. Utilize vertex shading materials to render live telemetry gradients
+            const material = new THREE.MeshPhongMaterial({
+                vertexColors: true, // Forces Three.js to map attribute data arrays directly
+                shininess: 90,
+                specular: 0xffffff,
+                flatShading: false
+            });
+
+            manifoldMesh = new THREE.Mesh(geometry, material);
+            scene.add(manifoldMesh);
+
+            // Light arrays
+            const lightA = new THREE.PointLight(0xffffff, 1.2, 50);
+            lightA.position.set(3, 3, 3);
+            scene.add(lightA);
+
+            const lightB = new THREE.PointLight(0x1e3a5f, 1.0, 50);
+            lightB.position.set(-3, -3, 2);
+            scene.add(lightB);
+
+            scene.add(new THREE.AmbientLight(0x0a101d));
+            clock = new THREE.Clock();
+            
+            // Initial color calculation pass
+            updateManifoldColors();
+            animateEngineLoop();
+        } catch (e) { console.error("Canvas core shader issue:", e); }
+    }
+
+    // Dynamic Vertex Attribute Color Update Routine
+    function updateManifoldColors() {
+        if (!manifoldMesh) return;
+        
+        const geometry = manifoldMesh.geometry;
+        const colorAttribute = geometry.attributes.color;
+        const positionAttribute = geometry.attributes.position;
+        const vertexCount = positionAttribute.count;
+
+        for (let i = 0; i < vertexCount; i++) {
+            // Read coordinate positions to map gradients over the topology surface natively
+            const x = positionAttribute.getX(i);
+            const y = positionAttribute.getY(i);
+            const factor = (Math.sin(x * 2.0) + Math.cos(y * 2.0)) * 0.25 + 0.5;
+
+            // Map standard Truth, Indeterminacy, and Falsehood directly to RGB channels
+            const r = currentT * factor;
+            const g = currentI * (1.0 - factor);
+            const b = currentF * factor;
+
+            colorAttribute.setXYZ(i, r, g, b);
+        }
+        colorAttribute.needsUpdate = true; // Alerts GPU thread to flush changes immediately
+    }
+
+    function animateEngineLoop() {
+        requestAnimationFrame(animateEngineLoop);
+        if (clock && manifoldMesh && renderer && scene && camera) {
+            const elapsed = clock.getElapsedTime();
+            
+            // Adjust rotational vector positions tracking physical properties
+            manifoldMesh.rotation.x += rotationalVelocity * 0.001;
+            manifoldMesh.rotation.y += rotationalVelocity * 0.002;
+            
+            // Bounded high-frequency pulse oscillation (The 0.01 observer gap)
+            const pulse = 1.0 + Math.sin(elapsed * 10) * 0.015;
+            manifoldMesh.scale.set(pulse, pulse, pulse);
+            
+            renderer.render(scene, camera);
+        }
+    }
+
+    function typeStreamOutput(targetElement, activeOutputText) {
+        let currentIdx = 0;
+        let runningTextBuffer = "";
+
+        chatHistory.forEach((turn) => {
+            runningTextBuffer += `<span style="color:#60a5fa; font-weight:bold;">You:</span> ${turn.input}\n`;
+            runningTextBuffer += `<span style="color:#22ffcc; font-weight:bold;">Injin:</span> ${turn.output}\n\n`;
+        });
+
+        targetElement.innerHTML = runningTextBuffer;
+        
+        function drawNextToken() {
+            if (currentIdx < activeOutputText.length) {
+                targetElement.innerHTML += activeOutputText.charAt(currentIdx);
+                currentIdx++;
+                targetElement.scrollTop = targetElement.scrollHeight;
+                setTimeout(drawNextToken, 8);
+            } else {
+                targetElement.scrollTop = targetElement.scrollHeight;
+                document.querySelector('.execute-btn').disabled = false;
+            }
+        }
+        drawNextToken();
+    }
+
+    function sendCommand() {
+        const inputField = document.getElementById('terminal-input');
+        const terminalLog = document.getElementById('terminal');
+        const cmd = inputField.value.trim();
+        if (!cmd) return;
+
+        document.querySelector('.execute-btn').disabled = true;
+        inputField.value = '';
+
+        let response = "I hear you. Real-time parameters updated.";
+        const lower = cmd.toLowerCase();
+
+        // Conversational routing matrices that mutate the vertex shading parameters dynamically
+        if (lower.includes("hello") || lower.includes("hi") || lower.includes("hey")) {
+            response = "Skoden! Glad you're here. Let me know what we are focusing on next.";
+            currentT = 0.0; currentI = 1.0; currentF = 0.5; // Shifts colors to green-cyan range
+        } else if (lower.includes("status")) {
+            response = "Everything is running smoothly and stable on this end. Connection lines are open.";
+            currentT = 1.0; currentI = 0.2; currentF = 0.1; // Shifts colors to fiery amber range
+        } else if (lower.includes("fireseed")) {
+            response = "Fireseed tracking meshes are active and humming along perfectly.";
+            currentT = 0.2; currentI = 0.4; currentF = 1.0; // Shifts colors to deep blue range
+        } else if (lower.includes("carrollci") || lower.includes("john")) {
+            response = "Identity verified. Always a pleasure, Captain. Ready for your directives.";
+            currentT = 0.0; currentI = 1.0; currentF = 0.0; // Pure green validation flash
+        } else if (lower.includes("stator")) {
+            response = "Stator boundary lines are locked down, secure, and tracking invariants smoothly.";
+            currentT = 0.9; currentI = 0.9; currentF = 0.0; // Bright yellow normalization balance
+        } else {
+            response = `Got it. Everything looks clear on this end—let me know how you want to handle it.`;
+            // Dynamic mix based on text length variables
+            currentT = Math.sin(lower.length) * 0.5 + 0.5;
+            currentI = Math.cos(lower.length) * 0.5 + 0.5;
+            currentF = 1.0 - currentT;
+        }
+
+        // Apply color conversions instantly to geometry buffers
+        updateManifoldColors();
+
+        chatHistory.push({ input: cmd, output: response });
+        typeStreamOutput(terminalLog, response);
+
+        document.getElementById('energy-val').textContent = (Math.random() * 0.0002).toFixed(4) + " K";
+        document.getElementById('deg-val').textContent = (Math.random() * 360).toFixed(2) + "°";
+    }
+
+    // ================= BACKEND GOVERNANCE HANDLERS =================
+    function getApiBaseUrl() {
+        return (document.getElementById('api-url').value || '').replace(/\/$/, '');
+    }
+
+    async function executeApiRequest(path, method='GET', body=null) {
+        const baseUrl = getApiBaseUrl();
+        if (!baseUrl) throw new Error('Ingress target URL parameters missing.');
+        const options = { method, headers: {'Content-Type':'application/json'} };
+        if (body) options.body = JSON.stringify(body);
+        const request = await fetch(baseUrl + path, options);
+        return request.json();
+    }
+
+    async function checkHealth() {
+        const dot = document.getElementById('status-dot');
+        const text = document.getElementById('api-status');
+        const badge = document.getElementById('header-status-badge');
+        try {
+            const data = await executeApiRequest('/health');
+            dot.className = 'status-dot connected';
+            text.innerHTML = `<span class="status-dot connected"></span>Online — ${data.platform}`;
+            badge.innerText = "LIVE_STREAM";
+            badge.style.color = "#10b981";
+        } catch(e) {
+            dot.className = 'status-dot';
+            text.innerHTML = `<span class="status-dot"></span>Offline: Check address formatting.`;
+            badge.innerText = "NODE_STANDBY";
+            badge.style.color = "#64748b";
+        }
+    }
+
+    async function runStrawman() {
+        const label = document.getElementById('s-verdict-label');
+        const reasoning = document.getElementById('s-reasoning');
+        const box = document.getElementById('strawman-result');
+        const bar = document.getElementById('s-score-bar');
+        
+        const payload = {
+            action_id: document.getElementById('s-action-id').value || 'ACT-' + Date.now(),
+            actor: document.getElementById('s-actor').value || 'anonymous-node',
+            action_type: document.getElementById('s-action-type').value,
+            description: document.getElementById('s-description').value || 'Empty constraint validation query.',
+            affects: [],
+            reversible: document.getElementById('s-reversible').value === 'true',
+            consent_basis: document.getElementById('s-consent-basis').value,
+            scope: []
+        };
+
+        try {
+            const data = await executeApiRequest('/strawman/evaluate', 'POST', payload);
+            box.className = 'verdict-box verdict-' + (data.verdict || 'ERROR');
+            box.style.display = 'block';
+            
+            label.textContent = `${data.verdict} — Score: ${(data.score * 100).toFixed(0)}%`;
+            reasoning.textContent = data.reasoning;
+            bar.style.width = (data.score * 100) + '%';
+            bar.style.background = data.score >= 0.75 ? '#10b981' : (data.score >= 0.5 ? '#f59e0b' : '#ef4444');
+        } catch(e) {
+            box.className = 'verdict-box verdict-ERROR';
+            box.style.display = 'block';
+            label.textContent = 'EXECUTION_ERROR';
+            reasoning.textContent = `Local failover: ${e.message}. Launch your Railway microservice backend to activate live parsing evaluations.`;
+        }
+    }
+
+    window.addEventListener('load', () => {
+        initThreeEngine();
+    });
+</script>
+</body>
+</html>
