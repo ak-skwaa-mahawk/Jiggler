@@ -1,0 +1,20 @@
+from gs_heterogeneity import (
+    GSHeterogeneityConfig,
+    generate_heterogeneous_profiles,
+    attach_profiles_to_nodes,
+)
+
+# inside __init__
+cfg = GSHeterogeneityConfig(
+    d_range=(24, 72),
+    r_range=(160, 520),
+)
+
+profiles_a = generate_heterogeneous_profiles(self.node_count, cfg)
+profiles_b = generate_heterogeneous_profiles(self.node_count, cfg)
+
+self.nodes_a = [TordialNode() for _ in range(self.node_count)]
+self.nodes_b = [TordialNode() for _ in range(self.node_count)]
+
+attach_profiles_to_nodes(self.nodes_a, profiles_a, None)
+attach_profiles_to_nodes(self.nodes_b, profiles_b, None)
