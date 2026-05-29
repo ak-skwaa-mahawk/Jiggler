@@ -2,24 +2,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 import json
 import time
-from tordial_gs_v13 import DualRingTordialMatrix
+from tordial_gs_v13 import DualRingTordialMatrix, GSSweep
+
+gs_sweep = GSSweep()  # Make sure GS sweep is available
 
 def run_stress_test(node_count=16, cycles=350, mode="open"):
-    """Full Infinite Loophole stress test with rings and energy recovery tracking."""
+    """Stress test with full hierarchical tracking."""
     print(f"\n=== Stress Sweep: {mode.upper()} MODE | Initial Nodes={node_count} | Cycles={cycles} ===")
 
     matrix = DualRingTordialMatrix(node_count=node_count, agent_mode=True)
 
     collapse_events = 0
     fission_events = 0
-    spawn_events = 0
-    ring_spawn_events = 0                     # New: Ring-level hierarchical spawns
+    ring_spawn_events = 0
     sigma_history = []
     node_count_history = []
-    ring_count_history = []                   # New
+    ring_count_history = []
     logical_error_history = []
-    energy_history = []
-    kappa_history = []                        # For energy recovery analysis
+    energy_history = []           # ← Fixed: properly scoped
+    kappa_history = []
     corrections_history = []
 
     start_time = time.time()
@@ -34,35 +35,31 @@ def run_stress_test(node_count=16, cycles=350, mode="open"):
         node_count_history.append(current_nodes)
         ring_count_history.append(current_rings)
 
-        # Sigma_T & Kappa
+        # Sigma & Kappa
         sigmas = [getattr(n, 'sigma_T', 0.0) for n in matrix.nodes_a if hasattr(n, 'sigma_T')]
         avg_sigma = np.mean(sigmas) if sigmas else 0.0
-        avg_kappa = np.mean([gs_sweep.compute_gs(n.d, n.r).get("kappa_GS_T", 0) for n in matrix.nodes_a]) if matrix.nodes_a else 0
+        avg_kappa = np.mean([gs_sweep.compute_gs(n.d, n.r).get("kappa_GS_T", 0) 
+                           for n in matrix.nodes_a]) if matrix.nodes_a else 0.0
+
         sigma_history.append(avg_sigma)
         kappa_history.append(avg_kappa)
+        energy_history.append(getattr(matrix, 'global_energy', 0.0))
 
         if avg_sigma < -800:
             collapse_events += 1
 
         fission_events += sum(getattr(n, 'fission_count', 0) for n in matrix.nodes_a)
         
-        # Energy & Recovery
-        current_energy = getattr(matrix, 'global_energy', 0.0)
-        energy_history.append(current_energy)
-
-        # Surface Code
         ler = getattr(matrix, 'logical_error_rate', 0.0)
         logical_error_history.append(ler)
-        corrections = getattr(matrix, 'corrections_made', 0)
-        corrections_history.append(corrections)
+        corrections_history.append(getattr(matrix, 'corrections_made', 0))
 
         if c % 50 == 0:
             print(f"Cycle {c:4d} | Nodes: {current_nodes:3d} | Rings: {current_rings} | "
-                  f"Energy: {current_energy:7.1f} | Avg κ: {avg_kappa:6.2f} | LER: {ler:.4f}")
+                  f"Energy: {energy_history[-1]:7.1f} | Avg κ: {avg_kappa:6.2f} | LER: {ler:.4f}")
 
     duration = time.time() - start_time
 
-    # Spawning metrics
     node_diffs = np.diff(node_count_history)
     spawn_rate = float(np.mean(np.maximum(node_diffs, 0))) if len(node_diffs) > 0 else 0.0
     ring_spawn_events = int(sum(np.maximum(np.diff(ring_count_history), 0)))
@@ -78,9 +75,14 @@ def run_stress_test(node_count=16, cycles=350, mode="open"):
         "avg_kappa": float(np.mean(kappa_history)),
         "avg_logical_error_rate": float(np.mean(logical_error_history)),
         "avg_corrections": float(np.mean(corrections_history)),
-        "final_global_energy": float(current_energy),
+        "final_global_energy": float(energy_history[-1]),
         "avg_global_energy": float(np.mean(energy_history)),
-        "energy_kappa_correlation": float(np.corrcoef(energy_history, kappa_history)[0,1]) if len(energy_history)>1 else 0,
+        "energy_kappa_correlation": float(np.corrcoef(energy_history, kappa_history)[0,1]) 
+                                   if len(energy_history) > 1 else 0.0,
+        "energy_history": energy_history,           # ← Stored for plotting
+        "kappa_history": kappa_history,
+        "node_count_history": node_count_history,
+        "ring_count_history": ring_count_history,
         "duration_sec": round(duration, 2)
     }
 
@@ -91,7 +93,7 @@ def run_stress_test(node_count=16, cycles=350, mode="open"):
 
 
 def compare_hierarchical():
-    """Compare performance with hierarchical ring spawning + κ-energy dynamics."""
+    """Hierarchical comparison with proper history access."""
     print("Running Hierarchical Infinite Loophole Comparison...\n")
 
     bounded = run_stress_test(mode="bounded")
@@ -99,39 +101,49 @@ def compare_hierarchical():
 
     fig, axs = plt.subplots(2, 3, figsize=(18, 11))
 
+    # Node Growth
     axs[0,0].set_title("Node Count Growth")
-    axs[0,0].plot(range(len(bounded.get('node_count_history', [0]))), label='Bounded', alpha=0.7)
-    axs[0,0].plot(range(len(open_mode.get('node_count_history', [0]))), label='Open (Hierarchical)', alpha=0.9)
+    axs[0,0].plot(bounded["node_count_history"], label='Bounded', alpha=0.7)
+    axs[0,0].plot(open_mode["node_count_history"], label='Open (Hierarchical)', alpha=0.9)
     axs[0,0].legend()
 
+    # Ring Growth
     axs[0,1].set_title("Ring Count Growth")
-    axs[0,1].plot(range(len(bounded.get('ring_count_history', [1]))), label='Bounded', alpha=0.7)
-    axs[0,1].plot(range(len(open_mode.get('ring_count_history', [1]))), label='Open', alpha=0.9)
+    axs[0,1].plot(bounded["ring_count_history"], label='Bounded', alpha=0.7)
+    axs[0,1].plot(open_mode["ring_count_history"], label='Open', alpha=0.9)
     axs[0,1].legend()
 
+    # Global Energy Evolution
     axs[0,2].set_title("Global Energy Evolution")
-    axs[0,2].plot(energy_history, label='Bounded', alpha=0.7)   # Note: use actual histories if needed
-    axs[0,2].plot(energy_history, label='Open', alpha=0.9)
+    axs[0,2].plot(bounded["energy_history"], label='Bounded', alpha=0.7)
+    axs[0,2].plot(open_mode["energy_history"], label='Open', alpha=0.9)
     axs[0,2].legend()
 
+    # Spawn Rate
     axs[1,0].set_title("Avg Spawn Rate per Cycle")
-    axs[1,0].bar(['Bounded', 'Open'], [bounded['avg_spawn_rate_per_cycle'], open_mode['avg_spawn_rate_per_cycle']])
+    axs[1,0].bar(['Bounded', 'Open'], 
+                 [bounded['avg_spawn_rate_per_cycle'], open_mode['avg_spawn_rate_per_cycle']])
 
+    # Energy-κ Correlation
     axs[1,1].set_title("Energy-κ Correlation")
-    axs[1,1].bar(['Bounded', 'Open'], [bounded['energy_kappa_correlation'], open_mode['energy_kappa_correlation']])
+    axs[1,1].bar(['Bounded', 'Open'], 
+                 [bounded['energy_kappa_correlation'], open_mode['energy_kappa_correlation']])
 
+    # Final Rings
     axs[1,2].set_title("Final Rings")
     axs[1,2].bar(['Bounded', 'Open'], [bounded['final_rings'], open_mode['final_rings']])
 
-    plt.suptitle("Tordial-GS v13: Hierarchical Infinite Loophole (Rings + κ-Energy Recovery)")
+    plt.suptitle("Tordial-GS v13: Hierarchical Infinite Loophole Analysis")
     plt.tight_layout()
     plt.savefig("stress_sweep_hierarchical_loophole.png")
     plt.show()
 
     with open("stress_results_hierarchical.json", "w") as f:
-        json.dump({"bounded": bounded, "open": open_mode}, f, indent=2)
+        json.dump({"bounded": {k: v for k, v in bounded.items() if k != "energy_history" and k != "kappa_history" and k != "node_count_history" and k != "ring_count_history"},
+                   "open": {k: v for k, v in open_mode.items() if k != "energy_history" and k != "kappa_history" and k != "node_count_history" and k != "ring_count_history"}}, 
+                  f, indent=2)
 
-    print("\n✅ Hierarchical comparison complete!")
+    print("\n✅ Hierarchical comparison complete! Plot saved.")
 
 
 if __name__ == "__main__":
