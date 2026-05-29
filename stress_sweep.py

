@@ -5,7 +5,7 @@ import time
 from tordial_gs_v13 import DualRingTordialMatrix
 
 def run_stress_test(node_count=24, cycles=300, mode="open"):
-    """Run stress test with Infinite Loophole + Toric-Code metrics."""
+    """Run stress test with Infinite Loophole + Surface Code metrics."""
     print(f"\n=== Stress Sweep: {mode.upper()} MODE | Nodes={node_count} | Cycles={cycles} ===")
 
     matrix = DualRingTordialMatrix(node_count=node_count, agent_mode=True)
@@ -16,18 +16,18 @@ def run_stress_test(node_count=24, cycles=300, mode="open"):
     node_count_history = []
     logical_error_history = []
     anyon_count_history = []
+    corrections_history = []          # ← New: Surface Code corrections
 
     start_time = time.time()
 
     for c in range(cycles):
-        # Varying system load
         load = 1.0 + 0.55 * np.sin(c / 18.0)
         matrix.execute_heavy_load_cycle(system_load=load)
 
         current_nodes = len(matrix.nodes_a)
         node_count_history.append(current_nodes)
 
-        # Sigma_T statistics
+        # Sigma_T
         sigmas = [getattr(n, 'sigma_T', 0.0) for n in matrix.nodes_a if hasattr(n, 'sigma_T')]
         avg_sigma = np.mean(sigmas) if sigmas else 0.0
         sigma_history.append(avg_sigma)
@@ -38,16 +38,21 @@ def run_stress_test(node_count=24, cycles=300, mode="open"):
         # Fission tracking
         fission_events += sum(getattr(n, 'fission_count', 0) for n in matrix.nodes_a)
 
-        # Toric-Code Topological Metrics
+        # Surface Code + Toric Metrics
         ler = getattr(matrix, 'logical_error_rate', 0.0)
         logical_error_history.append(ler)
         
         anyon_count = len(getattr(matrix, 'anyons', []))
         anyon_count_history.append(anyon_count)
 
+        # NEW: Track corrections made by Surface Code decoder
+        corrections = getattr(matrix, 'corrections_made', 0)
+        corrections_history.append(corrections)
+
         if c % 50 == 0:
             print(f"Cycle {c:4d} | Nodes: {current_nodes:4d} | "
-                  f"Avg σ_T: {avg_sigma:8.2f} | LER: {ler:.4f} | Anyons: {anyon_count}")
+                  f"Avg σ_T: {avg_sigma:8.2f} | LER: {ler:.4f} | "
+                  f"Corrections: {corrections} | Anyons: {anyon_count}")
 
     duration = time.time() - start_time
 
@@ -61,17 +66,19 @@ def run_stress_test(node_count=24, cycles=300, mode="open"):
         "avg_logical_error_rate": float(np.mean(logical_error_history)),
         "max_logical_error_rate": float(max(logical_error_history)),
         "avg_anyon_count": float(np.mean(anyon_count_history)),
+        "total_corrections": int(sum(corrections_history)),
+        "avg_corrections_per_cycle": float(np.mean(corrections_history)),
         "duration_sec": round(duration, 2)
     }
 
     print(f"→ Final Nodes: {results['final_nodes']} | Collapses: {collapse_events} | "
-          f"Fissions: {fission_events} | Avg LER: {results['avg_logical_error_rate']:.4f}")
+          f"Fissions: {fission_events} | Avg Corrections/Cycle: {results['avg_corrections_per_cycle']:.2f}")
     return results
 
 
 def compare_full():
-    """Full comparison: Bounded vs Open with Toric-Code metrics."""
-    print("Running Full Bounded vs Open (Infinite Loophole + Toric) Comparison...\n")
+    """Full comparison including Surface Code correction performance."""
+    print("Running Full Comparison (Infinite Loophole + Surface Code)...\n")
 
     bounded = run_stress_test(mode="bounded")
     open_mode = run_stress_test(mode="open")
@@ -79,48 +86,40 @@ def compare_full():
     # === Plotting ===
     fig, axs = plt.subplots(2, 3, figsize=(18, 11))
 
-    # 1. Node Growth
+    axs[0, 0].set_title('Node Count Growth')
     axs[0, 0].plot(range(len(bounded.get('node_count_history', [0]))), label='Bounded', alpha=0.7)
     axs[0, 0].plot(range(len(open_mode.get('node_count_history', [0]))), label='Open (Infinite)', alpha=0.9)
-    axs[0, 0].set_title('Node Count Growth')
     axs[0, 0].legend()
-    axs[0, 0].set_xlabel('Cycle')
-    axs[0, 0].set_ylabel('Number of Nodes')
 
-    # 2. Collapse Events
-    axs[0, 1].bar(['Bounded', 'Open'], [bounded['collapse_events'], open_mode['collapse_events']])
     axs[0, 1].set_title('Collapse Events')
+    axs[0, 1].bar(['Bounded', 'Open'], [bounded['collapse_events'], open_mode['collapse_events']])
 
-    # 3. Final Node Count
-    axs[0, 2].bar(['Bounded', 'Open'], [bounded['final_nodes'], open_mode['final_nodes']])
-    axs[0, 2].set_title('Final Node Count')
-
-    # 4. Logical Error Rate (Toric)
-    axs[1, 0].bar(['Bounded', 'Open'], 
+    axs[0, 2].set_title('Avg Logical Error Rate')
+    axs[0, 2].bar(['Bounded', 'Open'], 
                   [bounded['avg_logical_error_rate'], open_mode['avg_logical_error_rate']])
-    axs[1, 0].set_title('Avg Logical Error Rate')
 
-    # 5. Total Fissions
-    axs[1, 1].bar(['Bounded', 'Open'], [bounded['total_fissions'], open_mode['total_fissions']])
-    axs[1, 1].set_title('Total Fission Events')
+    axs[1, 0].set_title('Total Fission Events')
+    axs[1, 0].bar(['Bounded', 'Open'], [bounded['total_fissions'], open_mode['total_fissions']])
 
-    # 6. Average Anyon Count
+    axs[1, 1].set_title('Average Corrections per Cycle (Surface Code)')
+    axs[1, 1].bar(['Bounded', 'Open'], 
+                  [bounded['avg_corrections_per_cycle'], open_mode['avg_corrections_per_cycle']])
+
+    axs[1, 2].set_title('Average Anyon Count')
     axs[1, 2].bar(['Bounded', 'Open'], 
                   [bounded['avg_anyon_count'], open_mode['avg_anyon_count']])
-    axs[1, 2].set_title('Average Anyon Count')
 
-    plt.suptitle("Tordial-GS: Infinite Loophole + Toric-Code Metrics Comparison")
+    plt.suptitle("Tordial-GS: Surface Code Error Correction Performance")
     plt.tight_layout()
-    plt.savefig("stress_sweep_full_comparison.png")
+    plt.savefig("stress_sweep_surface_code.png")
     plt.show()
 
-    # Save JSON results
-    with open("stress_results_full.json", "w") as f:
+    with open("stress_results_surface_code.json", "w") as f:
         json.dump({"bounded": bounded, "open": open_mode}, f, indent=2)
 
-    print("\n✅ Comparison complete!")
-    print("   • Plot saved → stress_sweep_full_comparison.png")
-    print("   • Data saved  → stress_results_full.json")
+    print("\n✅ Surface Code comparison complete!")
+    print("   • Plot saved → stress_sweep_surface_code.png")
+    print("   • Data saved  → stress_results_surface_code.json")
 
 
 if __name__ == "__main__":
