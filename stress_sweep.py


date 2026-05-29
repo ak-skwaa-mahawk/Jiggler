@@ -2,9 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import json
 import time
+from datetime import datetime
 from tordial_gs_v13 import DualRingTordialMatrix, GSSweep
 
-gs_sweep = GSSweep()  # Make sure GS sweep is available
+gs_sweep = GSSweep()
 
 def run_stress_test(node_count=16, cycles=350, mode="open"):
     """Stress test with full hierarchical tracking."""
@@ -19,7 +20,7 @@ def run_stress_test(node_count=16, cycles=350, mode="open"):
     node_count_history = []
     ring_count_history = []
     logical_error_history = []
-    energy_history = []           # ← Fixed: properly scoped
+    energy_history = []
     kappa_history = []
     corrections_history = []
 
@@ -35,7 +36,6 @@ def run_stress_test(node_count=16, cycles=350, mode="open"):
         node_count_history.append(current_nodes)
         ring_count_history.append(current_rings)
 
-        # Sigma & Kappa
         sigmas = [getattr(n, 'sigma_T', 0.0) for n in matrix.nodes_a if hasattr(n, 'sigma_T')]
         avg_sigma = np.mean(sigmas) if sigmas else 0.0
         avg_kappa = np.mean([gs_sweep.compute_gs(n.d, n.r).get("kappa_GS_T", 0) 
@@ -79,57 +79,78 @@ def run_stress_test(node_count=16, cycles=350, mode="open"):
         "avg_global_energy": float(np.mean(energy_history)),
         "energy_kappa_correlation": float(np.corrcoef(energy_history, kappa_history)[0,1]) 
                                    if len(energy_history) > 1 else 0.0,
-        "energy_history": energy_history,           # ← Stored for plotting
-        "kappa_history": kappa_history,
-        "node_count_history": node_count_history,
-        "ring_count_history": ring_count_history,
-        "duration_sec": round(duration, 2)
+        "duration_sec": round(duration, 2),
+        "histories": {
+            "node_count": node_count_history,
+            "ring_count": ring_count_history,
+            "energy": energy_history,
+            "kappa": kappa_history,
+            "sigma": sigma_history,
+            "logical_error": logical_error_history
+        }
     }
 
-    print(f"→ Final Nodes: {results['final_nodes']} | Rings: {results['final_rings']} | "
-          f"Spawn Rate: {results['avg_spawn_rate_per_cycle']:.3f}/cycle | "
-          f"Energy-κ Corr: {results['energy_kappa_correlation']:.3f}")
     return results
 
 
 def compare_hierarchical():
-    """Hierarchical comparison with proper history access."""
+    """Hierarchical comparison with clean timestamped metadata."""
     print("Running Hierarchical Infinite Loophole Comparison...\n")
 
     bounded = run_stress_test(mode="bounded")
     open_mode = run_stress_test(mode="open")
 
+    # === REFACTORED JSON EXPORT WITH TIMESTAMP ===
+    export_data = {
+        "metadata": {
+            "timestamp": datetime.now().isoformat(),
+            "test_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "cycles": 350,
+            "description": "Tordial-GS Hierarchical Infinite Loophole Stress Test",
+            "version": "v13.1"
+        },
+        "bounded": {
+            "summary": {k: v for k, v in bounded.items() if k != "histories"},
+            "histories": bounded.get("histories", {})
+        },
+        "open": {
+            "summary": {k: v for k, v in open_mode.items() if k != "histories"},
+            "histories": open_mode.get("histories", {})
+        }
+    }
+
+    with open("stress_results_hierarchical.json", "w") as f:
+        json.dump(export_data, f, indent=2)
+
+    print(f"✅ Results exported to stress_results_hierarchical.json")
+    print(f"    Timestamp: {export_data['metadata']['test_date']}")
+
+    # Plotting
     fig, axs = plt.subplots(2, 3, figsize=(18, 11))
 
-    # Node Growth
     axs[0,0].set_title("Node Count Growth")
-    axs[0,0].plot(bounded["node_count_history"], label='Bounded', alpha=0.7)
-    axs[0,0].plot(open_mode["node_count_history"], label='Open (Hierarchical)', alpha=0.9)
+    axs[0,0].plot(bounded["histories"]["node_count"], label='Bounded', alpha=0.7)
+    axs[0,0].plot(open_mode["histories"]["node_count"], label='Open (Hierarchical)', alpha=0.9)
     axs[0,0].legend()
 
-    # Ring Growth
     axs[0,1].set_title("Ring Count Growth")
-    axs[0,1].plot(bounded["ring_count_history"], label='Bounded', alpha=0.7)
-    axs[0,1].plot(open_mode["ring_count_history"], label='Open', alpha=0.9)
+    axs[0,1].plot(bounded["histories"]["ring_count"], label='Bounded', alpha=0.7)
+    axs[0,1].plot(open_mode["histories"]["ring_count"], label='Open', alpha=0.9)
     axs[0,1].legend()
 
-    # Global Energy Evolution
     axs[0,2].set_title("Global Energy Evolution")
-    axs[0,2].plot(bounded["energy_history"], label='Bounded', alpha=0.7)
-    axs[0,2].plot(open_mode["energy_history"], label='Open', alpha=0.9)
+    axs[0,2].plot(bounded["histories"]["energy"], label='Bounded', alpha=0.7)
+    axs[0,2].plot(open_mode["histories"]["energy"], label='Open', alpha=0.9)
     axs[0,2].legend()
 
-    # Spawn Rate
     axs[1,0].set_title("Avg Spawn Rate per Cycle")
     axs[1,0].bar(['Bounded', 'Open'], 
                  [bounded['avg_spawn_rate_per_cycle'], open_mode['avg_spawn_rate_per_cycle']])
 
-    # Energy-κ Correlation
     axs[1,1].set_title("Energy-κ Correlation")
     axs[1,1].bar(['Bounded', 'Open'], 
                  [bounded['energy_kappa_correlation'], open_mode['energy_kappa_correlation']])
 
-    # Final Rings
     axs[1,2].set_title("Final Rings")
     axs[1,2].bar(['Bounded', 'Open'], [bounded['final_rings'], open_mode['final_rings']])
 
@@ -138,12 +159,7 @@ def compare_hierarchical():
     plt.savefig("stress_sweep_hierarchical_loophole.png")
     plt.show()
 
-    with open("stress_results_hierarchical.json", "w") as f:
-        json.dump({"bounded": {k: v for k, v in bounded.items() if k != "energy_history" and k != "kappa_history" and k != "node_count_history" and k != "ring_count_history"},
-                   "open": {k: v for k, v in open_mode.items() if k != "energy_history" and k != "kappa_history" and k != "node_count_history" and k != "ring_count_history"}}, 
-                  f, indent=2)
-
-    print("\n✅ Hierarchical comparison complete! Plot saved.")
+    print("\n✅ Comparison complete! Plot and timestamped JSON results saved.")
 
 
 if __name__ == "__main__":
