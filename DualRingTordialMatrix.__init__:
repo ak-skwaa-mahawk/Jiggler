@@ -1,3 +1,8 @@
+class DualRingTordialMatrix:
+    def __init__(self, node_count: int = 12, agent_mode: bool = True):
+        ...
+        self.curvature_field = CurvatureField()
+        ...
 from gs_heterogeneity import (
     GSHeterogeneityConfig,
     generate_heterogeneous_profiles,
