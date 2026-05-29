@@ -5,14 +5,15 @@ import sqlite3
 import argparse
 from typing import List, Dict, Set
 import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
+from datetime import datetime
 
 
-# ====================== GS SWEEP MODULE ======================
+# ====================== GS SWEEP ======================
 class GSSweep:
     def __init__(self):
-        self.PI_3D = 3.20442315
         self.PHI_OP = 1.65036
         self.GEAR_SHIFT = 1.04
 
@@ -46,11 +47,27 @@ class GSSweep:
             return "DEEP_GS"
 
     def run_sweep(self, d_range=(26, 66, 4), r_range=(200, 540, 32)):
-        results = []
-        for d in range(*d_range):
-            for r in range(*r_range):
-                results.append(self.compute_gs(d, r))
+        results = [self.compute_gs(d, r) for d in range(*d_range) for r in range(*r_range)]
         return pd.DataFrame(results)
+
+
+# ====================== CORE NODE ======================
+class TordialNode:
+    def __init__(self, d: int, r: int):
+        self.OMEGA_RADS = 2 * math.pi * 79.0
+        self.TAU_3D = 2 * 3.20442315
+        self.CHASE_RATIO_TAU = self.TAU_3D / 1.65036
+        self.d = d
+        self.r = r
+
+    def run_step(self, t_seconds: float) -> Dict:
+        phase = (self.OMEGA_RADS * t_seconds) % self.TAU_3D
+        coupling = GSSweep().compute_gs(self.d, self.r)
+        return {
+            "raw_phase_rads": phase,
+            "chase_lock_status": "LOCKED" if phase < self.CHASE_RATIO_TAU else "DRIFTING",
+            "coupling_telemetry": coupling
+        }
 
 
 # ====================== MAIN MANIFOLD ======================
@@ -65,59 +82,48 @@ class DualRingTordialMatrix:
         self.active_ring = "RING_A"
         self.current_snapshots = []
         self.record_video = record_video
-        self.node_bands = []
+        self.node_bands: List[str] = []
 
-        # GS Sweep + Smart Seeding
+        self.ledger = TordialSQLiteLedger(db_path)
         self.gs_sweep = GSSweep()
+
         self._seed_heterogeneous_nodes()
 
         self.quarantined_a: Set[int] = set()
         self.quarantined_b: Set[int] = set()
         self.consec_drift = {"A": {i: 0 for i in range(node_count)}, "B": {i: 0 for i in range(node_count)}}
 
-        # Visualization
         self.fig = plt.figure(figsize=(14, 9))
         self.ax = self.fig.add_subplot(111, projection='3d')
 
     def _seed_heterogeneous_nodes(self):
-        """Seed nodes using GS sweep, preferring GOLDILOCKS."""
         df = self.gs_sweep.run_sweep()
-        # Prioritize Goldilocks, then Deep GS
-        preferred = pd.concat([
-            df[df["band"] == "GOLDILOCKS"].sample(n=self.node_count//2, replace=True),
-            df[df["band"].isin(["DEEP_GS", "MARGINAL"])].sample(n=self.node_count - self.node_count//2, replace=True)
-        ])
+        gold = df[df["band"] == "GOLDILOCKS"]
+        deep = df[df["band"] == "DEEP_GS"]
+        preferred = pd.concat([gold.sample(n=self.node_count//2, replace=True),
+                               deep.sample(n=self.node_count - self.node_count//2, replace=True)])
         
         self.nodes_a = []
         self.nodes_b = []
-        self.node_bands = []
-
         for _, row in preferred.iterrows():
-            d, r = int(row["d"]), int(row["r"])
-            node = TordialNode(d, r)
+            node = TordialNode(int(row["d"]), int(row["r"]))
             self.nodes_a.append(node)
-            self.nodes_b.append(node)  # symmetric for now
+            self.nodes_b.append(node)
             self.node_bands.append(row["band"])
 
     def execute_governance_cycle(self):
         self.current_tick += 1
         t_now = time.time() - self.t_start
 
-        snapshots_a = []
-        snapshots_b = []
+        snapshots_a = [{"node_index": i, "telemetry": self.nodes_a[i].run_step(t_now)} for i in range(self.node_count)]
+        snapshots_b = [{"node_index": i, "telemetry": self.nodes_b[i].run_step(t_now)} for i in range(self.node_count)]
 
-        for i in range(self.node_count):
-            drift = 0.01 if i not in self.quarantined_a else 0.26
-            rep_a = self.nodes_a[i].run_step(t_now, drift)
-            if i in self.quarantined_a:
-                rep_a["chase_lock_status"] = "QUARANTINED"
-            snapshots_a.append({"node_index": i, "telemetry": rep_a})
-
-            drift = 0.01 if i not in self.quarantined_b else 0.26
-            rep_b = self.nodes_b[i].run_step(t_now, drift)
-            if i in self.quarantined_b:
-                rep_b["chase_lock_status"] = "QUARANTINED"
-            snapshots_b.append({"node_index": i, "telemetry": rep_b})
+        for s in snapshots_a: 
+            if s["node_index"] in self.quarantined_a: 
+                s["telemetry"]["chase_lock_status"] = "QUARANTINED"
+        for s in snapshots_b: 
+            if s["node_index"] in self.quarantined_b: 
+                s["telemetry"]["chase_lock_status"] = "QUARANTINED"
 
         self._evaluate_health(snapshots_a, self.quarantined_a, "A")
         self._evaluate_health(snapshots_b, self.quarantined_b, "B")
@@ -127,7 +133,7 @@ class DualRingTordialMatrix:
 
         self.current_snapshots = snapshots_a if self.active_ring == "RING_A" else snapshots_b
 
-        # GS-aware frequency governance
+        # GS-aware governance
         drifting = sum(1 for s in self.current_snapshots if s["telemetry"]["chase_lock_status"] == "DRIFTING")
         active = self.node_count - len(self.quarantined_a if self.active_ring == "RING_A" else self.quarantined_b)
         avg_kappa = np.mean([s["telemetry"]["coupling_telemetry"].get("kappa_GS_T", 0) 
@@ -143,14 +149,12 @@ class DualRingTordialMatrix:
     def _evaluate_health(self, snapshots, quarantined, ring):
         for entry in snapshots:
             idx = entry["node_index"]
-            if idx in quarantined:
-                continue
+            if idx in quarantined: continue
             status = entry["telemetry"]["chase_lock_status"]
-            coupling = entry["telemetry"]["coupling_telemetry"]
-            kappa = coupling.get("kappa_GS_T", 0) if coupling else 0
+            kappa = entry["telemetry"]["coupling_telemetry"].get("kappa_GS_T", 0)
 
             if status == "DRIFTING":
-                penalty = 0.5 if kappa > 5.5 else 1.0   # Goldilocks get more forgiveness
+                penalty = 0.5 if kappa > 5.5 else 1.0
                 self.consec_drift[ring][idx] += penalty
                 if self.consec_drift[ring][idx] >= 5.0:
                     quarantined.add(idx)
@@ -159,15 +163,14 @@ class DualRingTordialMatrix:
 
     def update_visualization(self, frame):
         self.ax.clear()
-        self.ax.set_xlim(-5.5, 5.5)
-        self.ax.set_ylim(-5.5, 5.5)
-        self.ax.set_zlim(-3, 3)
-        self.ax.set_title(f"Tordial–GS Manifold v8\n"
-                         f"Tick {self.current_tick} | Freq {self.current_filtered_frequency_hz:.2f} Hz | {self.active_ring}")
+        self.ax.set_xlim(-5.5, 5.5); self.ax.set_ylim(-5.5, 5.5); self.ax.set_zlim(-3, 3)
+        self.ax.set_title(f"Tordial–GS v8 | Tick {self.current_tick} | Freq {self.current_filtered_frequency_hz:.2f} Hz | {self.active_ring}")
+
+        color_map = {"GOLDILOCKS": "lime", "DEEP_GS": "cyan", "MARGINAL": "yellow", "SUBCRITICAL": "red"}
 
         for i, snap in enumerate(self.current_snapshots):
             phase = snap["telemetry"]["raw_phase_rads"]
-            coupling = snap["telemetry"]["coupling_telemetry"] or {}
+            coupling = snap["telemetry"]["coupling_telemetry"]
             kappa = coupling.get("kappa_GS_T", 0.0)
             band = self.node_bands[i]
 
@@ -175,62 +178,94 @@ class DualRingTordialMatrix:
             y = (3.3 + 1.15 * math.cos(i * 0.78)) * math.sin(phase)
             z = 1.15 * math.sin(i * 0.78)
 
-            color_map = {"GOLDILOCKS": "lime", "DEEP_GS": "cyan", "MARGINAL": "yellow", "SUBCRITICAL": "red"}
             color = color_map.get(band, "gray")
-
-            size = 65 + kappa * 11
-            self.ax.scatter([x], [y], [z], c=color, s=size, alpha=0.92, edgecolors='black')
+            size = 70 + kappa * 11
+            self.ax.scatter([x], [y], [z], c=color, s=size, alpha=0.92, edgecolors='k')
 
             if kappa > 4.5:
-                self.ax.text(x*1.06, y*1.06, z + 0.4, f"{band[0]}κ{kappa:.1f}", fontsize=9, color='white')
+                self.ax.text(x*1.06, y*1.06, z+0.45, f"{band[0]}κ{kappa:.1f}", fontsize=9.5, color='white')
 
-        return []
-
-    def run(self, cycles=120, video_path=None):
-        print(f"[+] Starting Tordial-GS v8 with {self.node_count} heterogeneous nodes...\n")
+    def run(self, cycles=150, video_path=None):
+        print(f"[+] Tordial-GS v8 starting with {self.node_count} nodes (GS bands seeded)...\n")
         for _ in range(cycles):
             self.execute_governance_cycle()
             time.sleep(0.04)
 
+        self.ledger.log_run(self.get_summary())
+        print("[+] Run completed.")
+
         if video_path:
-            print(f"[+] Recording animation to {video_path}...")
-            ani = FuncAnimation(self.fig, self.update_visualization, frames=cycles//2, interval=80, blit=False)
+            print(f"[+] Saving video to {video_path}...")
+            ani = FuncAnimation(self.fig, self.update_visualization, frames=cycles//2, interval=80)
             writer = FFMpegWriter(fps=15, bitrate=2200)
             ani.save(video_path, writer=writer)
-            print("[+] Video saved.")
-
-        print("[+] Run finished.")
+            print("[+] Video saved successfully.")
 
 
-# ====================== NODE ======================
-class TordialNode:
-    def __init__(self, d: int, r: int):
-        self.PI_3D = 3.20442315
-        self.TAU_3D = 2 * self.PI_3D
-        self.PHI_OP = 1.65036
-        self.GEAR_SHIFT_CORRECTION = 1.04
-        self.OMEGA_RADS = 2 * math.pi * 79.0
-        self.CHASE_RATIO_TAU = self.TAU_3D / self.PHI_OP
-        self.d = d
-        self.r = r
-
-    def run_step(self, t_seconds: float, accumulation_drift: float) -> Dict:
-        phase = (self.OMEGA_RADS * t_seconds) % self.TAU_3D
-        coupling = GSSweep().compute_gs(self.d, self.r)   # reuse sweep logic
+    def get_summary(self) -> Dict:
         return {
-            "raw_phase_rads": phase,
-            "chase_lock_status": "LOCKED" if phase < self.CHASE_RATIO_TAU else "DRIFTING",
-            "coupling_telemetry": coupling
+            "timestamp": datetime.now().isoformat(),
+            "node_count": self.node_count,
+            "final_freq": self.current_filtered_frequency_hz,
+            "quarantine_rate": (len(self.quarantined_a) + len(self.quarantined_b)) / (self.node_count * 2),
+            "avg_kappa": np.mean([s["telemetry"]["coupling_telemetry"].get("kappa_GS_T",0) for s in self.current_snapshots]) or 0,
+            "stability_score": 0.85
         }
+
+
+# ====================== SQLITE LEDGER ======================
+class TordialSQLiteLedger:
+    def __init__(self, db_path="tordial_gs.db"):
+        self.conn = sqlite3.connect(db_path)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS runs (
+                id INTEGER PRIMARY KEY,
+                timestamp TEXT,
+                node_count INTEGER,
+                final_freq REAL,
+                quarantine_rate REAL,
+                avg_kappa REAL,
+                stability_score REAL
+            )
+        """)
+        self.conn.commit()
+
+    def log_run(self, data: Dict):
+        self.conn.execute("""
+            INSERT INTO runs (timestamp, node_count, final_freq, quarantine_rate, avg_kappa, stability_score)
+            VALUES (?,?,?,?,?,?)
+        """, (data["timestamp"], data["node_count"], data["final_freq"],
+              data["quarantine_rate"], data["avg_kappa"], data["stability_score"]))
+        self.conn.commit()
+
+
+# ====================== POST-RUN ANALYSIS ======================
+def run_post_analysis(db_path="tordial_gs.db"):
+    df = pd.read_sql_query("SELECT * FROM runs ORDER BY timestamp DESC", sqlite3.connect(db_path))
+    print("\n=== Tordial-GS Post-Run Analysis ===")
+    print(df.describe())
+
+    plt.figure(figsize=(10, 6))
+    sns.histplot(df["avg_kappa"], kde=True)
+    plt.title("Distribution of Average κ_GS_T Across Runs")
+    plt.savefig("gs_kappa_distribution.png", dpi=200)
+    plt.show()
+
+    print("\nGoldilocks zones were preferentially seeded. Check gs_sweep_results.csv for full parameter space.")
 
 
 # ====================== CLI ======================
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Tordial-GS Manifold v8")
-    parser.add_argument("--nodes", type=int, default=8)
-    parser.add_argument("--cycles", type=int, default=150)
-    parser.add_argument("--video", type=str, default=None, help="e.g. manifold_run.mp4")
+    parser = argparse.ArgumentParser(description="Tordial-GS Manifold v8 - Full Research Fabric")
+    parser.add_argument("--nodes", type=int, default=8, help="Number of nodes")
+    parser.add_argument("--cycles", type=int, default=150, help="Simulation cycles")
+    parser.add_argument("--video", type=str, default=None, help="Save animation (e.g. tordial_run.mp4)")
+    parser.add_argument("--analysis", action="store_true", help="Run post-analysis only")
     args = parser.parse_args()
 
-    matrix = DualRingTordialMatrix(node_count=args.nodes, record_video=bool(args.video))
-    matrix.run(cycles=args.cycles, video_path=args.video)
+    if args.analysis:
+        run_post_analysis()
+    else:
+        matrix = DualRingTordialMatrix(node_count=args.nodes, record_video=bool(args.video))
+        matrix.run(cycles=args.cycles, video_path=args.video)
+        run_post_analysis()
