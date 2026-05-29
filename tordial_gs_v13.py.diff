@@ -89,7 +89,7 @@ index abc1234..def5678
 +        return self.sigma_T
 +
 +
- \# =========================
+ # =========================
  # CONFIG LOAD
  # =========================
 @@ -68,7 +134,7 @@ class DualRingTordialMatrix:
@@ -111,7 +111,7 @@ index abc1234..def5678
 +            r_i = base_r + (i % 4) * 16         
 +            angle = (2 * math.pi * i) / self.node_count
 +            
-+            \# Use OpenTordialAgentNode for infinite loophole
++            # Use OpenTordialAgentNode for infinite loophole
 +            self.nodes_a.append(OpenTordialAgentNode(d_i, r_i, node_id=i, x=angle, y=angle))
 +            self.nodes_b.append(OpenTordialAgentNode(d_i, r_i, node_id=i + self.node_count, 
 +                                                     x=angle + 0.5, y=angle + 0.5))
@@ -150,12 +150,12 @@ index abc1234..def5678
 +        pressures = [system_load * 0.8 + random.random() for _ in self.nodes_a]
 +        resonances = [0.3 + random.random() * 0.6 for _ in self.nodes_a]
 +
-         \# Run ring A
+         # Run ring A
          for i, node in enumerate(self.nodes_a):
              peers_loads = [per_node_load] * (len(self.nodes_a) - 1)
 -            telemetry = node.run_step(t_seconds, per_node_load, peers_loads)
 +            
-+            \# Infinite loophole GS update
++            # Infinite loophole GS update
 +            if isinstance(node, OpenTordialAgentNode):
 +                node.compute_and_update_gs(pressures[i], resonances[i])
 +            
@@ -165,11 +165,11 @@ index abc1234..def5678
                  "telemetry": telemetry,
              })
  
-+            \# Fission check (high negative pressure / low sigma triggers split)
++            # Fission check (high negative pressure / low sigma triggers split)
 +            if isinstance(node, OpenTordialAgentNode) and getattr(node, 'sigma_T', 0) < -450:
 +                self._perform_node_fission(node, ring="A")
 +
-         \# ... (rest of agent negotiation and macro feedback remains)
+         # ... (rest of agent negotiation and macro feedback remains)
  
          # Macro stress signals (unchanged + enhanced)
          drifting_count = sum(1 for s in self.current_snapshots
