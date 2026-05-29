@@ -1,20 +1,11 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.manifold 
-import router as manifold_router
 
-    Manifold Matrix calculations
-app.include_router(
-    manifold_router,
-    prefix="/manifold",
-    tags=["Tordial Infinite-Density Drift Controller"]
-)
-
-
-# Pipeline Route Modulators
+# Pipeline Route Modulators & Geometric Infrastructure Ingress Ports
 from api.arc import router as arc_router
 from api.tunnel import router as tunnel_router
+from api.manifold import router as manifold_router
 
 # Core Rate Limiting & Security Governance Substrates
 from slowapi.middleware import SlowAPIMiddleware
@@ -88,4 +79,11 @@ app.include_router(
     tunnel_router,
     prefix="/tunnel",
     tags=["Dynamic Network Tunneling Channels"]
+)
+
+# Mount the dynamic Tordial Infinite-Density Drift Controller matrix calculations
+app.include_router(
+    manifold_router,
+    prefix="/manifold",
+    tags=["Tordial Infinite-Density Drift Controller"]
 )
