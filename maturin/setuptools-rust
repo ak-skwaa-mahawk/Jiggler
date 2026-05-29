@@ -1,0 +1,27 @@
+pip install maturin
+cd tordial_gs_py
+maturin develop
+
+import numpy as np
+import tordial_gs_py
+
+N = 64
+theta = np.linspace(0, 2*np.pi, N, endpoint=False)
+phi = np.linspace(0, 2*np.pi, N, endpoint=False)
+Θ, Φ = np.meshgrid(theta, phi, indexing="ij")
+
+Φ_field = np.zeros((N, N), dtype=np.float64)
+ρGS = 1.0 + 0.2 * np.cos(Θ) * np.cos(Φ)
+κ = 0.5 * np.ones_like(ρGS)
+
+α, β, λ = 1.0, 1.0, 1.0
+dt = 0.01
+Φ_target_mean = 0.0
+
+for _ in range(1000):
+    Φ_field = tordial_gs_py.tordial_gs_step_py(
+        Φ_field, ρGS, κ,
+        α, β, λ, dt, Φ_target_mean
+    )
+
+# Φ_field now contains the Rust-computed drift potential
