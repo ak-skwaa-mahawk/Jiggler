@@ -1,3 +1,20 @@
+tordial:
+  # Core Tordial Operational Constants
+  phi_op: 1.65036
+  pi_3d: 3.20442315
+  gear_shift_correction: 1.04
+  
+  # Base frequency (already overridden in code, but good to have)
+  base_frequency_hz: 79.79
+  
+  # Optional extra parameters for future extensions
+  chase_ratio: 1.9427
+  open_chase_residue: 0.04
+  platform_frequency: 79.79
+  
+  # Manifold tuning
+  max_sigma_target: 140
+  min_sigma_target: 78
 version: '3.8'
 
 services:
