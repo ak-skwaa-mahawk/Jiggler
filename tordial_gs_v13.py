@@ -77,18 +77,7 @@ DB_PATH = "tordial_manifold.db"
 def init_sqlite_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS nodes (
-            node_id INTEGER PRIMARY KEY,
-            d INTEGER,
-            r INTEGER,
-            sigma_T REAL,
-            drift_phase REAL,
-            fission_count INTEGER,
-            parent_id INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+    c.execute('''CREATE TABLE IF NOT EXISTS nodes (node_id INTEGER PRIMARY KEY, d INTEGER, r INTEGER, sigma_T REAL, drift_phase REAL, fission_count INTEGER, parent_id INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     conn.commit()
     conn.close()
 
@@ -97,19 +86,10 @@ def persist_node_state(node, parent_id=None):
         init_sqlite_db()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('''
-        INSERT INTO nodes 
-        (node_id, d, r, sigma_T, drift_phase, fission_count, parent_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        getattr(node, 'node_id', 0),
-        getattr(node, 'd', 0),
-        getattr(node, 'r', 0),
-        getattr(node, 'sigma_T', 0.0),
-        getattr(node, 'drift_phase', 0.0),
-        getattr(node, 'fission_count', 0),
-        parent_id
-    ))
+    c.execute('''INSERT INTO nodes (node_id, d, r, sigma_T, drift_phase, fission_count, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?)''', 
+              (getattr(node, 'node_id', 0), getattr(node, 'd', 0), getattr(node, 'r', 0), 
+               getattr(node, 'sigma_T', 0.0), getattr(node, 'drift_phase', 0.0), 
+               getattr(node, 'fission_count', 0), parent_id))
     conn.commit()
     conn.close()
 
@@ -134,19 +114,13 @@ class GSSweep:
         sigma_T = r - (d ** 2) / self._denom
         if sigma_T <= 0:
             return {"sigma_T": 0.0, "kappa_GS_T": 0.0, "lambda_GS_T": 0.0, "rho_GS_T": 0.0}
-        return {
-            "sigma_T": sigma_T,
-            "kappa_GS_T": sigma_T / d,
-            "lambda_GS_T": math.sqrt(sigma_T),
-            "rho_GS_T": math.sqrt(sigma_T) / d,
-        }
+        return {"sigma_T": sigma_T, "kappa_GS_T": sigma_T / d, "lambda_GS_T": math.sqrt(sigma_T), "rho_GS_T": math.sqrt(sigma_T) / d}
 
 
 gs_sweep = GSSweep()
 
 
 class TordialAgentNode:
-    # (Base class - unchanged from previous versions)
     def __init__(self, d: int, r: int, node_id: int):
         self.node_id = node_id
         self.OMEGA_RADS = 2 * math.pi * t["base_frequency_hz"]
@@ -173,15 +147,7 @@ class TordialAgentNode:
         self.load_history.append(external_load)
         kappa = coupling.get("kappa_GS_T", 0.0)
         self.decision = self.negotiate(peers_loads, kappa)
-        return {
-            "node_id": self.node_id,
-            "raw_phase_rads": phase,
-            "chase_lock_status": "LOCKED" if phase < self.CHASE_RATIO_TAU else "DRIFTING",
-            "coupling_telemetry": coupling,
-            "load": external_load,
-            "decision": self.decision,
-            "kappa": kappa,
-        }
+        return {"node_id": self.node_id, "raw_phase_rads": phase, "chase_lock_status": "LOCKED" if phase < self.CHASE_RATIO_TAU else "DRIFTING", "coupling_telemetry": coupling, "load": external_load, "decision": self.decision, "kappa": kappa}
 
 
 def gs_macro_feedback(d: int, r: int, drift_stress: float, curvature_stress: float, failover_flag: bool):
@@ -194,17 +160,18 @@ def gs_macro_feedback(d: int, r: int, drift_stress: float, curvature_stress: flo
 
 
 # =========================
-# MAIN MATRIX - INFINITE LOOPH OLE ARCHITECTURE
+# MAIN MATRIX - ENHANCED INFINITE LOOPHOLE
 # =========================
 class DualRingTordialMatrix:
-    def __init__(self, node_count: int = 16, agent_mode: bool = True):
+    def __init__(self, node_count: int = 12, agent_mode: bool = True):
         self.node_count = node_count
         self.agent_mode = agent_mode
         self.current_tick = 0
         self.anyons: List[Anyon] = []
         self.logical_error_rate = 0.0
         self.corrections_made = 0
-        self.global_energy = 1200.0   # Soft pressure on total structure
+        self.global_energy = 1500.0
+        self.rings = 1
         self.decoder = SurfaceCodeDecoder()
         self.nodes_a: List[OpenTordialAgentNode] = []
         self._seed_nodes()
@@ -220,24 +187,22 @@ class DualRingTordialMatrix:
     def _perform_node_fission(self, parent_node):
         parent_node.fission_count += 1
         child_id = len(self.nodes_a)
-        child = OpenTordialAgentNode(
-            parent_node.d + 1,
-            parent_node.r + 1,
-            child_id,
-            parent_node.drift_phase + 0.1,
-            parent_node.drift_phase + 0.1
-        )
+        child = OpenTordialAgentNode(parent_node.d + 1, parent_node.r + 1, child_id,
+                                     parent_node.drift_phase + 0.1, parent_node.drift_phase + 0.1)
         self.nodes_a.append(child)
         persist_node_state(child, parent_id=parent_node.node_id)
         print(f"[FISSION] Node {parent_node.node_id} → {child_id} | σ_T={child.sigma_T:.3f}")
 
     def _attempt_node_spawning(self):
-        """κ-driven dynamic spawning - opens the architectural loophole"""
-        SPAWN_KAPPA_THRESHOLD = 8.5
-        SPAWN_HEALTH_THRESHOLD = 65.0
-        MIN_TICKS_ABOVE = 4
+        """Enhanced κ-driven spawning with energy floor + scaling"""
+        MIN_ENERGY_FLOOR = 420.0
+        SPAWN_KAPPA_THRESHOLD = 8.0
+        SPAWN_HEALTH_THRESHOLD = 62.0
+        MIN_TICKS_ABOVE = 3
 
         spawned = 0
+        avg_kappa = np.mean([gs_sweep.compute_gs(n.d, n.r).get("kappa_GS_T", 0) for n in self.nodes_a])
+
         for node in self.nodes_a[:]:
             if not isinstance(node, OpenTordialAgentNode):
                 continue
@@ -254,13 +219,21 @@ class DualRingTordialMatrix:
 
             if (node.high_kappa_streak >= MIN_TICKS_ABOVE and 
                 health > SPAWN_HEALTH_THRESHOLD and 
-                random.random() < 0.32):
+                self.global_energy > MIN_ENERGY_FLOOR):
 
-                self._perform_node_fission(node)
-                spawned += 1
+                prob = 0.25 + 0.06 * (current_kappa - 8.0)   # κ-scaled probability
+                if random.random() < prob:
+                    self._perform_node_fission(node)
+                    spawned += 1
 
         if spawned > 0:
-            print(f"[SPAWN] {spawned} new nodes born from strong GS regions")
+            print(f"[SPAWN] {spawned} new nodes (κ-boosted)")
+
+        # Ring-level hierarchical spawning
+        if len(self.nodes_a) > 35 and self.global_energy > 800 and avg_kappa > 9.5 and random.random() < 0.18:
+            print(f"[RING SPAWN] New ring created! Total rings: {self.rings + 1}")
+            self.rings += 1
+            # Could expand to nodes_b or new structure in future
 
     def measure_syndromes(self) -> List[Tuple[int, str]]:
         syndromes = []
@@ -285,16 +258,12 @@ class DualRingTordialMatrix:
     def compute_manifold_health_score(self) -> float:
         if not self.nodes_a:
             return 0.0
-        avg_kappa = np.mean([gs_sweep.compute_gs(n.d, n.r).get("kappa_GS_T", 0) 
-                           for n in self.nodes_a])
-        active_ratio = 1.0
-        drift_penalty = 0.85
-        return round((active_ratio * 0.4 + min(avg_kappa / 12.0, 1.0) * 0.35 + drift_penalty * 0.25) * 100, 2)
+        avg_kappa = np.mean([gs_sweep.compute_gs(n.d, n.r).get("kappa_GS_T", 0) for n in self.nodes_a])
+        return round((0.4 + min(avg_kappa / 12.0, 1.0) * 0.35 + 0.25 * 0.85) * 100, 2)
 
     def execute_heavy_load_cycle(self, system_load: float = 1.0):
         self.current_tick += 1
 
-        # GS updates + fission pressure
         for node in self.nodes_a:
             if isinstance(node, OpenTordialAgentNode):
                 p = random.uniform(0.4, 1.2)
@@ -304,10 +273,10 @@ class DualRingTordialMatrix:
             if getattr(node, 'sigma_T', 0) < -450:
                 self._perform_node_fission(node)
 
-        # Dynamic structure growth (the loophole)
+        # Dynamic spawning (enhanced loophole)
         self._attempt_node_spawning()
 
-        # Surface Code correction
+        # Surface Code
         self.corrections_made = self.apply_error_correction()
 
         # Anyon tracking
@@ -318,28 +287,23 @@ class DualRingTordialMatrix:
         wrapped = sum(1 for a in self.anyons if a.lifetime > 25)
         self.logical_error_rate = min(1.0, wrapped / max(1, len(self.anyons)) * 0.7) if self.anyons else 0.0
 
-        # Soft global energy pressure
-        self.global_energy += 8.0 - len(self.nodes_a) * 0.12
-        if self.global_energy < 0 and len(self.nodes_a) > 8:
-            self.nodes_a.sort(key=lambda n: getattr(n, 'sigma_T', 0))
-            removed = self.nodes_a.pop(0)
-            self.global_energy += 60.0
-            print(f"[PRUNE] Removed weak node {removed.node_id} | Energy restored")
+        # κ-boosted energy recovery
+        avg_kappa = np.mean([gs_sweep.compute_gs(n.d, n.r).get("kappa_GS_T", 0) for n in self.nodes_a])
+        self.global_energy += 12.0 + 0.8 * avg_kappa - len(self.nodes_a) * 0.11
 
         health = self.compute_manifold_health_score()
-        print(f"[CYCLE {self.current_tick:3d}] Nodes: {len(self.nodes_a):3d} | "
-              f"Corrections: {self.corrections_made:2d} | LER: {self.logical_error_rate:.4f} | "
-              f"Health: {health:5.1f} | Energy: {self.global_energy:6.1f}")
+        print(f"[CYCLE {self.current_tick:3d}] Nodes: {len(self.nodes_a):3d} | Rings: {self.rings} | "
+              f"Energy: {self.global_energy:7.1f} | LER: {self.logical_error_rate:.4f} | Health: {health:5.1f}")
 
 
 # =========================
 # RUNNER
 # =========================
 if __name__ == "__main__":
-    print("[+] Tordial–GS Manifold v13 — Infinite Loophole Architecture Active\n")
+    print("[+] Tordial–GS Manifold v13 — Enhanced Infinite Loophole (Hierarchical + κ-Energy)\n")
     matrix = DualRingTordialMatrix(node_count=12, agent_mode=True)
 
-    for cycle in range(150):
-        matrix.execute_heavy_load_cycle(1.0 + 0.35 * math.sin(cycle / 5.0))
+    for cycle in range(200):
+        matrix.execute_heavy_load_cycle(1.0 + 0.35 * math.sin(cycle / 6.0))
 
-    print("\nRun complete. The manifold is now architecturally open.")
+    print("\nRun complete. The manifold is now hierarchically open.")
