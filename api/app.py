@@ -1,6 +1,16 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from api.manifold 
+import router as manifold_router
+
+    Manifold Matrix calculations
+app.include_router(
+    manifold_router,
+    prefix="/manifold",
+    tags=["Tordial Infinite-Density Drift Controller"]
+)
+
 
 # Pipeline Route Modulators
 from api.arc import router as arc_router
