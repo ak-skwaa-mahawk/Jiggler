@@ -1,66 +1,82 @@
 # app.py
 import streamlit as st
-import time
-import yaml
 import numpy as np
 import plotly.graph_objects as go
-from tordial_gs_v10 import DualRingTordialMatrix
+from tordial_gs_v11 import DualRingTordialMatrix
 
-st.set_page_config(page_title="Tordial-GS Live Fabric", layout="wide")
-st.title("Tordial–GS Manifold v10 — Heavy Load Control Surface")
+st.set_page_config(page_title="Tordial-GS v11", layout="wide")
+st.title("Tordial–GS Manifold v11 • Heavy Load + Smart Sync")
 
-# Sidebar
-st.sidebar.header("Simulation Controls")
+# Controls
+st.sidebar.header("Controls")
 node_count = st.sidebar.slider("Nodes", 6, 24, 12)
-system_load = st.sidebar.slider("System Load Factor", 0.5, 4.0, 1.8, 0.1)
-run_btn = st.sidebar.button("Start / Resume")
-pause_btn = st.sidebar.button("Pause")
+system_load = st.sidebar.slider("System Load", 0.5, 5.0, 2.2, 0.1)
+run = st.sidebar.button("▶️ Run / Resume")
+pause = st.sidebar.button("⏸️ Pause")
 
 col1, col2 = st.columns([3, 2])
 
 with col1:
-    st.subheader("Live Toroidal Visualization")
-    viz_placeholder = st.empty()
+    st.subheader("Live Toroidal Manifold with Load Heat")
+    viz = st.empty()
 
 with col2:
-    st.subheader("System Status")
-    freq_metric = st.empty()
-    load_metric = st.empty()
-    shed_metric = st.empty()
+    st.subheader("Metrics")
+    freq_m = st.empty()
+    load_m = st.empty()
+    shed_m = st.empty()
+    sync_m = st.empty()
 
-# Session state
 if "matrix" not in st.session_state:
     st.session_state.matrix = DualRingTordialMatrix(node_count=node_count)
     st.session_state.running = False
-    st.session_state.tick = 0
 
-if run_btn:
+if run:
     st.session_state.running = True
 
 if st.session_state.running:
     matrix = st.session_state.matrix
     matrix.execute_heavy_load_cycle(system_load=system_load)
-    st.session_state.tick += 1
 
-    # 3D Visualization
+    # === 3D Plot with Load Heat Overlay ===
     fig = go.Figure()
     for i, snap in enumerate(matrix.current_snapshots):
         phase = snap["telemetry"]["raw_phase_rads"]
         kappa = snap["telemetry"]["coupling_telemetry"].get("kappa_GS_T", 0)
         load = snap["telemetry"]["load"]
+        status = snap["telemetry"]["chase_lock_status"]
+
         x = (3.3 + 1.15 * np.cos(i * 0.78)) * np.cos(phase)
         y = (3.3 + 1.15 * np.cos(i * 0.78)) * np.sin(phase)
         z = 1.15 * np.sin(i * 0.78)
-        color = "lime" if snap["telemetry"]["chase_lock_status"] == "LOCKED" else "red"
-        fig.add_trace(go.Scatter3d(x=[x], y=[y], z=[z], mode='markers',
-                                  marker=dict(size=8 + kappa*1.2, color=color),
-                                  name=f"Node {i}"))
-    fig.update_layout(height=600, title=f"Tick {st.session_state.tick} | Active Ring: {matrix.active_ring}")
-    viz_placeholder.plotly_chart(fig, use_container_width=True)
 
-    freq_metric.metric("Frequency", f"{matrix.current_filtered_frequency_hz:.3f} Hz", "79.79 Hz target")
-    load_metric.metric("System Load", f"{system_load:.1f}x", "Heavy Load Mode")
-    shed_metric.metric("Nodes Shed", f"{len(matrix.quarantined_a | matrix.quarantined_b)}", "Adaptive")
+        # Load-based coloring (heat)
+        intensity = min(1.0, load / 3.5)
+        color = f'rgb({int(255*intensity)}, {int(100*(1-intensity))}, 50)' if status != "QUARANTINED" else "gray"
 
-    time.sleep(0.15)
+        size = 7 + kappa * 1.4
+
+        fig.add_trace(go.Scatter3d(
+            x=[x], y=[y], z=[z],
+            mode='markers',
+            marker=dict(size=size, color=color, opacity=0.95, line=dict(width=1, color='white')),
+            name=f"Node {i} (κ={kappa:.1f}, load={load:.2f})"
+        ))
+
+    fig.update_layout(
+        title=f"Tick {matrix.current_tick} | Active: {matrix.active_ring} | Freq: {matrix.current_filtered_frequency_hz:.3f} Hz",
+        scene=dict(xaxis=dict(range=[-6,6]), yaxis=dict(range=[-6,6]), zaxis=dict(range=[-3.5,3.5])),
+        height=680,
+        margin=dict(l=0, r=0, b=0, t=40)
+    )
+
+    viz.plotly_chart(fig, use_container_width=True)
+
+    # Metrics
+    freq_m.metric("Frequency", f"{matrix.current_filtered_frequency_hz:.3f} Hz", "79.79 Hz")
+    load_m.metric("System Load", f"{system_load:.2f}x", "Heavy")
+    shed_m.metric("Shed / Quarantined", f"{len(matrix.quarantined_a | matrix.quarantined_b)}", "Adaptive")
+    sync_m.metric("Last Sync", f"Tick {matrix.last_sync_tick}", "Diff-based")
+
+    time.sleep(0.12)
     st.rerun()
