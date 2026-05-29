@@ -2,81 +2,91 @@
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
-from tordial_gs_v11 import DualRingTordialMatrix
+import pandas as pd
+import time
+from datetime import datetime
+from tordial_gs_v12 import DualRingTordialMatrix, TordialAgentNode
 
-st.set_page_config(page_title="Tordial-GS v11", layout="wide")
-st.title("Tordial–GS Manifold v11 • Heavy Load + Smart Sync")
+st.set_page_config(page_title="Tordial-GS v12", layout="wide")
+st.title("Tordial–GS Manifold v12 • Agent Mode + Replay")
 
 # Controls
 st.sidebar.header("Controls")
 node_count = st.sidebar.slider("Nodes", 6, 24, 12)
-system_load = st.sidebar.slider("System Load", 0.5, 5.0, 2.2, 0.1)
-run = st.sidebar.button("▶️ Run / Resume")
-pause = st.sidebar.button("⏸️ Pause")
+system_load = st.sidebar.slider("System Load", 0.5, 5.0, 2.3, 0.1)
+agent_mode = st.sidebar.checkbox("Enable Agent Mode (per-node decisions)", value=True)
+run_btn = st.sidebar.button("▶️ Start / Resume")
+pause_btn = st.sidebar.button("⏸️ Pause")
+export_btn = st.sidebar.button("💾 Export Session (CSV + Video)")
 
 col1, col2 = st.columns([3, 2])
 
 with col1:
-    st.subheader("Live Toroidal Manifold with Load Heat")
-    viz = st.empty()
+    st.subheader("Live Toroidal Manifold + Load Heat")
+    viz_placeholder = st.empty()
 
 with col2:
-    st.subheader("Metrics")
+    st.subheader("Real-time Metrics")
     freq_m = st.empty()
     load_m = st.empty()
     shed_m = st.empty()
-    sync_m = st.empty()
+
+# Load History Chart
+st.subheader("System-Wide Load History")
+history_placeholder = st.empty()
 
 if "matrix" not in st.session_state:
-    st.session_state.matrix = DualRingTordialMatrix(node_count=node_count)
+    st.session_state.matrix = DualRingTordialMatrix(node_count=node_count, agent_mode=agent_mode)
     st.session_state.running = False
+    st.session_state.session_data = []
 
-if run:
+if run_btn:
     st.session_state.running = True
 
 if st.session_state.running:
     matrix = st.session_state.matrix
     matrix.execute_heavy_load_cycle(system_load=system_load)
-
-    # === 3D Plot with Load Heat Overlay ===
+    
+    # === 3D Visualization with Load Heat ===
     fig = go.Figure()
     for i, snap in enumerate(matrix.current_snapshots):
         phase = snap["telemetry"]["raw_phase_rads"]
-        kappa = snap["telemetry"]["coupling_telemetry"].get("kappa_GS_T", 0)
         load = snap["telemetry"]["load"]
-        status = snap["telemetry"]["chase_lock_status"]
-
+        decision = snap["telemetry"].get("decision", "STABLE")
+        
         x = (3.3 + 1.15 * np.cos(i * 0.78)) * np.cos(phase)
         y = (3.3 + 1.15 * np.cos(i * 0.78)) * np.sin(phase)
         z = 1.15 * np.sin(i * 0.78)
 
-        # Load-based coloring (heat)
-        intensity = min(1.0, load / 3.5)
-        color = f'rgb({int(255*intensity)}, {int(100*(1-intensity))}, 50)' if status != "QUARANTINED" else "gray"
+        intensity = min(1.0, load / 4.0)
+        color = f'rgb({int(255*intensity)}, {max(80, int(180*(1-intensity)))}, 60)'
+        
+        fig.add_trace(go.Scatter3d(x=[x], y=[y], z=[z], mode='markers',
+                                  marker=dict(size=9, color=color, opacity=0.95),
+                                  name=f"N{i} | {decision}"))
+    
+    fig.update_layout(height=650, title=f"Tick {matrix.current_tick} | Active Ring: {matrix.active_ring}")
+    viz_placeholder.plotly_chart(fig, use_container_width=True)
 
-        size = 7 + kappa * 1.4
-
-        fig.add_trace(go.Scatter3d(
-            x=[x], y=[y], z=[z],
-            mode='markers',
-            marker=dict(size=size, color=color, opacity=0.95, line=dict(width=1, color='white')),
-            name=f"Node {i} (κ={kappa:.1f}, load={load:.2f})"
-        ))
-
-    fig.update_layout(
-        title=f"Tick {matrix.current_tick} | Active: {matrix.active_ring} | Freq: {matrix.current_filtered_frequency_hz:.3f} Hz",
-        scene=dict(xaxis=dict(range=[-6,6]), yaxis=dict(range=[-6,6]), zaxis=dict(range=[-3.5,3.5])),
-        height=680,
-        margin=dict(l=0, r=0, b=0, t=40)
-    )
-
-    viz.plotly_chart(fig, use_container_width=True)
+    # Real-time Load History Line Chart
+    history_df = pd.DataFrame({
+        "tick": range(len(matrix.system_load_history)),
+        "avg_load": matrix.system_load_history
+    })
+    history_fig = go.Figure()
+    history_fig.add_trace(go.Scatter(x=history_df["tick"], y=history_df["avg_load"], mode='lines+markers', name="Avg Load"))
+    history_fig.update_layout(height=280, title="Real-time System Load History")
+    history_placeholder.plotly_chart(history_fig, use_container_width=True)
 
     # Metrics
-    freq_m.metric("Frequency", f"{matrix.current_filtered_frequency_hz:.3f} Hz", "79.79 Hz")
-    load_m.metric("System Load", f"{system_load:.2f}x", "Heavy")
-    shed_m.metric("Shed / Quarantined", f"{len(matrix.quarantined_a | matrix.quarantined_b)}", "Adaptive")
-    sync_m.metric("Last Sync", f"Tick {matrix.last_sync_tick}", "Diff-based")
+    freq_m.metric("Frequency", f"{matrix.current_filtered_frequency_hz:.3f} Hz")
+    load_m.metric("Current Load", f"{system_load:.2f}x")
+    shed_m.metric("Quarantined / Shed", f"{len(matrix.quarantined_a | matrix.quarantined_b)}")
 
-    time.sleep(0.12)
-    st.rerun()
+if export_btn:
+    # Export session data
+    df = pd.DataFrame(st.session_state.session_data)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    df.to_csv(f"tordial_session_{timestamp}.csv", index=False)
+    st.success(f"Session exported to tordial_session_{timestamp}.csv")
+    # Video export logic can be triggered here (using matplotlib animation)
