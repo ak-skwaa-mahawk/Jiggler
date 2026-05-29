@@ -4,79 +4,63 @@ import time
 import yaml
 import numpy as np
 import plotly.graph_objects as go
-from datetime import datetime
+from tordial_gs_v10 import DualRingTordialMatrix
 
-st.set_page_config(page_title="Tordial-GS Manifold", layout="wide")
-st.title("Tordial–GS Manifold Live Control Fabric")
+st.set_page_config(page_title="Tordial-GS Live Fabric", layout="wide")
+st.title("Tordial–GS Manifold v10 — Heavy Load Control Surface")
 
-# Load config
-with open("config.yaml") as f:
-    config = yaml.safe_load(f)
+# Sidebar
+st.sidebar.header("Simulation Controls")
+node_count = st.sidebar.slider("Nodes", 6, 24, 12)
+system_load = st.sidebar.slider("System Load Factor", 0.5, 4.0, 1.8, 0.1)
+run_btn = st.sidebar.button("Start / Resume")
+pause_btn = st.sidebar.button("Pause")
 
-# Sidebar controls
-st.sidebar.header("Controls")
-node_count = st.sidebar.slider("Number of Nodes", 4, 20, config["simulation"]["default_nodes"])
-cycles = st.sidebar.slider("Simulation Cycles", 50, 500, 200)
-run_button = st.sidebar.button("▶️ Start / Resume Manifold")
-pause = st.sidebar.button("⏸️ Pause")
-reset = st.sidebar.button("Reset")
-
-# Main dashboard
 col1, col2 = st.columns([3, 2])
 
 with col1:
-    st.subheader("Live Toroidal Manifold")
-    plot_placeholder = st.empty()
+    st.subheader("Live Toroidal Visualization")
+    viz_placeholder = st.empty()
 
 with col2:
-    st.subheader("Telemetry")
-    freq_placeholder = st.empty()
-    kappa_placeholder = st.empty()
-    status_placeholder = st.empty()
+    st.subheader("System Status")
+    freq_metric = st.empty()
+    load_metric = st.empty()
+    shed_metric = st.empty()
 
-# Simple simulation state
+# Session state
 if "matrix" not in st.session_state:
-    st.session_state.matrix = None
+    st.session_state.matrix = DualRingTordialMatrix(node_count=node_count)
     st.session_state.running = False
     st.session_state.tick = 0
 
-if run_button:
+if run_btn:
     st.session_state.running = True
 
-# Mock live loop (replace with actual matrix integration)
 if st.session_state.running:
-    for _ in range(8):  # update in bursts
-        # Simulate data
-        t = time.time()
-        phases = np.linspace(0, 2*np.pi, node_count) + t
-        kappas = np.random.uniform(4.5, 8.2, node_count)
-        
-        # 3D Plotly Torus
-        fig = go.Figure()
-        for i in range(node_count):
-            phase = phases[i]
-            x = (3.3 + 1.15 * np.cos(i * 0.78)) * np.cos(phase)
-            y = (3.3 + 1.15 * np.cos(i * 0.78)) * np.sin(phase)
-            z = 1.15 * np.sin(i * 0.78)
-            color = "lime" if np.random.rand() > 0.3 else "red"
-            fig.add_trace(go.Scatter3d(x=[x], y=[y], z=[z], mode='markers',
-                                     marker=dict(size=8 + kappas[i], color=color)))
-        
-        fig.update_layout(title=f"Tick {st.session_state.tick} | Freq: 78.4 Hz", 
-                         scene=dict(xaxis=dict(range=[-6,6]), yaxis=dict(range=[-6,6]), zaxis=dict(range=[-4,4])))
-        
-        plot_placeholder.plotly_chart(fig, use_container_width=True)
-        
-        freq_placeholder.metric("Current Frequency", f"{78.2 + np.random.randn():.2f} Hz", "Stable")
-        kappa_placeholder.metric("Avg κ_GS_T", f"{np.mean(kappas):.2f}", "Strong")
-        
-        st.session_state.tick += 1
-        time.sleep(0.25)
+    matrix = st.session_state.matrix
+    matrix.execute_heavy_load_cycle(system_load=system_load)
+    st.session_state.tick += 1
 
-# GS Sweep Panel
-st.subheader("GS Parameter Sweep")
-if st.button("Run Full GS Sweep"):
-    with st.spinner("Sweeping (d,r) space..."):
-        # Call your sweep logic here
-        st.success("Sweep complete! Goldilocks zones identified.")
-        st.dataframe(...)  # show results
+    # 3D Visualization
+    fig = go.Figure()
+    for i, snap in enumerate(matrix.current_snapshots):
+        phase = snap["telemetry"]["raw_phase_rads"]
+        kappa = snap["telemetry"]["coupling_telemetry"].get("kappa_GS_T", 0)
+        load = snap["telemetry"]["load"]
+        x = (3.3 + 1.15 * np.cos(i * 0.78)) * np.cos(phase)
+        y = (3.3 + 1.15 * np.cos(i * 0.78)) * np.sin(phase)
+        z = 1.15 * np.sin(i * 0.78)
+        color = "lime" if snap["telemetry"]["chase_lock_status"] == "LOCKED" else "red"
+        fig.add_trace(go.Scatter3d(x=[x], y=[y], z=[z], mode='markers',
+                                  marker=dict(size=8 + kappa*1.2, color=color),
+                                  name=f"Node {i}"))
+    fig.update_layout(height=600, title=f"Tick {st.session_state.tick} | Active Ring: {matrix.active_ring}")
+    viz_placeholder.plotly_chart(fig, use_container_width=True)
+
+    freq_metric.metric("Frequency", f"{matrix.current_filtered_frequency_hz:.3f} Hz", "79.79 Hz target")
+    load_metric.metric("System Load", f"{system_load:.1f}x", "Heavy Load Mode")
+    shed_metric.metric("Nodes Shed", f"{len(matrix.quarantined_a | matrix.quarantined_b)}", "Adaptive")
+
+    time.sleep(0.15)
+    st.rerun()
