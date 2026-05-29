@@ -1,0 +1,5 @@
+tordial:
+  pi_3d: 3.20442315
+  phi_op: 1.65036
+  gear_shift_correction: 1.04
+  base_frequency_hz: 79.79
