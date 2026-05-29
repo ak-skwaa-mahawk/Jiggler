@@ -1,94 +1,99 @@
-# stress_sweep.py
-import yaml
-import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm
-from tordial_gs_v8 import GSSweep, TordialNode  # import from main file
+import json
+import time
+import os
+from tordial_gs_v13 import DualRingTordialMatrix, OpenTordialAgentNode
 
-class GSSstressTester:
-    def __init__(self):
-        with open("config.yaml") as f:
-            self.config = yaml.safe_load(f)
-        self.gs = GSSweep()
+def run_stress_test(node_count=24, cycles=300, mode="open"):
+    """Run stress test in bounded vs open (infinite) mode."""
+    print(f"\n=== Stress Sweep: {mode.upper()} MODE | Nodes={node_count} | Cycles={cycles} ===")
+    
+    matrix = DualRingTordialMatrix(node_count=node_count, agent_mode=True)
+    
+    pressures = np.random.uniform(0.4, 1.2, cycles)
+    resonances = np.random.uniform(0.2, 0.9, cycles)
+    
+    collapse_events = 0
+    fission_events = 0
+    sigma_history = []
+    node_count_history = []
+    
+    start_time = time.time()
+    
+    for c in range(cycles):
+        # Simulate varying load
+        load = 1.0 + 0.5 * np.sin(c / 20)
+        matrix.execute_heavy_load_cycle(system_load=load)
+        
+        current_nodes = len(matrix.nodes_a)
+        node_count_history.append(current_nodes)
+        
+        # Get average sigma_T
+        sigmas = [getattr(n, 'sigma_T', 0) for n in matrix.nodes_a if hasattr(n, 'sigma_T')]
+        avg_sigma = np.mean(sigmas) if sigmas else 0
+        sigma_history.append(avg_sigma)
+        
+        if avg_sigma < -800:
+            collapse_events += 1
+        
+        # Count total fissions
+        fission_events += sum(getattr(n, 'fission_count', 0) for n in matrix.nodes_a)
+        
+        if c % 50 == 0:
+            print(f"Cycle {c:4d} | Nodes: {current_nodes:4d} | Avg σ_T: {avg_sigma:8.2f}")
+    
+    duration = time.time() - start_time
+    
+    results = {
+        "mode": mode,
+        "final_nodes": len(matrix.nodes_a),
+        "collapse_events": collapse_events,
+        "total_fissions": fission_events,
+        "avg_sigma": float(np.mean(sigma_history)),
+        "max_nodes": max(node_count_history),
+        "duration_sec": round(duration, 2)
+    }
+    
+    print(f"→ Final Nodes: {results['final_nodes']} | Collapses: {collapse_events} | Fissions: {fission_events}")
+    return results
 
-    def run_stress_test(self, 
-                       d_range=(15, 80, 3),
-                       r_multiplier=(1.0, 4.0, 0.2),
-                       cycles_per_config=80):
-        
-        results = []
-        print("Starting GS Inequality Stress Test...\n")
-        
-        for d in tqdm(range(*d_range)):
-            for mult in np.arange(*r_multiplier):
-                r = int(d * d * self.config["tordial"]["phi_op"] * self.config["tordial"]["gear_shift_correction"] * mult)
-                
-                node = TordialNode(d, r)
-                coupling = self.gs.compute_gs(d, r)
-                
-                # Simulate stability over cycles
-                drift_history = []
-                lock_ratio = 0.0
-                
-                for c in range(cycles_per_config):
-                    # Simulate increasing external drift pressure
-                    external_drift = 0.01 + (c / cycles_per_config) * 0.4
-                    step = node.run_step(c * 0.012)
-                    drift_history.append(external_drift)
-                    if step["chase_lock_status"] == "LOCKED":
-                        lock_ratio += 1
-                
-                lock_ratio /= cycles_per_config
-                stability = lock_ratio * (coupling["kappa_GS_T"] if coupling["kappa_GS_T"] > 0 else 0)
-                
-                results.append({
-                    "d": d,
-                    "r": r,
-                    "multiplier": round(mult, 2),
-                    "sigma_T": coupling["sigma_T"],
-                    "kappa_GS_T": coupling["kappa_GS_T"],
-                    "band": coupling["band"],
-                    "lock_ratio": round(lock_ratio, 4),
-                    "stability_score": round(stability, 4),
-                    "collapsed": coupling["sigma_T"] <= 0
-                })
-        
-        df = pd.DataFrame(results)
-        df.to_csv("gs_stress_test_results.csv", index=False)
-        
-        # Visualizations
-        self.plot_results(df)
-        self.print_summary(df)
-        return df
 
-    def plot_results(self, df):
-        fig, axs = plt.subplots(2, 2, figsize=(14, 10))
-        
-        # Kappa vs Stability
-        scatter = axs[0,0].scatter(df["kappa_GS_T"], df["stability_score"], 
-                                 c=df["lock_ratio"], cmap="viridis", s=40, alpha=0.8)
-        axs[0,0].set_xlabel("κ_GS_T")
-        axs[0,0].set_ylabel("Stability Score")
-        axs[0,0].set_title("GS Strength vs System Stability")
-        plt.colorbar(scatter, ax=axs[0,0], label="Lock Ratio")
-        
-        # Band performance
-        df.groupby("band")["stability_score"].mean().plot(kind="bar", ax=axs[0,1])
-        axs[0,1].set_title("Average Stability by GS Band")
-        axs[0,1].set_ylabel("Mean Stability Score")
-        
-        plt.tight_layout()
-        plt.savefig("gs_stress_test.png", dpi=240)
-        plt.show()
+def compare_before_after():
+    """Compare bounded vs infinite loophole performance."""
+    print("Running Bounded vs Open comparison...\n")
+    
+    bounded = run_stress_test(mode="bounded")
+    open_mode = run_stress_test(mode="open")
+    
+    # Plot comparison
+    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+    
+    # Node growth
+    axs[0,0].plot(range(len(bounded.get('node_history', []) or [])), label='Bounded')
+    axs[0,0].plot(range(len(open_mode.get('node_history', []) or [])), label='Open (Infinite)')
+    axs[0,0].set_title('Node Count Growth')
+    axs[0,0].legend()
+    
+    axs[0,1].bar(['Bounded', 'Open'], [bounded['collapse_events'], open_mode['collapse_events']])
+    axs[0,1].set_title('Collapse Events')
+    
+    axs[1,0].bar(['Bounded', 'Open'], [bounded['final_nodes'], open_mode['final_nodes']])
+    axs[1,0].set_title('Final Node Count')
+    
+    axs[1,1].bar(['Bounded', 'Open'], [bounded['total_fissions'], open_mode['total_fissions']])
+    axs[1,1].set_title('Fission Events')
+    
+    plt.suptitle("Tordial-GS Stress Sweep: Bounded vs Infinite Loophole")
+    plt.tight_layout()
+    plt.savefig("stress_sweep_comparison.png")
+    plt.show()
+    
+    with open("stress_results.json", "w") as f:
+        json.dump({"bounded": bounded, "open": open_mode}, f, indent=2)
+    
+    print("\nComparison complete. Results saved to stress_results.json + stress_sweep_comparison.png")
 
-    def print_summary(self, df):
-        print("\n=== GS Stress Test Summary ===")
-        print(f"Total configurations tested : {len(df)}")
-        print(f"Collapse rate               : {(df['collapsed'].mean()*100):.1f}%")
-        print(f"Best Goldilocks stability   : {df[df['band']=='GOLDILOCKS']['stability_score'].max():.4f}")
-        print(f"Deep GS survival under load : {df[df['band']=='DEEP_GS']['lock_ratio'].mean():.3f}")
 
 if __name__ == "__main__":
-    tester = GSSstressTester()
-    tester.run_stress_test(d_range=(18, 75, 4), r_multiplier=(0.8, 4.5, 0.25))
+    compare_before_after()
