@@ -1,0 +1,242 @@
+import math
+import numpy as np
+import time
+import csv
+import os
+from typing import List, Dict, Set
+
+class TordialNode:
+    """Core node with clamped GS shaping."""
+    def __init__(self, d_generators: int = 42, r_relations: int = 380):
+        # Tordial constants
+        self.PI_3D = 3.20442315
+        self.TAU_3D = 2 * self.PI_3D
+        self.PHI_OP = 1.65036
+        self.GEAR_SHIFT_CORRECTION = 1.04
+        self.OMEGA_FREQ_HZ = 79.0
+        self.OMEGA_RADS = 2 * math.pi * self.OMEGA_FREQ_HZ
+        self.CHASE_RATIO_TAU = self.TAU_3D / self.PHI_OP          # intentional angle-space window
+        self.DRIFT_BUDGET_D = self.GEAR_SHIFT_CORRECTION - 1.0
+
+        self.d = d_generators
+        self.r = r_relations
+
+    def get_gs_constants(self) -> Dict[str, float] | None:
+        denom = 4 * self.PHI_OP * self.GEAR_SHIFT_CORRECTION
+        sigma_T = self.r - (self.d ** 2) / denom
+        if sigma_T <= 0:
+            return None
+        kappa = sigma_T / self.d
+        lam = math.sqrt(sigma_T)
+        rho = lam / self.d
+        return {
+            "sigma_T": sigma_T,
+            "kappa_GS_T": kappa,
+            "lambda_GS_T": lam,
+            "rho_GS_T": rho
+        }
+
+    def run_79hz_telemetry_step(self, t_seconds: float, accumulation_drift: float) -> Dict:
+        phase_angle = (self.OMEGA_RADS * t_seconds) % self.TAU_3D
+        normalized = phase_angle / self.TAU_3D
+        is_locked = phase_angle < self.CHASE_RATIO_TAU
+
+        coupling = self.get_gs_constants()
+        
+        # GS-shaped local drift budget with clamp
+        local_drift_budget = self.DRIFT_BUDGET_D
+        if coupling:
+            rho_clamped = min(coupling["rho_GS_T"], 2.0)
+            local_drift_budget *= (1.0 + rho_clamped * 0.8)
+
+        compensated_drift = accumulation_drift * local_drift_budget
+
+        return {
+            "t_seconds": t_seconds,
+            "raw_phase_rads": phase_angle,
+            "normalized_rotation": normalized,
+            "chase_lock_status": "LOCKED" if is_locked else "DRIFTING",
+            "buffered_residue_drift": compensated_drift,
+            "coupling_telemetry": coupling,
+            "local_drift_budget": local_drift_budget
+        }
+
+
+class TordialNetworkLedger:
+    def __init__(self):
+        self.history: List[Dict] = []
+
+    def commit_entry(self, tick: int, snapshots: List[Dict], active_freq: float):
+        drifting = sum(1 for s in snapshots if s["telemetry"]["chase_lock_status"] == "DRIFTING")
+        kappas = [s["telemetry"]["coupling_telemetry"]["kappa_GS_T"]
+                  for s in snapshots if s["telemetry"]["coupling_telemetry"]]
+        avg_kappa = np.mean(kappas) if kappas else 0.0
+        avg_sigma = np.mean([s["telemetry"]["coupling_telemetry"]["sigma_T"]
+                             for s in snapshots if s["telemetry"]["coupling_telemetry"]]) or 0.0
+
+        self.history.append({
+            "tick": tick,
+            "freq_hz": active_freq,
+            "drifting_count": drifting,
+            "avg_kappa_GS": avg_kappa,
+            "avg_sigma_T": avg_sigma,
+        })
+
+
+class TordialPIDFilter:
+    def __init__(self, initial_val: float = 79.0):
+        self.kp = 0.45
+        self.ki = 0.06
+        self.kd = 0.12
+        self.current_value = initial_val
+        self.integral_error = 0.0
+        self.prev_error = 0.0
+
+    def process(self, target: float, dt: float = 1.0) -> float:
+        error = target - self.current_value
+        self.integral_error += error * dt
+        derivative = (error - self.prev_error) / dt
+        adjustment = self.kp * error + self.ki * self.integral_error + self.kd * derivative
+        self.current_value += adjustment
+        self.prev_error = error
+        return max(45.0, min(92.0, self.current_value))  # hard bounds
+
+
+class DualRingTordialMatrix:
+    def __init__(self, node_count: int = 6, base_d: int = 42, base_r: int = 380):
+        self.node_count = node_count
+        self.BASE_FREQUENCY_HZ = 79.0
+        self.MIN_FREQUENCY_FLOOR_HZ = 48.0
+        self.current_filtered_frequency_hz = self.BASE_FREQUENCY_HZ
+
+        self.pid = TordialPIDFilter(self.BASE_FREQUENCY_HZ)
+        self.ledger = TordialNetworkLedger()
+        self.current_tick = 0
+        self.t_start = time.time()
+
+        self.nodes_a = [TordialNode(base_d, base_r) for _ in range(node_count)]
+        self.nodes_b = [TordialNode(base_d, base_r) for _ in range(node_count)]
+
+        self.active_ring = "RING_A"
+        self.quarantined_a: Set[int] = set()
+        self.quarantined_b: Set[int] = set()
+        self.consec_drift_a = {i: 0 for i in range(node_count)}
+        self.consec_drift_b = {i: 0 for i in range(node_count)}
+
+    def _average_gs_strength(self, snapshots: List[Dict]) -> float:
+        kappas = [s["telemetry"]["coupling_telemetry"]["kappa_GS_T"]
+                  for s in snapshots if s["telemetry"]["coupling_telemetry"]]
+        return np.mean(kappas) if kappas else 0.0
+
+    def _evaluate_health(self, snapshots: List[Dict], quarantined: Set[int], consec: Dict[int, int], ring: str):
+        for entry in snapshots:
+            idx = entry["node_index"]
+            if idx in quarantined:
+                continue
+            status = entry["telemetry"]["chase_lock_status"]
+            coupling = entry["telemetry"]["coupling_telemetry"]
+
+            if status == "DRIFTING":
+                penalty = 0.6 if (coupling and coupling["kappa_GS_T"] > 4.0) else 1.0
+                consec[idx] += penalty
+                if consec[idx] >= 5.0:
+                    quarantined.add(idx)
+                    print(f"    [🛑 QUARANTINE {ring}] Node {idx} (κ={coupling['kappa_GS_T']:.2f})")
+            else:
+                consec[idx] = max(0, consec[idx] - 1.2)
+
+    def execute_governance_cycle(self):
+        self.current_tick += 1
+        t_now = time.time() - self.t_start
+
+        snapshots_a = []
+        snapshots_b = []
+
+        for i in range(self.node_count):
+            drift_a = 0.012 if i not in self.quarantined_a else 0.22
+            rep_a = self.nodes_a[i].run_79hz_telemetry_step(t_now, drift_a)
+            if i in self.quarantined_a:
+                rep_a["chase_lock_status"] = "QUARANTINED"
+            snapshots_a.append({"node_index": i, "telemetry": rep_a})
+
+            drift_b = 0.012 if i not in self.quarantined_b else 0.22
+            rep_b = self.nodes_b[i].run_79hz_telemetry_step(t_now, drift_b)
+            if i in self.quarantined_b:
+                rep_b["chase_lock_status"] = "QUARANTINED"
+            snapshots_b.append({"node_index": i, "telemetry": rep_b})
+
+        self._evaluate_health(snapshots_a, self.quarantined_a, self.consec_drift_a, "A")
+        self._evaluate_health(snapshots_b, self.quarantined_b, self.consec_drift_b, "B")
+
+        # Failover
+        if self.active_ring == "RING_A" and (self.node_count - len(self.quarantined_a)) < 3:
+            if (self.node_count - len(self.quarantined_b)) >= 3:
+                print(f"\n[🚨 FAILOVER @ t={t_now:.1f}s] RING_A → RING_B")
+                self.active_ring = "RING_B"
+
+        # GS-aware frequency target
+        targeted = snapshots_a if self.active_ring == "RING_A" else snapshots_b
+        drifting = sum(1 for s in targeted if s["telemetry"]["chase_lock_status"] == "DRIFTING")
+        active_count = self.node_count - len(self.quarantined_a if self.active_ring == "RING_A" else self.quarantined_b)
+        avg_strength = self._average_gs_strength(targeted)
+
+        strength_factor = min(1.0, 0.55 + avg_strength * 0.6)
+
+        if drifting == 0:
+            target_freq = self.BASE_FREQUENCY_HZ
+        else:
+            reduction = (self.BASE_FREQUENCY_HZ - self.MIN_FREQUENCY_FLOOR_HZ) * \
+                        (drifting / active_count if active_count > 0 else 1.0)
+            target_freq = self.BASE_FREQUENCY_HZ - reduction * (1.0 - strength_factor)
+
+        self.current_filtered_frequency_hz = self.pid.process(target_freq)
+
+        self.ledger.commit_entry(self.current_tick, targeted, self.current_filtered_frequency_hz)
+        self._render_dashboard(snapshots_a, snapshots_b, avg_strength)
+
+    def _render_dashboard(self, sa: List[Dict], sb: List[Dict], avg_kappa: float):
+        os.system('cls' if os.name == 'nt' else 'clear')
+        active_a = self.node_count - len(self.quarantined_a)
+        active_b = self.node_count - len(self.quarantined_b)
+
+        print("="*100)
+        print("                  TORDIAL–GS MANIFOLD v3  |  LIVE CONTROL SURFACE")
+        print("="*100)
+        print(f"Tick {self.current_tick:3d} | Ring: {self.active_ring} | Freq: {self.current_filtered_frequency_hz:.2f} Hz | Avg κ_GS: {avg_kappa:.3f}")
+        print(f"Ring A: {active_a}/{self.node_count}   Ring B: {active_b}/{self.node_count}")
+        print("-"*100)
+        for i in range(self.node_count):
+            a = sa[i]["telemetry"]
+            b = sb[i]["telemetry"]
+            ka = a["coupling_telemetry"]["kappa_GS_T"] if a["coupling_telemetry"] else 0.0
+            kb = b["coupling_telemetry"]["kappa_GS_T"] if b["coupling_telemetry"] else 0.0
+
+            print(f"Node {i:2d} | "
+                  f"A: {a['chase_lock_status']:12} κA:{ka:5.2f} | "
+                  f"B: {b['chase_lock_status']:12} κB:{kb:5.2f} | "
+                  f"Phase A: {a['raw_phase_rads'] % 360:6.1f}°")
+        print("="*100)
+
+    def export_csv(self, filename="tordial_gs_telemetry.csv"):
+        with open(filename, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["tick", "freq_hz", "drifting_count", "avg_kappa_GS", "avg_sigma_T"])
+            for e in self.ledger.history:
+                writer.writerow([e["tick"], e["freq_hz"], e["drifting_count"], e["avg_kappa_GS"], e["avg_sigma_T"]])
+        print(f"[+] Exported → {filename}")
+
+
+# ========================== RUNNER ==========================
+if __name__ == "__main__":
+    print("[+] Tordial-GS Manifold v3 — GS field now visible\n")
+    matrix = DualRingTordialMatrix(node_count=6, base_d=42, base_r=380)
+
+    try:
+        for cycle in range(30):
+            matrix.execute_governance_cycle()
+            time.sleep(0.42)
+    except KeyboardInterrupt:
+        print("\n[!] Operator override.")
+
+    matrix.export_csv()
+    print("\n[+] Session complete. GS micro → macro feedback loop operational.")
