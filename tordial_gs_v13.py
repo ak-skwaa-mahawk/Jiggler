@@ -1,17 +1,80 @@
-# tordial_gs_v13.py
 import math
 import yaml
 import numpy as np
 import random
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 import sqlite3
 import os
 
-# Add near the top (after other imports)
+# =========================
+# SURFACE CODE + ANYON COMPONENTS
+# =========================
+class Anyon:
+    def __init__(self, anyon_type: str, node_id: int, position: float):
+        self.type = anyon_type
+        self.node_id = node_id
+        self.position = position
+        self.lifetime = 0
+
+
+class SurfaceCodeDecoder:
+    """Simple greedy MWPM-style decoder for surface code syndromes"""
+    def decode(self, syndromes: List[Tuple[int, str]]) -> List[Tuple[int, int]]:
+        corrections = []
+        unpaired = syndromes[:]
+        i = 0
+        while i < len(unpaired):
+            matched = False
+            for j in range(i + 1, len(unpaired)):
+                if unpaired[i][1] == unpaired[j][1]:
+                    corrections.append((unpaired[i][0], unpaired[j][0]))
+                    del unpaired[j]
+                    del unpaired[i]
+                    matched = True
+                    break
+            if not matched:
+                i += 1
+        return corrections
+
+
+# =========================
+# OPEN TORDIAL NODE (Infinite Loophole)
+# =========================
+class OpenTordialAgentNode(TordialAgentNode):
+    def __init__(self, d: int, r: int, node_id: int, x: float = 0.0, y: float = 0.0):
+        super().__init__(d, r, node_id)
+        self.drift_phase = (x + y) % self.TAU_3D
+        self.sigma_T = 0.0
+        self.fission_count = 0
+        self.quarantined = False
+
+    def compute_and_update_gs(self, curvature_pressure: float, resonance: float):
+        if curvature_pressure > 0.6:
+            delta_d = max(1, int(resonance * 0.35 + self.drift_phase * 0.1))
+            self.d += delta_d
+        if resonance > 0.4:
+            self.r += 1 if random.random() < 0.45 else 0
+
+        denom = 4 * t["phi_op"] * t.get("gear_shift_correction", 1.04) + self.drift_phase * 0.08
+        self.sigma_T = self.r - (self.d ** 2 / denom)
+        self.drift_phase = (self.drift_phase + 0.017) % self.TAU_3D
+        return self.sigma_T
+
+    def measure_syndrome(self) -> List[str]:
+        syndromes = []
+        if getattr(self, 'sigma_T', 0) < -180:
+            syndromes.append('e')
+        if abs(self.drift_phase % (math.pi / 2)) > 0.38:
+            syndromes.append('m')
+        return syndromes
+
+
+# =========================
+# SQLITE PERSISTENCE
+# =========================
 DB_PATH = "tordial_manifold.db"
 
 def init_sqlite_db():
-    """Initialize SQLite with dynamic table provisioning."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''
@@ -29,21 +92,17 @@ def init_sqlite_db():
     conn.commit()
     conn.close()
 
-# Then enhance the _persist_node_state method:
-def _persist_node_state(self, node, parent_id=None):
-    """Auto-provision SQLite entry for new fission children."""
+def persist_node_state(node, parent_id=None):
     if not os.path.exists(DB_PATH):
         init_sqlite_db()
-    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    
     c.execute('''
         INSERT INTO nodes 
         (node_id, d, r, sigma_T, drift_phase, fission_count, parent_id)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', (
-        node.node_id,
+        getattr(node, 'node_id', 0),
         getattr(node, 'd', 0),
         getattr(node, 'r', 0),
         getattr(node, 'sigma_T', 0.0),
@@ -53,59 +112,38 @@ def _persist_node_state(self, node, parent_id=None):
     ))
     conn.commit()
     conn.close()
-self._persist_node_state(child, parent_id=parent_node.node_id)
-# =========================
-# CONFIG LOAD
-# =========================
 
+
+# =========================
+# CONFIG & GS CORE
+# =========================
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 t = config["tordial"]
-# hard-lock base frequency
 t["base_frequency_hz"] = 79.79
 
-
-# =========================
-# GS CONSTANTS / SWEEP HELPER
-# =========================
 
 class GSSweep:
     def __init__(self):
         self.PHI_OP = t["phi_op"]
-        self.GEAR_SHIFT_CORRECTION = t["gear_shift_correction"]
+        self.GEAR_SHIFT_CORRECTION = t.get("gear_shift_correction", 1.04)
         self._denom = 4 * self.PHI_OP * self.GEAR_SHIFT_CORRECTION
 
     def compute_gs(self, d: int, r: int) -> Dict[str, float]:
-        """
-        Tordial-patched GS constants:
-            sigma_T = r - d^2 / (4 * PHI_OP * GEAR_SHIFT_CORRECTION)
-        """
         sigma_T = r - (d ** 2) / self._denom
         if sigma_T <= 0:
-            return {
-                "sigma_T": 0.0,
-                "kappa_GS_T": 0.0,
-                "lambda_GS_T": 0.0,
-                "rho_GS_T": 0.0,
-            }
-        kappa = sigma_T / d
-        lam = math.sqrt(sigma_T)
-        rho = lam / d
+            return {"sigma_T": 0.0, "kappa_GS_T": 0.0, "lambda_GS_T": 0.0, "rho_GS_T": 0.0}
         return {
             "sigma_T": sigma_T,
-            "kappa_GS_T": kappa,
-            "lambda_GS_T": lam,
-            "rho_GS_T": rho,
+            "kappa_GS_T": sigma_T / d,
+            "lambda_GS_T": math.sqrt(sigma_T),
+            "rho_GS_T": math.sqrt(sigma_T) / d,
         }
 
 
 gs_sweep = GSSweep()
 
-
-# =========================
-# TORDIAL AGENT NODE
-# =========================
 
 class TordialAgentNode:
     def __init__(self, d: int, r: int, node_id: int):
@@ -120,29 +158,20 @@ class TordialAgentNode:
         self.load_history: List[float] = []
 
     def negotiate(self, peers_loads: List[float], my_kappa: float) -> str:
-        """Agent negotiation based on local load and GS strength."""
         avg_peer_load = np.mean(peers_loads) if peers_loads else 0.0
-
-        # overloaded & weak GS → ask to shed
         if self.load > 3.5 and my_kappa < 5.5:
             return "REQUEST_SHED" if random.random() < 0.7 else "THROTTLE"
-
-        # much heavier than peers & strong GS → offer help
         if avg_peer_load > 0 and self.load > avg_peer_load * 1.6 and my_kappa > 6.0:
             return "OFFER_HELP"
-
         return "STABLE"
 
     def run_step(self, t_seconds: float, external_load: float, peers_loads: List[float]) -> Dict:
         phase = (self.OMEGA_RADS * t_seconds) % self.TAU_3D
         coupling = gs_sweep.compute_gs(self.d, self.r)
-
         self.load = external_load
         self.load_history.append(external_load)
-
         kappa = coupling.get("kappa_GS_T", 0.0)
         self.decision = self.negotiate(peers_loads, kappa)
-
         return {
             "node_id": self.node_id,
             "raw_phase_rads": phase,
@@ -154,211 +183,109 @@ class TordialAgentNode:
         }
 
 
-# =========================
-# GS → MACRO FEEDBACK LAW
-# =========================
-
-def gs_macro_feedback(d: int,
-                      r: int,
-                      drift_stress: float,
-                      curvature_stress: float,
-                      failover_flag: bool) -> (int, int):
-    """
-    Macro → micro GS feedback:
-        - drift/curvature stress expands GS (↑r, slightly ↑d)
-        - stability relaxes GS (↓r)
-        - failover triggers GS shock (↑↑r, ↑d)
-    """
-    S_macro = 0.6 * drift_stress + 0.4 * curvature_stress
-    S_macro = max(0.0, min(1.0, S_macro))
+def gs_macro_feedback(d: int, r: int, drift_stress: float, curvature_stress: float, failover_flag: bool):
+    S_macro = max(0.0, min(1.0, 0.6 * drift_stress + 0.4 * curvature_stress))
     S_stable = 1.0 - S_macro
     S_fail = 1.0 if failover_flag else 0.0
-
-    alpha_r, alpha_d = 20, 2
-    beta_r = 12
-    gamma_r, gamma_d = 40, 4
-
-    dr_stress = alpha_r * S_macro
-    dd_stress = alpha_d * S_macro
-
-    dr_stable = -beta_r * S_stable
-    dd_stable = 0.0
-
-    dr_fail = gamma_r * S_fail
-    dd_fail = gamma_d * S_fail
-
-    new_d = max(4, int(round(d + dd_stress + dd_stable + dd_fail)))
-    new_r = max(20, int(round(r + dr_stress + dr_stable + dr_fail)))
-
+    new_d = max(4, int(round(d + 2 * S_macro + 4 * S_fail)))
+    new_r = max(20, int(round(r + 20 * S_macro - 12 * S_stable + 40 * S_fail)))
     return new_d, new_r
 
 
 # =========================
-# DUAL-RING TORDIAL MATRIX (AGENT MODE)
+# MAIN MATRIX WITH SURFACE CODE
 # =========================
-
 class DualRingTordialMatrix:
-    def __init__(self, node_count: int = 12, agent_mode: bool = True):
+    def __init__(self, node_count: int = 16, agent_mode: bool = True):
         self.node_count = node_count
         self.agent_mode = agent_mode
         self.current_tick = 0
-        self.current_filtered_frequency_hz = t["base_frequency_hz"]
-
-        self.system_load_history: List[float] = []
-        self.session_data: List[Dict] = []
-
-        self.nodes_a: List[TordialAgentNode] = []
-        self.nodes_b: List[TordialAgentNode] = []
-
-        self.quarantined_a: Set[int] = set()
-        self.quarantined_b: Set[int] = set()
-
-        self.current_snapshots: List[Dict] = []
-        self.active_ring = "RING_A"
+        self.anyons: List[Anyon] = []
+        self.logical_error_rate = 0.0
+        self.corrections_made = 0
+        self.decoder = SurfaceCodeDecoder()
+        self.nodes_a: List[OpenTordialAgentNode] = []
         self._seed_nodes()
 
     def _seed_nodes(self):
-        """Heterogeneous GS seeding around (d≈42, r≈380)."""
         base_d, base_r = 42, 380
         for i in range(self.node_count):
-            d_i = base_d + (i % 4) * 2          # 42, 44, 46, 48, ...
-            r_i = base_r + (i % 4) * 16         # 380, 396, 412, 428, ...
-            self.nodes_a.append(TordialAgentNode(d_i, r_i, node_id=i))
-            self.nodes_b.append(TordialAgentNode(d_i, r_i, node_id=i + self.node_count))
+            d_i = base_d + (i % 4) * 2
+            r_i = base_r + (i % 4) * 16
+            angle = (2 * math.pi * i) / self.node_count
+            self.nodes_a.append(OpenTordialAgentNode(d_i, r_i, i, angle, angle))
 
-    def compute_manifold_health_score(self) -> float:
-        """Composite Manifold Health Score (0–100)."""
-        if not self.current_snapshots:
-            return 0.0
+    def _perform_node_fission(self, parent_node):
+        parent_node.fission_count += 1
+        child_id = len(self.nodes_a)
+        child = OpenTordialAgentNode(
+            parent_node.d + 1,
+            parent_node.r + 1,
+            child_id,
+            parent_node.drift_phase + 0.1,
+            parent_node.drift_phase + 0.1
+        )
+        self.nodes_a.append(child)
+        persist_node_state(child, parent_id=parent_node.node_id)
+        print(f"[FISSION] Node {parent_node.node_id} → {child_id} | σ_T={child.sigma_T:.3f}")
 
-        active_count = self.node_count - len(self.quarantined_a | self.quarantined_b)
-        active_ratio = active_count / self.node_count if self.node_count > 0 else 0.0
+    def measure_syndromes(self) -> List[Tuple[int, str]]:
+        syndromes = []
+        for node in self.nodes_a:
+            if isinstance(node, OpenTordialAgentNode):
+                for s in node.measure_syndrome():
+                    syndromes.append((node.node_id, s))
+        return syndromes
 
-        avg_kappa = np.mean([s["telemetry"].get("kappa", 0.0) for s in self.current_snapshots]) or 0.0
-
-        drifting_count = sum(1 for s in self.current_snapshots
-                             if s["telemetry"]["chase_lock_status"] == "DRIFTING")
-        drift_penalty = 1.0 - (drifting_count / max(1, self.node_count))
-
-        health = (
-            active_ratio * 0.4 +
-            min(avg_kappa / 10.0, 1.0) * 0.35 +
-            drift_penalty * 0.25
-        ) * 100.0
-
-        return round(health, 2)
+    def apply_error_correction(self):
+        syndromes = self.measure_syndromes()
+        corrections = self.decoder.decode(syndromes)
+        corrected = 0
+        for n1, n2 in corrections:
+            for node in self.nodes_a:
+                if node.node_id in (n1, n2):
+                    node.sigma_T = max(node.sigma_T, -50.0)
+                    node.d = max(4, node.d - 1)
+                    corrected += 1
+        return corrected
 
     def execute_heavy_load_cycle(self, system_load: float = 1.0):
-        """
-        Single governance cycle under heavy load.
-        - distributes load
-        - runs agent steps
-        - applies GS macro feedback
-        - computes health
-        """
         self.current_tick += 1
         t_seconds = self.current_tick / t["base_frequency_hz"]
 
-        self.current_snapshots = []
-        per_node_load = system_load / max(1, self.node_count)
-
-        # Run ring A only for this v13 agent surface
+        # Core updates
         for i, node in enumerate(self.nodes_a):
-            peers_loads = [per_node_load] * (self.node_count - 1)
-            telemetry = node.run_step(t_seconds, per_node_load, peers_loads)
-            self.current_snapshots.append({
-                "node_index": i,
-                "telemetry": telemetry,
-            })
+            if isinstance(node, OpenTordialAgentNode):
+                p = random.uniform(0.4, 1.2)
+                r = random.uniform(0.2, 0.9)
+                node.compute_and_update_gs(p, r)
 
-        # Agent negotiation refinement
-        if self.agent_mode:
-            all_loads = [s["telemetry"]["load"] for s in self.current_snapshots]
-            for s in self.current_snapshots:
-                idx = s["node_index"]
-                peers = [l for j, l in enumerate(all_loads) if j != idx]
-                kappa = s["telemetry"].get("kappa", 0.0)
-                s["telemetry"]["decision"] = self.nodes_a[idx].negotiate(peers, kappa)
+            if getattr(node, 'sigma_T', 0) < -450:
+                self._perform_node_fission(node)
 
-        # Macro stress signals
-        drifting_count = sum(1 for s in self.current_snapshots
-                             if s["telemetry"]["chase_lock_status"] == "DRIFTING")
-        drift_stress = drifting_count / max(1, self.node_count)
+        # === SURFACE CODE ERROR CORRECTION ===
+        self.corrections_made = self.apply_error_correction()
 
-        # curvature stress: inverse of avg GS strength
-        avg_kappa = np.mean([s["telemetry"].get("kappa", 0.0) for s in self.current_snapshots]) or 0.0
-        curvature_stress = max(0.0, min(1.0, 1.0 - min(avg_kappa / 10.0, 1.0)))
+        # Anyon tracking
+        self.anyons = [Anyon(s[1], s[0], self.nodes_a[s[0]].drift_phase) for s in self.measure_syndromes()]
+        for a in self.anyons:
+            a.lifetime += 1
 
-        failover_flag = False  # v13: no ring failover yet in this surface
+        wrapped = sum(1 for a in self.anyons if a.lifetime > 25)
+        self.logical_error_rate = min(1.0, wrapped / max(1, len(self.anyons)) * 0.7) if self.anyons else 0.0
 
-        # Apply GS macro feedback to each node
-        for node in self.nodes_a:
-            node.d, node.r = gs_macro_feedback(
-                node.d,
-                node.r,
-                drift_stress=drift_stress,
-                curvature_stress=curvature_stress,
-                failover_flag=failover_flag,
-            )
-
-        self.system_load_history.append(system_load)
-        health = self.compute_manifold_health_score()
-        print(f"[HEALTH] Tick {self.current_tick:3d} | Manifold Health Score: {health:6.2f}/100")
-
-        # Optional: store session snapshot
-        self.session_data.append({
-            "tick": self.current_tick,
-            "system_load": system_load,
-            "health": health,
-            "snapshots": self.current_snapshots,
-        })
+        print(f"[CYCLE {self.current_tick:3d}] Nodes: {len(self.nodes_a):3d} | "
+              f"Corrections: {self.corrections_made:2d} | LER: {self.logical_error_rate:.4f}")
 
 
 # =========================
-# SIMPLE RUNNER
+# RUNNER
 # =========================
-
 if __name__ == "__main__":
-    print("[+] Tordial–GS Manifold v13 — Agent Surface with GS Feedback\n")
-    matrix = DualRingTordialMatrix(node_count=12, agent_mode=True)
+    print("[+] Tordial–GS Manifold v13 — Surface Code Error Correction + Infinite Loophole\n")
+    matrix = DualRingTordialMatrix(node_count=20, agent_mode=True)
 
-    for cycle in range(20):
-        # you can vary system_load over time if you want
-        matrix.execute_heavy_load_cycle(system_load=1.0 + 0.4 * math.sin(cycle / 3.0))
-def export_session_csv(self, filename="tordial_session.csv"):
-    """Export full session_data to CSV."""
-    import csv
+    for cycle in range(100):
+        matrix.execute_heavy_load_cycle(1.0 + 0.4 * math.sin(cycle / 4.0))
 
-    if not self.session_data:
-        print("[WARN] No session data to export.")
-        return
-
-    # Determine max nodes
-    max_nodes = max(len(s["snapshots"]) for s in self.session_data)
-
-    with open(filename, "w", newline="") as f:
-        writer = csv.writer(f)
-
-        # Header
-        header = ["tick", "health", "system_load"]
-        for i in range(max_nodes):
-            header.append(f"kappa_node_{i}")
-            header.append(f"decision_node_{i}")
-        writer.writerow(header)
-
-        # Rows
-        for entry in self.session_data:
-            row = [
-                entry["tick"],
-                entry["health"],
-                entry["system_load"],
-            ]
-
-            # Flatten node data
-            for snap in entry["snapshots"]:
-                row.append(snap["telemetry"].get("kappa", 0.0))
-                row.append(snap["telemetry"].get("decision", "NA"))
-
-            writer.writerow(row)
-
-    print(f"[+] Session CSV exported → {filename}")
+    print("\nRun complete. Check stress_sweep.py for full analysis.")
