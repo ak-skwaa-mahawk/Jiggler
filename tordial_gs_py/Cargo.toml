@@ -1,0 +1,16 @@
+# tordial_gs_py/Cargo.toml
+
+[package]
+name = "tordial_gs_py"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "tordial_gs_py"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module"] }
+numpy = "0.21"
+num-complex = "0.4"
+tordial_gs_spectral = { path = "../tordial_gs_spectral" }
