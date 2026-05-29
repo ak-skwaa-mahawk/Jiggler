@@ -150,4 +150,8 @@ The TGS Manifold merges:
 It forms a living axiomatic control fabric where geometry, algebra, and control theory are inseparable.
 
 ---
+Copyright © 2024-2026 John Carroll / Two Mile Solutions LLC
+All rights reserved. No part of this repository may be reproduced,
+distributed, or used without written permission from Two Mile Solutions LLC.
+IACA Indigenous creator protections apply.
 
