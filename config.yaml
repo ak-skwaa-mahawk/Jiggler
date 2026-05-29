@@ -1,3 +1,46 @@
+version: '3.8'
+
+services:
+  manifold-node-0:
+    image: tordial-gs-engine:latest
+    container_name: manifold_zero
+    environment:
+      - NODE_ID=node_0
+      - BIND_PORT=50051
+      - PEER_ADDRESSES=manifold_one:50052,manifold_two:50053
+    ports:
+      - "50051:50051"
+    networks:
+      - tordial_mesh_net
+
+  manifold-node-1:
+    image: tordial-gs-engine:latest
+    container_name: manifold_one
+    environment:
+      - NODE_ID=node_1
+      - BIND_PORT=50052
+      - PEER_ADDRESSES=manifold_zero:50051,manifold_two:50053
+    ports:
+      - "50052:50052"
+    networks:
+      - tordial_mesh_net
+
+  manifold-node-2:
+    image: tordial-gs-engine:latest
+    container_name: manifold_two
+    environment:
+      - NODE_ID=node_2
+      - BIND_PORT=50053
+      - PEER_ADDRESSES=manifold_zero:50051,manifold_one:50052
+    ports:
+      - "50053:50053"
+    networks:
+      - tordial_mesh_net
+
+networks:
+  tordial_mesh_net:
+    driver: bridge
+
 tordial:
   pi_3d: 3.20442315
   phi_op: 1.65036
