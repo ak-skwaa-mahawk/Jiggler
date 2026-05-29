@@ -2,37 +2,40 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Core Routing Architecture Ingress Ports
+# Pipeline Route Modulators
 from api.arc import router as arc_router
 from api.tunnel import router as tunnel_router
 
-# Core Traffic Governance & Security Interceptors
+# Core Rate Limiting & Security Governance Substrates
 from slowapi.middleware import SlowAPIMiddleware
 from api.ratelimit import limiter, rate_limit_handler, RateLimitExceeded
 
-# Initialize a single, consolidated app instance
+# Single Consolidated Application Lifecycle Instantiation
 app = FastAPI(
-    title="Resonance Mesh API", 
+    title="Resonance Mesh API",
     version="1.0.0",
-    description="Sovereign mesh orchestration substrate gating local hardware, tunneling configurations, and policy matrices."
+    description="Sovereign telemetry mesh coordinating localized hardware nodes, tunnels, and policy controls."
 )
 
-# --- 1. GLOBAL GOVERNANCE MIDDLEWARE PLUMBING ---
+# ==========================================
+# 1. SECURITY & TRAFFIC GOVERNANCE MEMBERS
+# ==========================================
 
-# Configure SlowAPI Rate Limiting Interceptors
+# Attach SlowAPI State Registry & Exception Handlers
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
-# Cross-Origin Resource Sharing (CORS) Configuration Parameters
-# Highly critical for stabilizing secure Iframe canvas embeddings on portals like Google Sites
+# Allowed Cross-Origin Ingress Footprints (Vital for Google Sites Canvas Embeds)
 PRODUCTION_ORIGINS = [
     "https://sites.google.com",
     "http://localhost:5000",
-    "http://127.0.0.1:5000"
+    "http://127.0.0.1:5000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000"
 ]
 
-# Pull environment flag to check if wide-open wildcard CORS debugging matches target configuration
+# Toggle dynamic open-cors fallback based on target runtime environment
 ALLOW_ALL = os.getenv("ENV_MODE", "development") == "development"
 
 app.add_middleware(
@@ -43,34 +46,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ==========================================
+# 2. TELEMETRY SENSORS & HEALTH MONITORS
+# ==========================================
 
-# --- 2. BASELINE Telemetry SENSORS ---
-
-@app.get("/health", tags=["Telemetry Monitoring"])
+@app.get("/health", tags=["Telemetry Sensors"])
 def health_check():
     """
-    Empirical trace sensor node tracking connectivity.
+    Empirical trace sensor monitoring baseline stack status.
     """
     return {
-        "ok": True, 
+        "ok": True,
         "service": "resonance-mesh",
         "governance_membrane": "ACTIVE",
         "rate_limiting": "ENFORCED"
     }
 
+# ==========================================
+# 3. PIPELINE GATEWAY ROUTER MOUNTING
+# ==========================================
 
-# --- 3. PIPELINE GATEWAY ROUTER MOUNTING ---
-
-# Mount the localized Arc configuration controller routes
+# Mount the localized Arc configuration control vectors
 app.include_router(
-    arc_router, 
-    prefix="/arc", 
+    arc_router,
+    prefix="/arc",
     tags=["Arc Core Logic Layers"]
 )
 
-# Mount the asynchronous hardware and remote tunneling layout paths
+# Mount the automated hardware communication and dynamic tunneling pathways
 app.include_router(
-    tunnel_router, 
-    prefix="/tunnel", 
+    tunnel_router,
+    prefix="/tunnel",
     tags=["Dynamic Network Tunneling Channels"]
 )
