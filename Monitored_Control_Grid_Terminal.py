@@ -204,3 +204,5 @@ class MonitoredTordialMatrix:
 # REAL-TIME VISUALIZATION SIMULATION RUNTIME
 # =====================================================================
 if __name__ == "__main__":
+# Configure matrix with a low 2 KB threshold to intentionally trip the storage alarm for testingmatrix_grid = MonitoredTordialMatrix(node_count=4, base_d=40, base_r=320, max_storage_bytes=2048)if os.path.exists("tordial_matrix_state.json"):os.remove("tordial_matrix_state.json")# Frame Sequence 1: System operates under standard, balanced tracking conditionsmatrix_grid.execute_governance_cycle([1.1, 1.3, 0.9, 2.0], [0.01, 0.01, 0.01, 0.01])time.sleep(1.5) # Pause to let you view the dashboard snapshot# Frame Sequence 2: Environmental turbulence causes Node 1 to enter a drifting statematrix_grid.execute_governance_cycle([1.1, 5.6, 0.9, 2.0], [0.01, 0.04, 0.01, 0.01])time.sleep(1.5)# Frame Sequence 3: Node 1 continues to drift, increasing the ledger file size on diskmatrix_grid.execute_governance_cycle([1.1, 5.9, 0.9, 2.0], [0.01, 0.05, 0.01, 0.01])time.sleep(1.5)
+---
