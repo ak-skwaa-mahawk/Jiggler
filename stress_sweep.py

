@@ -2,13 +2,54 @@ import numpy as np
 import matplotlib.pyplot as plt
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from tordial_gs_v13 import DualRingTordialMatrix, GSSweep
 
 gs_sweep = GSSweep()
 
+def validate_results(results: dict, mode: str) -> tuple[bool, list[str]]:
+    """Automated data validation with detailed error reporting."""
+    errors = []
+    
+    required_summary_fields = [
+        "final_nodes", "final_rings", "avg_spawn_rate_per_cycle",
+        "avg_global_energy", "energy_kappa_correlation"
+    ]
+    
+    # Check required fields
+    for field in required_summary_fields:
+        if field not in results:
+            errors.append(f"Missing required field: {field}")
+    
+    # Type and range validation
+    if results.get("final_nodes", 0) < 1:
+        errors.append("final_nodes must be positive")
+    if not (0 <= results.get("avg_spawn_rate_per_cycle", -1) <= 10):
+        errors.append("avg_spawn_rate_per_cycle out of reasonable range")
+    if not (-1.1 <= results.get("energy_kappa_correlation", -2) <= 1.1):
+        errors.append("energy_kappa_correlation outside valid [-1, 1] range")
+    
+    # History validation
+    histories = results.get("histories", {})
+    for key in ["node_count", "energy", "kappa"]:
+        hist = histories.get(key, [])
+        if len(hist) == 0:
+            errors.append(f"Empty history: {key}")
+        elif any(not isinstance(x, (int, float)) for x in hist):
+            errors.append(f"Non-numeric values in {key} history")
+    
+    if errors:
+        print(f"⚠️  Validation failed for {mode} mode:")
+        for e in errors:
+            print(f"   • {e}")
+        return False, errors
+    
+    print(f"✅ Validation passed for {mode} mode")
+    return True, []
+
+
 def run_stress_test(node_count=16, cycles=350, mode="open"):
-    """Stress test with full hierarchical tracking."""
+    """Stress test with full hierarchical tracking + validation."""
     print(f"\n=== Stress Sweep: {mode.upper()} MODE | Initial Nodes={node_count} | Cycles={cycles} ===")
 
     matrix = DualRingTordialMatrix(node_count=node_count, agent_mode=True)
@@ -94,20 +135,31 @@ def run_stress_test(node_count=16, cycles=350, mode="open"):
 
 
 def compare_hierarchical():
-    """Hierarchical comparison with clean timestamped metadata."""
+    """Hierarchical comparison with automated data validation."""
     print("Running Hierarchical Infinite Loophole Comparison...\n")
 
     bounded = run_stress_test(mode="bounded")
     open_mode = run_stress_test(mode="open")
 
-    # === REFACTORED JSON EXPORT WITH TIMESTAMP ===
+    # === AUTOMATED VALIDATION ===
+    bounded_valid, bounded_errors = validate_results(bounded, "bounded")
+    open_valid, open_errors = validate_results(open_mode, "open")
+
+    if not (bounded_valid and open_valid):
+        print("❌ Validation failed. JSON export skipped.")
+        return
+
+    # === ISO 8601 METADATA + VALIDATED EXPORT ===
+    now_utc = datetime.now(timezone.utc)
+
     export_data = {
         "metadata": {
-            "timestamp": datetime.now().isoformat(),
-            "test_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "timestamp": now_utc.isoformat(),
+            "test_date": now_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
             "cycles": 350,
             "description": "Tordial-GS Hierarchical Infinite Loophole Stress Test",
-            "version": "v13.1"
+            "version": "v13.1",
+            "validation_status": "PASSED"
         },
         "bounded": {
             "summary": {k: v for k, v in bounded.items() if k != "histories"},
@@ -122,8 +174,8 @@ def compare_hierarchical():
     with open("stress_results_hierarchical.json", "w") as f:
         json.dump(export_data, f, indent=2)
 
-    print(f"✅ Results exported to stress_results_hierarchical.json")
-    print(f"    Timestamp: {export_data['metadata']['test_date']}")
+    print(f"✅ Validation passed + Results exported to stress_results_hierarchical.json")
+    print(f"    ISO 8601 Timestamp: {export_data['metadata']['timestamp']}")
 
     # Plotting
     fig, axs = plt.subplots(2, 3, figsize=(18, 11))
@@ -159,7 +211,7 @@ def compare_hierarchical():
     plt.savefig("stress_sweep_hierarchical_loophole.png")
     plt.show()
 
-    print("\n✅ Comparison complete! Plot and timestamped JSON results saved.")
+    print("\n✅ Comparison complete! Validated data saved.")
 
 
 if __name__ == "__main__":
