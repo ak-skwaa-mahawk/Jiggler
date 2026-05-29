@@ -276,3 +276,40 @@ if __name__ == "__main__":
     for cycle in range(20):
         # you can vary system_load over time if you want
         matrix.execute_heavy_load_cycle(system_load=1.0 + 0.4 * math.sin(cycle / 3.0))
+def export_session_csv(self, filename="tordial_session.csv"):
+    """Export full session_data to CSV."""
+    import csv
+
+    if not self.session_data:
+        print("[WARN] No session data to export.")
+        return
+
+    # Determine max nodes
+    max_nodes = max(len(s["snapshots"]) for s in self.session_data)
+
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f)
+
+        # Header
+        header = ["tick", "health", "system_load"]
+        for i in range(max_nodes):
+            header.append(f"kappa_node_{i}")
+            header.append(f"decision_node_{i}")
+        writer.writerow(header)
+
+        # Rows
+        for entry in self.session_data:
+            row = [
+                entry["tick"],
+                entry["health"],
+                entry["system_load"],
+            ]
+
+            # Flatten node data
+            for snap in entry["snapshots"]:
+                row.append(snap["telemetry"].get("kappa", 0.0))
+                row.append(snap["telemetry"].get("decision", "NA"))
+
+            writer.writerow(row)
+
+    print(f"[+] Session CSV exported → {filename}")
