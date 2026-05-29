@@ -7,7 +7,60 @@ from typing import Dict, List, Set
 import sqlite3
 import os
 
-# Add near the top (after other imports)
+class Anyon:
+    def __init__(self, anyon_type: str, node_id: int, position: float):
+        self.type = anyon_type  # 'e', 'm', 'f'
+        self.node_id = node_id
+        self.position = position  # drift_phase
+        self.lifetime = 0
+
+# Inside OpenTordialAgentNode
+    def detect_syndrome(self) -> List[str]:
+        """Toric-code style local stabilizer syndrome."""
+        syndromes = []
+        if getattr(self, 'sigma_T', 0) < -200:
+            syndromes.append('e')  # electric anyon (charge violation)
+        if abs(self.drift_phase % (math.pi/2) - 0) > 0.4:  # plaquette-like check
+            syndromes.append('m')  # magnetic anyon (flux violation)
+        return syndromes
+
+# In DualRingTordialMatrix
+    def __init__(...):
+        ...
+        self.anyons: List[Anyon] = []
+        self.logical_error_rate = 0.0
+
+    def detect_and_track_anyons(self):
+        """Global syndrome measurement + anyon creation/propagation."""
+        new_anyons = []
+        for node in self.nodes_a:
+            if isinstance(node, OpenTordialAgentNode):
+                syndromes = node.detect_syndrome()
+                for s in syndromes:
+                    anyon = Anyon(s, node.node_id, node.drift_phase)
+                    new_anyons.append(anyon)
+                    print(f"[ANYON] {s.upper()} anyon detected at node {node.node_id}")
+        
+        self.anyons.extend(new_anyons)
+        
+        # Propagate anyons along toroidal drift
+        for a in self.anyons:
+            a.position = (a.position + 0.017 * 2) % (2 * math.pi)  # drift with nodes
+            a.lifetime += 1
+
+    def compute_logical_error_rate(self) -> float:
+        """Estimate logical error via non-contractible wrapping loops."""
+        if not self.anyons:
+            return 0.0
+        # Simple proxy: fraction of anyons that have wrapped full torus multiple times
+        wrapped = sum(1 for a in self.anyons if a.lifetime > 30 and a.position < 0.1)
+        return min(1.0, wrapped / max(1, len(self.anyons)) * 0.8)
+
+    # Call in execute_heavy_load_cycle():
+    # After fission checks:
+    self.detect_and_track_anyons()
+    self.logical_error_rate = self.compute_logical_error_rate()
+
 DB_PATH = "tordial_manifold.db"
 
 def init_sqlite_db():
