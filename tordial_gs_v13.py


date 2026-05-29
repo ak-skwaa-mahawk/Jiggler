@@ -4,7 +4,56 @@ import yaml
 import numpy as np
 import random
 from typing import Dict, List, Set
+import sqlite3
+import os
 
+# Add near the top (after other imports)
+DB_PATH = "tordial_manifold.db"
+
+def init_sqlite_db():
+    """Initialize SQLite with dynamic table provisioning."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS nodes (
+            node_id INTEGER PRIMARY KEY,
+            d INTEGER,
+            r INTEGER,
+            sigma_T REAL,
+            drift_phase REAL,
+            fission_count INTEGER,
+            parent_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Then enhance the _persist_node_state method:
+def _persist_node_state(self, node, parent_id=None):
+    """Auto-provision SQLite entry for new fission children."""
+    if not os.path.exists(DB_PATH):
+        init_sqlite_db()
+    
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    c.execute('''
+        INSERT INTO nodes 
+        (node_id, d, r, sigma_T, drift_phase, fission_count, parent_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        node.node_id,
+        getattr(node, 'd', 0),
+        getattr(node, 'r', 0),
+        getattr(node, 'sigma_T', 0.0),
+        getattr(node, 'drift_phase', 0.0),
+        getattr(node, 'fission_count', 0),
+        parent_id
+    ))
+    conn.commit()
+    conn.close()
+self._persist_node_state(child, parent_id=parent_node.node_id)
 # =========================
 # CONFIG LOAD
 # =========================
