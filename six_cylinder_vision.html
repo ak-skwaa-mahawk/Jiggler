@@ -58,17 +58,28 @@
 
   header .constants {
     font-size: 0.65rem;
-    opacity: 0.45;
-    margin-top: 0.3rem;
+    opacity: 0.55;
+    margin-top: 0.35rem;
     letter-spacing: 0.1em;
   }
 
+  /* live delta badge */
+  .delta-badge {
+    display: inline-block;
+    margin-left: 1rem;
+    font-size: 0.6rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 20px;
+    border: 1px solid rgba(0,255,204,0.3);
+    color: var(--core);
+    opacity: 0.8;
+    vertical-align: middle;
+  }
+
   .stage {
-    position: relative;
     width: 100%;
     display: flex;
     justify-content: center;
-    align-items: center;
     padding: 0.5rem 1rem;
   }
 
@@ -116,19 +127,46 @@
     margin-top: 0.15rem;
   }
 
-  /* Particle flow readout */
   .flow-readout {
     display: flex;
     justify-content: center;
     gap: 1rem;
-    padding: 0.3rem 1rem;
+    padding: 0.2rem 1rem 0.5rem;
     font-size: 0.6rem;
     opacity: 0.7;
     flex-wrap: wrap;
   }
 
-  .flow-readout span { letter-spacing: 0.06em; }
   .flow-readout .lbl { opacity: 0.5; }
+
+  /* flux balance bar */
+  .flux-bar-wrap {
+    max-width: 580px;
+    margin: 0 auto;
+    padding: 0 1rem 0.6rem;
+  }
+
+  .flux-bar-label {
+    font-size: 0.55rem;
+    opacity: 0.45;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.2rem;
+    text-align: center;
+  }
+
+  .flux-bar {
+    display: flex;
+    height: 6px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.05);
+  }
+
+  .flux-seg { transition: width 0.2s ease; }
+  .flux-seg.intake  { background: #00ffcc; }
+  .flux-seg.transit { background: #ffffff; }
+  .flux-seg.exhaust { background: #ff8c00; }
+  .flux-seg.ret     { background: #cc00ff; }
 
   .status {
     display: grid;
@@ -169,7 +207,10 @@
 
 <header>
   <h1>6-CYLINDRICAL BOUNDARY SYSTEM</h1>
-  <div class="constants">TOROIDAL ROOT: 3.20442315 &nbsp;|&nbsp; GEAR SHIFT: 1.04 &nbsp;|&nbsp; SHADOW: 1.03</div>
+  <div class="constants">
+    TR: 3.1730059 &nbsp;|&nbsp; GS: 1.02 &nbsp;|&nbsp; SH: 1.03
+    <span class="delta-badge">Δ <span id="deltaVal">0.00000000</span></span>
+  </div>
 </header>
 
 <div class="stage">
@@ -205,18 +246,30 @@
 </div>
 
 <div class="flow-readout">
-  <span><span class="lbl">INTAKE FLUX: </span><span id="intakeFlux">—</span></span>
-  <span><span class="lbl">EXHAUST FLUX: </span><span id="exhaustFlux">—</span></span>
+  <span><span class="lbl">INTAKE: </span><span id="intakeFlux">—</span></span>
+  <span><span class="lbl">EXHAUST: </span><span id="exhaustFlux">—</span></span>
   <span><span class="lbl">BELT DENSITY: </span><span id="beltDensity">—</span></span>
   <span><span class="lbl">CAP RETURN: </span><span id="capReturn">—</span></span>
+  <span><span class="lbl">THROAT V: </span><span id="throatV">—</span></span>
+</div>
+
+<div class="flux-bar-wrap">
+  <div class="flux-bar-label">PARTICLE PHASE DISTRIBUTION</div>
+  <div class="flux-bar">
+    <div class="flux-seg intake"  id="barIntake"  style="width:25%"></div>
+    <div class="flux-seg transit" id="barTransit" style="width:25%"></div>
+    <div class="flux-seg exhaust" id="barExhaust" style="width:25%"></div>
+    <div class="flux-seg ret"     id="barReturn"  style="width:25%"></div>
+  </div>
 </div>
 
 <div class="status" id="status"></div>
 
 <script>
-const TOROIDAL = 3.20442315;
-const GEAR     = 1.04;
-const SHADOW   = 1.03;
+// ── Calibrated constants (mirrors six_cylinder_boundary.py) ──
+const TOROIDAL_ROOT = 3.1730059;   // calibrated for GEAR_SHIFT = 1.02
+const GEAR_SHIFT    = 1.02;        // universal stabilizer — immutable
+const SHADOW        = 1.03;        // shadow constant
 
 const canvas = document.getElementById('main');
 const ctx    = canvas.getContext('2d');
@@ -247,14 +300,21 @@ Object.keys(sliders).forEach(k => {
 let angle = 0;
 let time  = 0;
 
-// ─── Face geometry ───────────────────────────────────────────
-function computeFaces(spin, pressure, temp, belt) {
-  const coreCurvature = (TOROIDAL / Math.PI) * spin * SHADOW;
-  const coreRadius    = 60 * pressure / coreCurvature;
-  const coreThroat    = coreRadius * (1 - 0.15 * temp);
-  const beltCurvature = coreCurvature * GEAR * belt;
+// ── Geometry (exact mirror of Python compute()) ───────────────
+function computeFaces(spin, pressure, temp, beltMod) {
+  spin     = Math.max(0.01, spin);
+  pressure = Math.max(0.01, pressure);
+  temp     = Math.max(0, Math.min(1, temp));
+  beltMod  = Math.max(0.1, beltMod);
+
+  const coreCurvature = (TOROIDAL_ROOT / Math.PI) * spin * SHADOW;
+  const coreRadius    = (60 * pressure) / coreCurvature;
+  const coreThroat    = coreRadius * (1.0 - 0.15 * temp);
+
+  const beltCurvature = coreCurvature * GEAR_SHIFT * beltMod;
   const beltRadius    = coreRadius * beltCurvature;
-  const capCurvature  = 1 / (beltCurvature * SHADOW);
+
+  const capCurvature  = 1.0 / (beltCurvature * SHADOW);
   const capRadius     = beltRadius * capCurvature;
 
   return {
@@ -264,335 +324,278 @@ function computeFaces(spin, pressure, temp, belt) {
   };
 }
 
-// ─── Particle system ─────────────────────────────────────────
-/*
-  Each particle lives through 4 phases:
-    0  INTAKE  — spawns at belt edge, spirals inward toward throat
-    1  TRANSIT — passes through the core throat (compressed)
-    2  EXHAUST — jets outward from throat back to belt
-    3  RETURN  — cap deflects it, arcs back to intake entry
+// ── Derived metrics (exact mirror of Python) ──────────────────
+function fluxBalance(faces, spin) {
+  const intakeFlux  = faces.core.throat * TOROIDAL_ROOT * spin;
+  const exhaustFlux = intakeFlux * SHADOW;
+  const beltDensity = faces.belt.radius / (faces.core.throat + 1e-9) * GEAR_SHIFT;
+  const capReturn   = 1.0 / (beltDensity * SHADOW + 1e-9);
+  return { intakeFlux, exhaustFlux, beltDensity, capReturn };
+}
 
-  Position stored in polar coords (r, theta) relative to center.
-  Velocity: dr (radial), dtheta (angular).
-*/
+function throatVelocity(faces, spin) {
+  return (spin * TOROIDAL_ROOT * GEAR_SHIFT) / (faces.core.throat + 1e-9);
+}
 
-const MAX_PARTICLES = 200;
+function closedLoopDelta(faces) {
+  return faces.belt.curvature * faces.cap.curvature * SHADOW - 1.0;
+}
+
+// ── Particle system ───────────────────────────────────────────
 const particles = [];
 
-function spawnParticle(faces) {
-  const throatR = faces.core.throat * 0.55;
-  const beltR   = faces.belt.radius;
-
-  // Random entry angle on belt perimeter
-  const theta = Math.random() * Math.PI * 2;
-
-  particles.push({
-    r:      beltR * (0.92 + Math.random() * 0.12),
-    theta,
-    dr:     0,
-    dtheta: 0,
-    phase:  0,   // 0=intake 1=transit 2=exhaust 3=return
-    life:   0,
-    maxLife: 180 + Math.random() * 120,
-    hue:    Math.random() < 0.5 ? 'core' : 'belt',
-    size:   0.8 + Math.random() * 1.4,
-    trailX: [],
-    trailY: [],
-  });
+function spawnParticle(beltR, i, total) {
+  const theta = (i / Math.max(total, 1)) * Math.PI * 2 + Math.random() * 0.5;
+  return {
+    r: beltR * 0.95, theta,
+    dr: 0, dtheta: 0,
+    phase: 0, life: 0,
+    maxLife: 180 + Math.floor(Math.random() * 120),
+    size: 0.8 + Math.random() * 1.4,
+    trailX: [], trailY: [],
+  };
 }
 
 function updateParticles(faces, spin, temp) {
   const throatR = faces.core.throat * 0.5;
   const beltR   = faces.belt.radius;
-  const capR    = faces.cap.radius;
+  const target  = parseInt(sliders.pcount.value);
 
-  // Spawn up to target count
-  const target = parseInt(sliders.pcount.value);
-  while (particles.length < target) spawnParticle(faces);
+  while (particles.length < target) particles.push(spawnParticle(beltR, particles.length, target));
   while (particles.length > target) particles.shift();
 
-  const spinDir = 1; // counter-clockwise convention
+  let counts = { INTAKE: 0, TRANSIT: 0, EXHAUST: 0, RETURN: 0 };
 
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.life++;
 
-    // Kill & respawn if expired
     if (p.life > p.maxLife) {
       particles.splice(i, 1);
-      spawnParticle(faces);
+      particles.push(spawnParticle(beltR, particles.length, target));
       continue;
     }
 
-    // ── Phase logic ──
     if (p.phase === 0) {
-      // INTAKE: spiral inward
-      const speed = 0.6 + spin * 0.4;
-      p.dr     = -speed * (p.r / beltR);               // inward pull proportional to belt field
-      p.dtheta =  spinDir * (speed * TOROIDAL * 0.08); // toroidal angular carry
-      p.r     += p.dr;
-      p.theta += p.dtheta;
-
-      if (p.r <= throatR * 1.1) {
-        p.phase = 1;
-        p.dr = 0;
-      }
+      const spd = 0.6 + spin * 0.4;
+      p.dr     = -spd * (p.r / beltR);
+      p.dtheta =  spd * TOROIDAL_ROOT * 0.08;
+      p.r     += p.dr;   p.theta += p.dtheta;
+      if (p.r <= throatR * 1.1) p.phase = 1;
 
     } else if (p.phase === 1) {
-      // TRANSIT: compress & spin fast in throat
-      const compress = 1 + temp * 2.5;
-      p.dtheta = spinDir * GEAR * compress * 0.18;
+      const compress = 1.0 + temp * 2.5;
+      p.dtheta = GEAR_SHIFT * compress * 0.18;
       p.theta += p.dtheta;
-      p.r = throatR * (0.8 + 0.2 * Math.sin(p.life * 0.4));
-
-      if (p.life % Math.floor(15 / (spin * 0.5 + 0.5)) === 0) {
-        p.phase = 2;
-        // Assign exhaust angle — opposite of intake angle
-        p.exhaustTheta = p.theta + Math.PI * (0.8 + Math.random() * 0.4);
-      }
+      p.r = throatR * (0.85 + 0.15 * Math.sin(p.life * 0.4));
+      if (p.life % Math.max(1, Math.floor(15 / (spin * 0.5 + 0.5))) === 0) p.phase = 2;
 
     } else if (p.phase === 2) {
-      // EXHAUST: jet outward
-      const jetSpeed = (1 + spin * 0.5) * SHADOW;
-      p.dr     = jetSpeed * 0.9;
-      p.dtheta = spinDir * 0.04;
-      p.r     += p.dr;
-      p.theta += p.dtheta;
-
-      if (p.r >= beltR * 0.9) {
-        p.phase = 3;
-      }
+      const jetSpd = (1.0 + spin * 0.5) * SHADOW;
+      p.dr = jetSpd * 0.9;   p.dtheta = 0.04;
+      p.r += p.dr;   p.theta += p.dtheta;
+      if (p.r >= beltR * 0.9) p.phase = 3;
 
     } else if (p.phase === 3) {
-      // RETURN: cap deflects — arc back inward
       p.dr     = -(0.3 + spin * 0.15);
-      p.dtheta = spinDir * (GEAR * 0.06);
-      p.r     += p.dr;
-      p.theta += p.dtheta;
-
-      if (p.r <= throatR * 1.4) {
-        // Re-enter intake
-        p.phase = 0;
-        p.r = beltR * 0.95;
-      }
+      p.dtheta = GEAR_SHIFT * 0.06;
+      p.r += p.dr;   p.theta += p.dtheta;
+      if (p.r <= throatR * 1.4) { p.phase = 0; p.r = beltR * 0.95; }
     }
 
-    // Clamp r
     p.r = Math.max(throatR * 0.4, Math.min(beltR * 1.15, p.r));
 
-    // Store trail (last 8 positions)
     const px = cx + Math.cos(p.theta) * p.r;
     const py = cy + Math.sin(p.theta) * p.r;
-    p.trailX.push(px);
-    p.trailY.push(py);
+    p.trailX.push(px); p.trailY.push(py);
     if (p.trailX.length > 8) { p.trailX.shift(); p.trailY.shift(); }
+
+    const names = ['INTAKE','TRANSIT','EXHAUST','RETURN'];
+    counts[names[p.phase]]++;
   }
+
+  return counts;
 }
 
-function drawParticles(faces) {
-  const throatR = faces.core.throat * 0.5;
-  const beltR   = faces.belt.radius;
-
-  // Count per zone for readout
-  let intakeCount = 0, exhaustCount = 0, beltCount = 0, capCount = 0;
-
+function drawParticles() {
   for (const p of particles) {
     if (p.trailX.length < 2) continue;
+    const colors = [[0,255,204],[255,255,255],[255,140,0],[200,0,255]];
+    const c = colors[p.phase];
 
-    // Phase coloring
-    let color;
-    switch(p.phase) {
-      case 0: color = [0, 255, 204];    intakeCount++;  break; // intake  — core cyan
-      case 1: color = [255, 255, 255];  exhaustCount++; break; // transit — white hot
-      case 2: color = [255, 140, 0];    beltCount++;    break; // exhaust — orange
-      case 3: color = [200, 0, 255];    capCount++;     break; // return  — cap purple
-    }
-
-    // Draw trail
     for (let t = 1; t < p.trailX.length; t++) {
       const alpha = (t / p.trailX.length) * 0.7;
       ctx.beginPath();
       ctx.moveTo(p.trailX[t-1], p.trailY[t-1]);
       ctx.lineTo(p.trailX[t],   p.trailY[t]);
-      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
+      ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},${alpha})`;
       ctx.lineWidth = p.size * (t / p.trailX.length);
       ctx.stroke();
     }
 
-    // Draw particle head
-    const hx = p.trailX[p.trailX.length - 1];
-    const hy = p.trailY[p.trailY.length - 1];
-    const lifeAlpha = Math.min(1, p.life / 20) * Math.min(1, (p.maxLife - p.life) / 20);
+    const hx = p.trailX[p.trailX.length-1];
+    const hy = p.trailY[p.trailY.length-1];
+    const la = Math.min(1, p.life/20) * Math.min(1, (p.maxLife-p.life)/20);
 
     ctx.beginPath();
-    ctx.arc(hx, hy, p.size * 1.2, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${lifeAlpha})`;
+    ctx.arc(hx, hy, p.size * 1.2, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${la})`;
     ctx.fill();
 
-    // Glow on transit (throat) particles
     if (p.phase === 1) {
       ctx.beginPath();
-      ctx.arc(hx, hy, p.size * 4, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255,255,255,${lifeAlpha * 0.15})`;
+      ctx.arc(hx, hy, p.size * 4, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(255,255,255,${la*0.15})`;
       ctx.fill();
     }
   }
-
-  // Update readout
-  const total = particles.length || 1;
-  document.getElementById('intakeFlux').textContent  = intakeCount;
-  document.getElementById('exhaustFlux').textContent = exhaustCount;
-  document.getElementById('beltDensity').textContent = beltCount;
-  document.getElementById('capReturn').textContent   = capCount;
 }
 
-// ─── Background field ─────────────────────────────────────────
+// ── Field geometry ────────────────────────────────────────────
 function drawField(faces, t) {
   const { core, belt, cap } = faces;
-  const spin = parseFloat(sliders.spin.value);
   const temp = parseFloat(sliders.temp.value);
 
-  // Background glow
-  [belt.radius * 1.6, belt.radius * 1.3, belt.radius].forEach((r, i) => {
-    const g = ctx.createRadialGradient(cx, cy, r*0.1, cx, cy, r);
-    g.addColorStop(0, `rgba(255,107,0,0)`);
-    g.addColorStop(1, `rgba(255,107,0,${0.025 - i*0.007})`);
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI*2);
-    ctx.fillStyle = g;
-    ctx.fill();
+  // Ambient glow
+  [belt.radius*1.6, belt.radius*1.3, belt.radius].forEach((r,i) => {
+    const g = ctx.createRadialGradient(cx,cy,r*0.1,cx,cy,r);
+    g.addColorStop(0,'rgba(255,107,0,0)');
+    g.addColorStop(1,`rgba(255,107,0,${0.025-i*0.007})`);
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.fillStyle=g; ctx.fill();
   });
 
-  // Belt rings
-  for (let i = 0; i < 3; i++) {
-    const pulse = 1 + 0.04 * Math.sin(t * 1.5 + i);
+  // Belt rings — slightly tighter with GS=1.02
+  for (let i=0;i<3;i++) {
+    const pulse = 1 + 0.04*Math.sin(t*1.5+i);
     ctx.beginPath();
-    ctx.arc(cx, cy, belt.radius * pulse * (1 + i*0.07), 0, Math.PI*2);
-    ctx.strokeStyle = `rgba(255,107,0,${0.35 - i*0.1})`;
-    ctx.lineWidth = 2 - i*0.5;
-    ctx.stroke();
+    ctx.arc(cx,cy,belt.radius*pulse*(1+i*0.07),0,Math.PI*2);
+    ctx.strokeStyle=`rgba(255,107,0,${0.38-i*0.1})`;
+    ctx.lineWidth=2-i*0.5; ctx.stroke();
   }
 
-  // Field lines (dimmed, particles are now the main show)
-  const N = 24;
-  for (let i = 0; i < N; i++) {
-    const a  = (i / N) * Math.PI * 2 + angle;
-    const warp = 1 + 0.10 * Math.sin(a * 3 + t);
-    const r0 = core.throat * 0.5;
-    const r1 = belt.radius * warp;
-    const x0 = cx + Math.cos(a) * r0, y0 = cy + Math.sin(a) * r0;
-    const x1 = cx + Math.cos(a) * r1, y1 = cy + Math.sin(a) * r1;
-    const grad = ctx.createLinearGradient(x0, y0, x1, y1);
-    grad.addColorStop(0,   `rgba(0,255,204,0.25)`);
-    grad.addColorStop(0.5, `rgba(255,107,0,0.12)`);
-    grad.addColorStop(1,   `rgba(204,0,255,0.04)`);
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = 0.6;
-    ctx.stroke();
+  // Field lines
+  for (let i=0;i<24;i++) {
+    const a  = (i/24)*Math.PI*2 + angle;
+    const warp = 1 + 0.10*Math.sin(a*3+t);
+    const r0 = core.throat*0.5, r1 = belt.radius*warp;
+    const x0=cx+Math.cos(a)*r0, y0=cy+Math.sin(a)*r0;
+    const x1=cx+Math.cos(a)*r1, y1=cy+Math.sin(a)*r1;
+    const grad=ctx.createLinearGradient(x0,y0,x1,y1);
+    grad.addColorStop(0,'rgba(0,255,204,0.22)');
+    grad.addColorStop(0.5,'rgba(255,107,0,0.10)');
+    grad.addColorStop(1,'rgba(204,0,255,0.03)');
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1);
+    ctx.strokeStyle=grad; ctx.lineWidth=0.6; ctx.stroke();
   }
 
-  // Containment cap arcs
-  [-1, 1].forEach(dir => {
-    const pulse = 1 + 0.05 * Math.sin(t * 2 * dir);
-    const yOff  = dir * cap.radius * 0.85 * pulse;
-    ctx.beginPath();
-    ctx.save();
-    ctx.translate(cx, cy + yOff);
-    ctx.scale(1, dir * 0.28);
-    ctx.arc(0, 0, belt.radius * 0.95, 0, Math.PI, dir < 0);
+  // Cap arcs
+  [-1,1].forEach(dir => {
+    const pulse = 1+0.05*Math.sin(t*2*dir);
+    const yOff  = dir*cap.radius*0.85*pulse;
+    ctx.beginPath(); ctx.save();
+    ctx.translate(cx, cy+yOff);
+    ctx.scale(1, dir*0.28);
+    ctx.arc(0,0,belt.radius*0.95,0,Math.PI,dir<0);
     ctx.restore();
-    ctx.strokeStyle = `rgba(204,0,255,0.55)`;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    ctx.strokeStyle='rgba(204,0,255,0.55)';
+    ctx.lineWidth=1.5; ctx.stroke();
   });
 
   // Core ellipses
-  [0.18, 0.28, 0.40].forEach((scale, i) => {
-    const pulse = 1 + 0.06 * Math.sin(t * 3 + i * 1.2);
-    const rx = core.throat * pulse;
-    const ry = rx * 0.35;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(angle * 0.5);
+  [0.18,0.28,0.40].forEach((scale,i) => {
+    const pulse=1+0.06*Math.sin(t*3+i*1.2);
+    const rx=core.throat*pulse, ry=rx*0.35;
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(angle*0.5);
     ctx.beginPath();
-    ctx.ellipse(0, 0, rx * (1 + scale), ry * (1 + scale * 0.5), 0, 0, Math.PI*2);
-    ctx.strokeStyle = `rgba(0,255,204,${0.5 - i * 0.15})`;
-    ctx.lineWidth = 1.8 - i * 0.4;
-    ctx.stroke();
-    ctx.restore();
+    ctx.ellipse(0,0,rx*(1+scale),ry*(1+scale*0.5),0,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(0,255,204,${0.5-i*0.15})`;
+    ctx.lineWidth=1.8-i*0.4; ctx.stroke(); ctx.restore();
   });
 
   // Core hotspot
-  const hotR = core.throat * 0.22 * (1 + 0.1 * Math.sin(t * 5));
-  const hotG = ctx.createRadialGradient(cx, cy, 0, cx, cy, hotR * 3);
-  hotG.addColorStop(0,   `rgba(255,255,255,${0.5 + temp * 0.5})`);
-  hotG.addColorStop(0.3, `rgba(0,255,204,0.6)`);
-  hotG.addColorStop(1,   `rgba(0,255,204,0)`);
-  ctx.beginPath();
-  ctx.arc(cx, cy, hotR * 3, 0, Math.PI * 2);
-  ctx.fillStyle = hotG;
-  ctx.fill();
+  const hotR = core.throat*0.22*(1+0.1*Math.sin(t*5));
+  const hotG = ctx.createRadialGradient(cx,cy,0,cx,cy,hotR*3);
+  hotG.addColorStop(0,`rgba(255,255,255,${0.5+temp*0.5})`);
+  hotG.addColorStop(0.3,'rgba(0,255,204,0.6)');
+  hotG.addColorStop(1,'rgba(0,255,204,0)');
+  ctx.beginPath(); ctx.arc(cx,cy,hotR*3,0,Math.PI*2);
+  ctx.fillStyle=hotG; ctx.fill();
 
-  // Toroidal marker
-  const ma = angle * TOROIDAL * 0.1;
-  const mx = cx + Math.cos(ma) * belt.radius;
-  const my = cy + Math.sin(ma) * belt.radius;
-  ctx.beginPath(); ctx.arc(mx, my, 4, 0, Math.PI*2);
-  ctx.fillStyle = '#ffffff'; ctx.fill();
-  ctx.beginPath(); ctx.arc(mx, my, 8, 0, Math.PI*2);
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+  // Toroidal marker — orbits at TOROIDAL_ROOT cadence
+  const ma = angle * TOROIDAL_ROOT * 0.1;
+  const mx = cx+Math.cos(ma)*belt.radius;
+  const my = cy+Math.sin(ma)*belt.radius;
+  ctx.beginPath(); ctx.arc(mx,my,4,0,Math.PI*2);
+  ctx.fillStyle='#ffffff'; ctx.fill();
+  ctx.beginPath(); ctx.arc(mx,my,8,0,Math.PI*2);
+  ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=1; ctx.stroke();
 }
 
-function updateStatus(faces) {
+// ── Status + readouts ─────────────────────────────────────────
+function updateUI(faces, spin, temp, counts) {
+  // Closed-loop delta
+  const delta = closedLoopDelta(faces);
+  document.getElementById('deltaVal').textContent = delta.toFixed(8);
+
+  // Flux metrics
+  const flux = fluxBalance(faces, spin);
+  document.getElementById('intakeFlux').textContent  = flux.intakeFlux.toFixed(2);
+  document.getElementById('exhaustFlux').textContent = flux.exhaustFlux.toFixed(2);
+  document.getElementById('beltDensity').textContent = flux.beltDensity.toFixed(4);
+  document.getElementById('capReturn').textContent   = flux.capReturn.toFixed(4);
+  document.getElementById('throatV').textContent     = throatVelocity(faces, spin).toFixed(5);
+
+  // Phase bar
+  const total = particles.length || 1;
+  document.getElementById('barIntake').style.width  = (counts.INTAKE  / total * 100) + '%';
+  document.getElementById('barTransit').style.width = (counts.TRANSIT / total * 100) + '%';
+  document.getElementById('barExhaust').style.width = (counts.EXHAUST / total * 100) + '%';
+  document.getElementById('barReturn').style.width  = (counts.RETURN  / total * 100) + '%';
+
+  // Face cards
   const cards = [
-    { cls: 'core',   face: faces.core, axis: 'FRONT / REAR' },
-    { cls: 'expand', face: faces.belt, axis: 'LEFT / RIGHT'  },
-    { cls: 'cap',    face: faces.cap,  axis: 'TOP / BOTTOM'  },
+    { cls:'core',   face:faces.core, axis:'FRONT / REAR' },
+    { cls:'expand', face:faces.belt, axis:'LEFT / RIGHT'  },
+    { cls:'cap',    face:faces.cap,  axis:'TOP / BOTTOM'  },
   ];
   document.getElementById('status').innerHTML = cards.map(c => `
     <div class="face-card ${c.cls}">
       <div class="face-title">${c.axis}</div>
       <div class="metric">${c.face.role}<br>
-        Curvature: ${c.face.curvature.toFixed(4)}<br>
-        Radius: ${c.face.radius.toFixed(2)}<br>
-        Throat: ${c.face.throat.toFixed(2)}
+        Curvature: ${c.face.curvature.toFixed(6)}<br>
+        Radius: ${c.face.radius.toFixed(4)}<br>
+        Throat: ${c.face.throat.toFixed(4)}
       </div>
     </div>
   `).join('');
 }
 
+// ── Main loop ─────────────────────────────────────────────────
 function loop() {
   const spin     = parseFloat(sliders.spin.value);
   const pressure = parseFloat(sliders.pressure.value);
   const temp     = parseFloat(sliders.temp.value);
-  const belt     = parseFloat(sliders.belt.value);
+  const beltMod  = parseFloat(sliders.belt.value);
 
-  angle += 0.008 * spin * GEAR;
+  angle += 0.008 * spin * GEAR_SHIFT;
   time  += 0.016;
 
-  const faces = computeFaces(spin, pressure, temp, belt);
+  const faces = computeFaces(spin, pressure, temp, beltMod);
 
-  ctx.clearRect(0, 0, W, H);
-  const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, W*0.7);
-  bg.addColorStop(0, 'rgba(0,20,40,0.96)');
-  bg.addColorStop(1, 'rgba(3,8,16,0.96)');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
+  ctx.clearRect(0,0,W,H);
+  const bg = ctx.createRadialGradient(cx,cy,0,cx,cy,W*0.7);
+  bg.addColorStop(0,'rgba(0,20,40,0.96)');
+  bg.addColorStop(1,'rgba(3,8,16,0.96)');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
 
   drawField(faces, time);
 
-  updateParticles(faces, spin, temp);
-  drawParticles(faces);
+  const counts = updateParticles(faces, spin, temp);
+  drawParticles();
 
-  ctx.font = '600 9px "Share Tech Mono"';
-  ctx.fillStyle = 'rgba(0,255,204,0.4)';
-  ctx.textAlign = 'center';
-  ctx.fillText(`TR: ${TOROIDAL} · GS: ${GEAR} · SH: ${SHADOW}`, cx, H - 10);
+  updateUI(faces, spin, temp, counts);
 
-  updateStatus(faces);
   requestAnimationFrame(loop);
 }
 
