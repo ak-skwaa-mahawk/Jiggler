@@ -813,3 +813,234 @@ if __name__ == '__main__':
     if   len(sys.argv) > 1 and sys.argv[1] == '--plotter': run_plotter_client()
     elif len(sys.argv) > 1 and sys.argv[1] == '--server':  run_engine_server()
     else:                                                   run_demo()
+            w=r.uniform(-1.5, 1.5),
+            v=r.uniform(-1.5, 1.5),
+            u=r.uniform(-1.5, 1.5),
+            color=r.choice(self.COLORS)
+        )
+
+    def step(self, state: SystemState, dt: float = 0.05):
+        """
+        Executes an acceleration-based state machine step across all 6 coordinates.
+        Uses physical boundary constraints derived from the SixCylinderBoundary solver.
+        """
+        throat = state.core.throat * 0.5
+        belt_r = state.belt.radius
+
+        while len(self.particles) < self.count:
+            self.particles.append(self._spawn(belt_r))
+
+        live = []
+        for p in self.particles:
+            p.life += 1
+            if p.life > p.max_life:
+                live.append(self._spawn(belt_r))
+                continue
+
+            r = math.hypot(p.x, p.y)
+            ax = ay = az = aw = av = au = 0.0
+
+            # ── 6D State-Machine Phase Space Accelerations ──
+            if p.phase == 0:     # INTAKE: Force vectors collapse particles into core throat
+                target_factor = throat / (r + 1e-9)
+                ax = -1.5 * (p.x / belt_r) * target_factor
+                ay = -1.5 * (p.y / belt_r) * target_factor
+                az = -0.5 * p.z
+                aw = 0.3 * state.spin
+                if r < throat * 1.1:
+                    p.phase = 1
+
+            elif p.phase == 1:   # TRANSIT: Tangential orbital forces spin up extended axes
+                ax = -1.0 * p.y * state.spin * GEAR_SHIFT
+                ay = 1.0 * p.x * state.spin * GEAR_SHIFT
+                az = 0.1 * (p.w - p.v)
+                aw = (GEAR_SHIFT - p.w) * 0.5
+                av = (state.temp - p.v) * 0.5
+                if r > belt_r * 0.75:
+                    p.phase = 2
+
+            elif p.phase == 2:   # EXHAUST: High radial dispersion through shadow remainder
+                ax = 2.0 * (p.x / (r + 1e-9)) * SHADOW
+                ay = 2.0 * (p.y / (r + 1e-9)) * SHADOW
+                az = 0.8 * p.z * state.pressure
+                if r > belt_r * 0.95 or abs(p.z) > belt_r * 0.6:
+                    p.phase = 3
+
+            elif p.phase == 3:   # RETURN: Inverse containment pressure fields snap back
+                ax = -2.5 * p.x * (1.0 / (state.pressure + 1e-9))
+                ay = -2.5 * p.y * (1.0 / (state.pressure + 1e-9))
+                az = -1.5 * p.z
+                p.dw *= 0.1
+                p.dv *= 0.1
+                p.du *= 0.1
+                if r < throat * 1.4:
+                    p.phase = 0
+
+            # Kinematic numerical Integration
+            p.dx += ax * dt; p.dy += ay * dt; p.dz += az * dt
+            p.dw += aw * dt; p.dv += av * dt; p.du += au * dt
+
+            # Fluid viscous drag application to maintain system stability
+            drag = 1.0 - (0.04 * state.pressure)
+            p.dx *= drag; p.dy *= drag; p.dz *= drag
+            p.dw *= drag; p.dv *= drag; p.du *= drag
+
+            p.x += p.dx; p.y += p.dy; p.z += p.dz
+            p.w += p.dw; p.v += p.dv; p.u += p.du
+
+            live.append(p)
+        self.particles = live
+
+    # ── Dimensional Reduction Projections ─────────────────────────────────────
+
+    def get_data_matrix(self) -> np.ndarray:
+        return np.array([[p.x, p.y, p.z, p.w, p.v, p.u] for p in self.particles])
+
+    def plot_pca_projection(self, n_components: int = 3, save_path=None):
+        """Project 6D particles onto linear principal component vectors via SVD."""
+        if len(self.particles) < 10: return
+        data = self.get_data_matrix()
+        data_centered = data - data.mean(axis=0)
+
+        _, _, Vt = np.linalg.svd(data_centered, full_matrices=False)
+        proj = data_centered @ Vt.T[:, :n_components]
+
+        fig = plt.figure(figsize=(10, 7), facecolor='#0f0f14')
+        colors = [p.color for p in self.particles]
+
+        if n_components == 3:
+            ax = fig.add_subplot(111, projection='3d', facecolor='#0f0f14')
+            sizes = [max(10, abs(p.w) * 25) for p in self.particles]
+            ax.scatter(proj[:,0], proj[:,1], proj[:,2], s=sizes, c=colors, alpha=0.7)
+            ax.set_title("6D Particle Flow — 3D PCA Projection Leak Field", color='white')
+        else:
+            ax = fig.add_subplot(111, facecolor='#13131a')
+            ax.scatter(proj[:,0], proj[:,1], c=colors, s=30, alpha=0.7)
+            ax.set_title("6D Particle Flow — 2D PCA Projection", color='white')
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor())
+            plt.close()
+        else:
+            plt.show()
+
+    def plot_manifold_projection(self, method: str = 'tsne', save_path: str = None):
+        """Projects 6D particles to 2D using non-linear reduction with fallbacks."""
+        if len(self.particles) < 10: return
+        data = self.get_data_matrix()
+        colors = [p.color for p in self.particles]
+        method = method.lower()
+        proj = None
+
+        if method == 'umap':
+            if UMAP_AVAILABLE:
+                try:
+                    reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, n_components=2, random_state=42)
+                    proj = reducer.fit_transform(data)
+                except Exception: method = 'tsne'
+            else: method = 'tsne'
+
+        if method == 'tsne' and proj is None:
+            if TSNE_AVAILABLE:
+                try:
+                    perp = min(30, max(5, len(data) // 5))
+                    tsne = TSNE(n_components=2, perplexity=perp, random_state=42, init='pca')
+                    proj = tsne.fit_transform(data)
+                except Exception: method = 'pca'
+            else: method = 'pca'
+
+        if method == 'pca' or proj is None:
+            method = 'pca (fallback)'
+            data_centered = data - data.mean(axis=0)
+            _, _, Vt = np.linalg.svd(data_centered, full_matrices=False)
+            proj = data_centered @ Vt.T[:, :2]
+
+        fig, ax = plt.subplots(figsize=(10, 7), facecolor='#0f0f14')
+        ax.set_facecolor('#13131a')
+        ax.scatter(proj[:, 0], proj[:, 1], c=colors, s=35, alpha=0.8, edgecolors='#ffffff', linewidths=0.2)
+        ax.set_title(f"6D Particle Flow — 2D Manifold Space ({method.upper()})", color='white')
+        ax.grid(True, color='#252530', linestyle=':')
+        
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor())
+            plt.close()
+        else:
+            plt.show()
+
+
+# ── JSON-RPC Network Automation and Disk Logging Broker ───────────────────────
+
+class JEDNetworkBroker:
+    """Asynchronous JSON-RPC command broker and telemetry flat-file logger."""
+    def __init__(self, solver: SixCylinderBoundary, host: str = '127.0.0.1', port: int = 8888, log_file: str = "manifold_telemetry.log"):
+        self.solver = solver
+        self.host = host
+        self.port = port
+        self.log_file = log_file
+        self.clients = []
+        self._running = False
+        
+        with open(self.log_file, "a", encoding="utf-8") as f:
+            f.write(f"\n# --- NEW MANIFOLD RECORDING SESSION: {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+
+    def start(self):
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_socket.bind((self.host, self.port))
+        self.server_socket.listen(5)
+        self.server_socket.setblocking(False)
+        self._running = True
+        self._thread = threading.Thread(target=self._pump, daemon=True, name="JED-NetPump")
+        self._thread.start()
+        print(f"📡 RPC Pipeline Server listening on tcp://{self.host}:{self.port}")
+
+    def _pump(self):
+        while self._running:
+            socks = [self.server_socket] + self.clients
+            try: readable, _, errorable = select.select(socks, [], socks, 0.2)
+            except (ValueError, socket.error): continue
+
+            for sock in readable:
+                if sock is self.server_socket:
+                    try:
+                        c_sock, _ = self.server_socket.accept()
+                        c_sock.setblocking(False)
+                        self.clients.append(c_sock)
+                    except socket.error: pass
+                else:
+                    try:
+                        data = sock.recv(4096)
+                        if data: self._handle_rpc(sock, data.decode('utf-8'))
+                        else: self._drop(sock)
+                    except socket.error: self._drop(sock)
+            for sock in errorable: self._drop(sock)
+
+    def _handle_rpc(self, sock, raw_str: str):
+        try:
+            req = json.loads(raw_str)
+            method = req.get("method")
+            params = req.get("params", {})
+            req_id = req.get("id")
+            
+            if method == "update_geometry":
+                curr = self.solver.last_state or self.solver.compute()
+                self.solver.compute(
+                    spin=params.get("spin", curr.spin),
+                    pressure=params.get("pressure", curr.pressure),
+                    temp=params.get("temp", curr.temp),
+                    belt_mod=params.get("belt_mod", curr.belt_mod)
+                )
+                resp = {"jsonrpc": "2.0", "result": "GEOMETRY_MUTATION_OK", "id": req_id}
+            elif method == "get_status":
+                curr = self.solver.last_state or self.solver.compute()
+                resp = {"jsonrpc": "2.0", "result": {"spin": curr.spin, "pressure": curr.pressure, "temp": curr.temp}, "id": req_id}
+            else:
+                resp = {"jsonrpc": "2.0", "error": {"code": -32601, "message": "Method not found"}, "id": req_id}
+            sock.sendall((json.dumps(resp) + "\n").encode('utf-8'))
+        except Exception as e:
+            err = {"jsonrpc": "2.0", "error": {"code": -32700, "message": str(e)}, "id": None}
+            try: sock.sendall((json.dumps(err) + "\n").encode('utf-8'))
+            except socket.error: pass
+
