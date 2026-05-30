@@ -9,7 +9,9 @@ Leak Field  : 3D projection for rendering and intuition
 """
 
 import math
+import time
 import random
+import threading
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
@@ -46,7 +48,7 @@ class SystemState:
     core: FaceGeometry = field(default=None)
     belt: FaceGeometry = field(default=None)
     cap: FaceGeometry = field(default=None)
-    timestamp: float = field(default_factory=lambda: time.time())
+    timestamp: float = field(default_factory=time.time)
 
 
 class SixCylinderBoundary:
@@ -124,7 +126,7 @@ class ParticleFlowEngine6D:
             w=self._rng.uniform(-1.5, 1.5),
             v=self._rng.uniform(-1.5, 1.5),
             u=self._rng.uniform(-1.5, 1.5),
-            color=self._rng.choice(['cyan', 'lime', 'yellow', 'magenta', 'white', 'orange'])
+            color=self._rng.choice(['cyan','lime','yellow','magenta','white','orange'])
         )
 
     def step(self, state: SystemState):
@@ -165,7 +167,7 @@ class ParticleFlowEngine6D:
         self.particles = live
 
     def plot_pca_projection(self, n_components: int = 3, save_path=None):
-        """PCA projection of 6D particles"""
+        """Project 6D particles onto principal components."""
         if len(self.particles) < 10:
             print("Not enough particles for PCA.")
             return
@@ -185,14 +187,14 @@ class ParticleFlowEngine6D:
                        s=sizes, c=[p.color for p in self.particles],
                        alpha=0.75, edgecolors='k', linewidth=0.4)
             ax.set_xlabel('PC1'); ax.set_ylabel('PC2'); ax.set_zlabel('PC3')
-            ax.set_title("6D → 3D PCA Projection\n(Intrinsic Structure of the Manifold)")
+            ax.set_title("6D Particles → 3D PCA Projection")
         else:
             ax = fig.add_subplot(111)
             sizes = [max(20, abs(p.w) * 40) for p in self.particles]
             ax.scatter(proj[:,0], proj[:,1], s=sizes,
                        c=[p.color for p in self.particles], alpha=0.85)
             ax.set_xlabel('PC1'); ax.set_ylabel('PC2')
-            ax.set_title("6D → 2D PCA Projection")
+            ax.set_title("6D Particles → 2D PCA Projection")
             ax.grid(True, alpha=0.3)
 
         plt.tight_layout()
@@ -204,7 +206,7 @@ class ParticleFlowEngine6D:
         print(f"PCA Explained Variance → PC1: {explained[0]:.1%} | PC2: {explained[1]:.1%} | PC3: {explained[2]:.1%}")
 
 
-# ── Wrapper ────────────────────────────────────────────────────────────────
+# ── TordialNodeWrapper ─────────────────────────────────────────────────────
 
 class TordialNodeWrapper:
     def __init__(self, node_id: str = "FPT-6D-PCA", base_radius: float = 60.0):
@@ -233,12 +235,12 @@ class TordialNodeWrapper:
 if __name__ == '__main__':
     node = TordialNodeWrapper("FPT-PCA-Alpha")
 
-    print("Running 6D simulation...\n")
+    print("Running 6D simulation for PCA exploration...\n")
     for i in range(30):
-        node.tick(spin=1.7 + 0.5 * math.sin(i * 0.3), temp=0.12 * (i % 7))
+        node.tick(spin=1.7 + 0.5*math.sin(i*0.35), temp=0.08*(i%8))
 
-    print("=== Higher-Dimensional Exploration ===")
+    print("=== PCA Projections ===")
     node.plot_pca(n_components=2)
     node.plot_pca(n_components=3)
 
-    print("\n✅ 6D PCA particle projection complete.")
+    print("\n✅ Module ready with full 6D + PCA support.")
