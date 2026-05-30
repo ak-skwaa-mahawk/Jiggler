@@ -1,99 +1,40 @@
 # pwc/walker.py
-from typing import Tuple
-
-from .types import (
-    ManifoldPlan,
-    ControlSchedule,
-    ControlStep,
-    RegionalControlOverride,
-    TrajectorySample,
-)
-from tordial_gs_v15 import GSState
-from SystemicTordialMatrix import ManifoldState
-from global_PID import PIDState, pid_step
-from Automated_Asynchronous_Safety_Trip_Matrix import safety_evaluate
-from Production_Lifecycle_Framework import LifecycleState, lifecycle_transition
-from closed_loop import closed_loop_tick  # you can wrap your existing loop
+from .types import *
+from six_cylinder_boundary import SubstrateEngine
 
 
 class Walker:
-    def __init__(self):
-        pass
+    def compile_schedule(self, plan: ManifoldPlan, snapshot: SubstrateSnapshot) -> ControlSchedule:
+        steps = []
+        gs = snapshot.gs_state
 
-    def compile_schedule(
-        self,
-        plan: ManifoldPlan,
-        initial_state: ManifoldState,
-    ) -> ControlSchedule:
-        """Generate a nominal schedule from a plan."""
-
-        steps: list[ControlStep] = []
         for t in range(plan.horizon_steps):
-            # Simple linear interpolation of drift target towards preferred_drift
-            alpha = t / max(plan.horizon_steps - 1, 1)
-            pid_target_drift = (
-                (1 - alpha) * initial_state.global_drift
-                + alpha * plan.drift_envelope.preferred_drift
-            )
+            α = t / max(plan.horizon_steps - 1, 1)
 
-            # Keep global caps constant for now
-            step = ControlStep(
-                tick_index=t,
-                pid_target_drift=pid_target_drift,
-                pressure_cap_global=plan.pressure_budget.global_budget,
-                relaxation_strength_global=0.1,
-                regional_overrides=[],
-            )
-            steps.append(step)
+            spin_target = (1 - α) * gs.spin + α * plan.drift.preferred_drift
+            pressure_target = (1 - α) * gs.pressure + α * plan.pressure.preferred_pressure
+            temp_target = (1 - α) * gs.temp + α * plan.temp.preferred_temp
+
+            steps.append(ControlStep(
+                tick=t,
+                spin_setpoint=spin_target,
+                pressure_setpoint=pressure_target,
+                temp_setpoint=temp_target,
+                relaxation_strength=1.0,
+            ))
 
         return ControlSchedule(plan_id=plan.id, steps=steps)
 
-    def tick(
-        self,
-        plan: ManifoldPlan,
-        schedule: ControlSchedule,
-        tick_index: int,
-        gs_state: GSState,
-        manifold_state: ManifoldState,
-        pid_state: PIDState,
-        lifecycle_state: LifecycleState,
-        dt: float,
-    ) -> Tuple[GSState, ManifoldState, PIDState, LifecycleState, TrajectorySample]:
-        """Execute one PWC tick over the substrate."""
-
-        step = schedule.steps[min(tick_index, len(schedule.steps) - 1)]
-
-        # Compute error between target drift and actual drift
-        error = step.pid_target_drift - manifold_state.global_drift
-        pid_state = pid_step(pid_state, error, dt)
-
-        # Map to control command (you can refine this mapping)
-        pid_output = pid_state.output
-        pressure_cap = step.pressure_cap_global
-        relaxation_strength = step.relaxation_strength_global
-        quarantine = False  # walker can choose to set this if needed
-
-        # Call your existing closed loop
-        gs_new, manifold_new, pid_new = closed_loop_tick(
-            gs_state=gs_state,
-            manifold_state=manifold_state,
-            pid_state=pid_state,
-            pid_output=pid_output,
-            pressure_cap=pressure_cap,
-            relaxation_strength=relaxation_strength,
-            quarantine=quarantine,
-            dt=dt,
+    def tick(self, engine: SubstrateEngine, step: ControlStep) -> SubstrateSnapshot:
+        engine.set_setpoints(
+            spin=step.spin_setpoint,
+            pressure=step.pressure_setpoint,
+            temp=step.temp_setpoint,
         )
 
-        safety_flags = safety_evaluate(gs_new, manifold_new)
-        lifecycle_new = lifecycle_transition(lifecycle_state, safety_flags)
-
-        sample = TrajectorySample(
-            tick_index=tick_index,
-            gs_state=gs_new,
-            manifold_state=manifold_new,
-            pid_state=pid_new,
-            safety_flags=safety_flags,
+        return engine.closed_loop_tick(
+            relaxation_strength=step.relaxation_strength,
+            quarantine_spin=step.quarantine_spin,
+            quarantine_pressure=step.quarantine_pressure,
+            quarantine_temp=step.quarantine_temp,
         )
-
-        return gs_new, manifold_new, pid_new, lifecycle_new, sample
