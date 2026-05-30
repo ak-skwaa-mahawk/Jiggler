@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package tordial.gs.manifold;
+
+// Primary dynamic state packet matching SystemState specifications
+message SystemStatePacket {
+  double timestamp = 1;
+  double spin = 2;
+  double pressure = 3;
+  double temp = 4;
+  double belt_mod = 5;
+  
+  FaceGeometry core = 6;
+  FaceGeometry belt = 7;
+  FaceGeometry cap = 8;
+  
+  Metrics stability_metrics = 9;
+}
+
+message FaceGeometry {
+  string axis = 1;
+  string label = 2;
+  string role = 3;
+  double curvature = 4;
+  double radius = 5;
+  double throat = 6;
+}
+
+message Metrics {
+  double gs_density = 1;
+  double curvature_mean = 2;
+  double closed_loop_stability = 3;
+}
+
+// Inter-Manifold Remote Procedure Mutation Envelope
+message RPCCommandEnvelope {
+  enum MethodType {
+    UNKNOWN = 0;
+    UPDATE_GEOMETRY = 1;
+    GET_STATUS = 2;
+  }
+  MethodType method = 1;
+  int64 request_id = 2;
+  
+  // Explicit packed parameter blocks
+  map<string, double> parameters = 3;
+}
+
+message RPCResponseEnvelope {
+  int64 request_id = 1;
+  string status_string = 2;
+  bool success = 3;
+  map<string, double> payload = 4;
+}
