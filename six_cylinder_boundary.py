@@ -9,11 +9,9 @@ Leak Field  : 3D projection for rendering and intuition
 """
 
 import math
-import time
 import random
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
-import threading
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,8 +26,12 @@ SHADOW        = 1.03
 
 @dataclass
 class FaceGeometry:
-    axis: str; label: str; role: str
-    curvature: float; radius: float; throat: float
+    axis: str
+    label: str
+    role: str
+    curvature: float
+    radius: float
+    throat: float
 
     def __repr__(self):
         return f"<{self.label} curv={self.curvature:.6f} r={self.radius:.4f} throat={self.throat:.4f}>"
@@ -37,14 +39,14 @@ class FaceGeometry:
 
 @dataclass
 class SystemState:
-    spin: float; pressure: float; temp: float; belt_mod: float
+    spin: float
+    pressure: float
+    temp: float
+    belt_mod: float
     core: FaceGeometry = field(default=None)
     belt: FaceGeometry = field(default=None)
     cap: FaceGeometry = field(default=None)
-    timestamp: float = field(default_factory=time.time)
-
-    def faces(self) -> List[FaceGeometry]:
-        return [self.core, self.belt, self.cap]
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class SixCylinderBoundary:
@@ -88,36 +90,18 @@ class SixCylinderBoundary:
             "closed_loop_stability": 1.0 - abs(delta),
         }
 
-    # 3D Leak Field
-    def plot_3d_boundary(self, state=None, title="3D Leak Field", save_path=None):
-        if state is None: state = self.last_state or self.compute()
-        # ... (your existing 3D plot code) ...
-        fig = plt.figure(figsize=(12, 9))
-        ax = fig.add_subplot(111, projection='3d')
-        ax.set_title(title)
-        theta = np.linspace(0, 2*np.pi, 60)
-        z = np.linspace(-1, 1, 40)
-        Theta, Z = np.meshgrid(theta, z)
-        for r, color, alpha in [(state.core.throat, 'crimson', 0.7),
-                               (state.belt.radius, 'orange', 0.5),
-                               (state.cap.radius, 'royalblue', 0.4)]:
-            ax.plot_surface(r*np.cos(Theta), r*np.sin(Theta), Z*0.6, alpha=alpha, color=color)
-        plt.show()
-
-    # 6D Manifold Dashboard (existing)
-    def plot_6d_manifold(self, state=None, save_path=None):
-        if state is None: state = self.last_state or self.compute()
-        # ... (your full 6D multi-plot code from previous message) ...
-        print("6D Manifold Dashboard opened.")
-        # (Implement the full multi-subplot version as before if desired)
+    @property
+    def last_state(self) -> Optional[SystemState]:
+        with self._lock:
+            return self._last_state
 
 
-# ── Higher-Dimensional Particle Engine ─────────────────────────────────────
+# ── 6D Particle Engine with PCA ─────────────────────────────────────────────
 
 @dataclass
 class Particle6D:
     x: float = 0.0; y: float = 0.0; z: float = 0.0
-    w: float = 0.0; v: float = 0.0; u: float = 0.0   # extra dimensions
+    w: float = 0.0; v: float = 0.0; u: float = 0.0
     dx: float = 0.0; dy: float = 0.0; dz: float = 0.0
     dw: float = 0.0; dv: float = 0.0; du: float = 0.0
     phase: int = 0
@@ -127,20 +111,20 @@ class Particle6D:
 
 
 class ParticleFlowEngine6D:
-    def __init__(self, count: int = 220):
+    def __init__(self, count: int = 280):
         self.count = count
         self.particles: List[Particle6D] = []
         self._rng = random.Random(42)
 
     def _spawn(self, radius: float) -> Particle6D:
         return Particle6D(
-            x=radius * self._rng.uniform(0.7, 0.95) * math.cos(self._rng.uniform(0, 2*math.pi)),
-            y=radius * self._rng.uniform(0.7, 0.95) * math.sin(self._rng.uniform(0, 2*math.pi)),
-            z=self._rng.uniform(-radius*0.5, radius*0.5),
-            w=self._rng.uniform(-1.2, 1.2),
-            v=self._rng.uniform(-1.2, 1.2),
-            u=self._rng.uniform(-1.2, 1.2),
-            color=self._rng.choice(['cyan','lime','yellow','magenta','white'])
+            x=radius * self._rng.uniform(0.6, 0.98) * math.cos(self._rng.uniform(0, 2*math.pi)),
+            y=radius * self._rng.uniform(0.6, 0.98) * math.sin(self._rng.uniform(0, 2*math.pi)),
+            z=self._rng.uniform(-radius*0.6, radius*0.6),
+            w=self._rng.uniform(-1.5, 1.5),
+            v=self._rng.uniform(-1.5, 1.5),
+            u=self._rng.uniform(-1.5, 1.5),
+            color=self._rng.choice(['cyan', 'lime', 'yellow', 'magenta', 'white', 'orange'])
         )
 
     def step(self, state: SystemState):
@@ -157,97 +141,104 @@ class ParticleFlowEngine6D:
                 live.append(self._spawn(belt_r))
                 continue
 
-            # 6D dynamics driven by boundary
-            if p.phase == 0:   # Intake
-                p.dx = -0.75 * (p.x / belt_r)
-                p.dw = 0.06 * state.spin
+            if p.phase == 0:
+                p.dx = -0.78 * (p.x / belt_r)
+                p.dw = 0.055 * state.spin
             elif p.phase == 1:
-                p.dw = GEAR_SHIFT * 0.15
-                p.dv = state.temp * 0.4
-            elif p.phase == 2:   # Exhaust
-                p.dx += 0.65 * SHADOW
-                p.du = -0.05
+                p.dw = GEAR_SHIFT * 0.14
+                p.dv = state.temp * 0.35
+            elif p.phase == 2:
+                p.dx += 0.62 * SHADOW
             elif p.phase == 3:
-                p.dx *= 0.65
-                p.dw *= -0.55
+                p.dx *= 0.68
+                p.dw *= -0.6
 
             p.x += p.dx; p.y += p.dy; p.z += p.dz
             p.w += p.dw; p.v += p.dv; p.u += p.du
 
-            # Phase transitions
-            r_xy = math.hypot(p.x, p.y)
-            if p.phase == 0 and r_xy < throat * 1.15:
-                p.phase = 1
-            elif p.phase == 2 and r_xy > belt_r * 0.85:
-                p.phase = 3
-            elif p.phase == 3 and r_xy < throat * 1.4:
-                p.phase = 0
+            r = math.hypot(p.x, p.y)
+            if p.phase == 0 and r < throat * 1.2: p.phase = 1
+            elif p.phase == 2 and r > belt_r * 0.88: p.phase = 3
+            elif p.phase == 3 and r < throat * 1.35: p.phase = 0
 
             live.append(p)
         self.particles = live
 
-    def plot_particles_6d(self, state: SystemState, mode: str = "projection", save_path=None):
-        if mode == "projection":
-            fig = plt.figure(figsize=(14, 10))
+    def plot_pca_projection(self, n_components: int = 3, save_path=None):
+        """PCA projection of 6D particles"""
+        if len(self.particles) < 10:
+            print("Not enough particles for PCA.")
+            return
+
+        data = np.array([[p.x, p.y, p.z, p.w, p.v, p.u] for p in self.particles])
+        data_mean = data.mean(axis=0)
+        data_centered = data - data_mean
+
+        _, S, Vt = np.linalg.svd(data_centered, full_matrices=False)
+        proj = data_centered @ Vt.T[:, :n_components]
+
+        fig = plt.figure(figsize=(14, 10))
+        if n_components == 3:
             ax = fig.add_subplot(111, projection='3d')
-            ax.set_title("6D Particles Projected to 3D\n(size = w, alpha = v, color = phase)")
-
-            xs, ys, zs = [p.x for p in self.particles], [p.y for p in self.particles], [p.z for p in self.particles]
-            sizes = [max(8, abs(p.w) * 40) for p in self.particles]
-            alphas = [max(0.2, (p.v + 1.5)/3) for p in self.particles]
-
-            ax.scatter(xs, ys, zs, s=sizes, c=[p.color for p in self.particles],
-                       alpha=alphas, cmap='viridis', edgecolors='w', linewidth=0.3)
-            ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
-            plt.show()
-
-        elif mode == "parallel":
-            fig, ax = plt.subplots(figsize=(15, 8))
-            dims = ['X', 'Y', 'Z', 'W(Curv)', 'V(GS)', 'U(Press)']
-            for p in self.particles[:120]:
-                ax.plot(range(6), [p.x, p.y, p.z, p.w, p.v, p.u], alpha=0.25, lw=1)
-            ax.set_xticks(range(6))
-            ax.set_xticklabels(dims)
-            ax.set_title("True 6D Particle States — Parallel Coordinates")
+            sizes = [max(10, abs(p.w) * 28) for p in self.particles]
+            ax.scatter(proj[:,0], proj[:,1], proj[:,2],
+                       s=sizes, c=[p.color for p in self.particles],
+                       alpha=0.75, edgecolors='k', linewidth=0.4)
+            ax.set_xlabel('PC1'); ax.set_ylabel('PC2'); ax.set_zlabel('PC3')
+            ax.set_title("6D → 3D PCA Projection\n(Intrinsic Structure of the Manifold)")
+        else:
+            ax = fig.add_subplot(111)
+            sizes = [max(20, abs(p.w) * 40) for p in self.particles]
+            ax.scatter(proj[:,0], proj[:,1], s=sizes,
+                       c=[p.color for p in self.particles], alpha=0.85)
+            ax.set_xlabel('PC1'); ax.set_ylabel('PC2')
+            ax.set_title("6D → 2D PCA Projection")
             ax.grid(True, alpha=0.3)
-            plt.show()
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300)
+        plt.show()
+
+        explained = (S**2 / np.sum(S**2))[:3]
+        print(f"PCA Explained Variance → PC1: {explained[0]:.1%} | PC2: {explained[1]:.1%} | PC3: {explained[2]:.1%}")
 
 
-# ── TordialNodeWrapper with 6D Engine ─────────────────────────────────────
+# ── Wrapper ────────────────────────────────────────────────────────────────
 
 class TordialNodeWrapper:
-    def __init__(self, node_id: str = "FPT-6D-001", base_radius: float = 60.0):
+    def __init__(self, node_id: str = "FPT-6D-PCA", base_radius: float = 60.0):
         self.node_id = node_id
         self.boundary = SixCylinderBoundary(base_radius)
-        self.engine = ParticleFlowEngine6D(count=250)
+        self.engine = ParticleFlowEngine6D(count=280)
 
     def tick(self, spin=None, pressure=None, temp=None, belt_mod=None):
         last = self.boundary.last_state
         state = self.boundary.compute(
-            spin or (last.spin if last else 1.5),
-            pressure or (last.pressure if last else 1.0),
-            temp or (last.temp if last else 0.0),
-            belt_mod or (last.belt_mod if last else 1.0)
+            spin or (last.spin if last else 1.65),
+            pressure or (last.pressure if last else 1.1),
+            temp or (last.temp if last else 0.15),
+            belt_mod or (last.belt_mod if last else 1.15)
         )
         self.engine.step(state)
         return state
 
-    def plot_6d_particles(self, mode="projection"):
+    def plot_pca(self, n_components=3):
         state = self.boundary.last_state or self.boundary.compute()
-        self.engine.plot_particles_6d(state, mode=mode)
+        self.engine.plot_pca_projection(n_components=n_components)
 
 
 # ── Demo ─────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    node = TordialNodeWrapper("FPT-6D-Alpha")
+    node = TordialNodeWrapper("FPT-PCA-Alpha")
 
-    print("Running 6D Particle Flow Simulation...\n")
-    for i in range(20):
-        node.tick(spin=1.65 + 0.45*math.sin(i*0.4), temp=0.05*(i%7))
+    print("Running 6D simulation...\n")
+    for i in range(30):
+        node.tick(spin=1.7 + 0.5 * math.sin(i * 0.3), temp=0.12 * (i % 7))
 
-    print("Rendering Higher-Dimensional Particles:")
-    node.plot_6d_particles(mode="projection")
-    node.plot_6d_particles(mode="parallel")
+    print("=== Higher-Dimensional Exploration ===")
+    node.plot_pca(n_components=2)
+    node.plot_pca(n_components=3)
 
-    print("\n✅ Higher-dimensional particle rendering active.")
+    print("\n✅ 6D PCA particle projection complete.")
