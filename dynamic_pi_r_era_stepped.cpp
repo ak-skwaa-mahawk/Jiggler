@@ -3,6 +3,14 @@
 // with long-horizon forecasting and temporal gapping / resurfacing
 // Compatible with Tordial-GS regime logic and PWC-style projection
 
+#include <algorithm>   // for std::find
+#include <numeric>     // optional, for future averaging
+
+// In coherence calculation, cap at 100.0 for clean [0,100] band
+double coherence_score = std::min(100.0,
+    100.0 - std::abs(current_pi - get_floor(new_era)) * 50.0);
+coherence.push_back(std::max(0.0, coherence_score));
+
 #include <iostream>
 #include <vector>
 #include <cmath>
