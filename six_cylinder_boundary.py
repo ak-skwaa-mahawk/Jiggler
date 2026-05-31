@@ -1,3 +1,4 @@
+cat > /mnt/user-data/outputs/six_cylinder_boundary.py << 'PYEOF'
 """
 six_cylinder_boundary.py
 ========================
@@ -128,20 +129,17 @@ class SixCylinderBoundary:
         temp     = max(0.0, min(1.0, temp))
         belt_mod = max(0.1, belt_mod)
 
-        # Front / Rear — Core Axis (intake / exhaust)
         core_curvature = (TOROIDAL_ROOT / math.pi) * spin * SHADOW
         core_radius    = (self.base_radius * pressure) / core_curvature
         core_throat    = core_radius * (1.0 - 0.15 * temp)
         core = FaceGeometry('core', 'FRONT / REAR', 'Intake · Exhaust',
                             core_curvature, core_radius, core_throat)
 
-        # Left / Right — Expansion Belt (centrifugal ring)
         belt_curvature = core_curvature * GEAR_SHIFT * belt_mod
         belt_radius    = core_radius * belt_curvature
         belt = FaceGeometry('belt', 'LEFT / RIGHT', 'Expansion Belt',
                             belt_curvature, belt_radius, belt_radius)
 
-        # Top / Bottom — Containment Caps (inverse deformation)
         cap_curvature = 1.0 / (belt_curvature * SHADOW)
         cap_radius    = belt_radius * cap_curvature
         cap = FaceGeometry('cap', 'TOP / BOTTOM', 'Containment Caps',
@@ -153,7 +151,6 @@ class SixCylinderBoundary:
         return state
 
     def closed_loop_delta(self, state: SystemState) -> float:
-        """Harmony metric — returns exactly 0.0 by construction."""
         return state.belt.curvature * state.cap.curvature * SHADOW - 1.0
 
     def flux_balance(self, state: SystemState) -> dict:
@@ -204,7 +201,7 @@ class Particle6D:
     w: float = 0.0;  v: float = 0.0;  u: float = 0.0
     dx: float = 0.0; dy: float = 0.0; dz: float = 0.0
     dw: float = 0.0; dv: float = 0.0; du: float = 0.0
-    phase:    int = 0       # 0=INTAKE 1=TRANSIT 2=EXHAUST 3=RETURN
+    phase:    int = 0
     life:     int = 0
     max_life: int = 280
     color:    str = '#00ffcc'
@@ -214,18 +211,9 @@ class Particle6D:
         return ['INTAKE', 'TRANSIT', 'EXHAUST', 'RETURN'][self.phase]
 
 
-# ── 6D Particle Flow Engine (acceleration-based) ─────────────────────────────
+# ── 6D Particle Flow Engine ───────────────────────────────────────────────────
 
 class ParticleFlowEngine6D:
-    """
-    Simulates particle flow through the 6-cylinder geometry in full 6D space.
-    x,y,z = spatial axes; w,v,u = extended dimensional axes.
-
-    Physics: acceleration-based state machine with viscous drag.
-    Projection: PCA (always), t-SNE (sklearn), UMAP (umap-learn).
-    """
-
-    # Palette matches the HTML visualizer
     COLORS = ['#00ffcc', '#ff3366', '#ffcc00', '#ae00ff', '#0077ff', '#ff6600']
 
     def __init__(self, count: int = 300):
@@ -248,11 +236,6 @@ class ParticleFlowEngine6D:
         )
 
     def step(self, state: SystemState, dt: float = 0.05):
-        """
-        Acceleration-based 6D state-machine step.
-        Force vectors are derived from SixCylinderBoundary geometry.
-        Viscous drag stabilizes the system against blow-up at high spin.
-        """
         throat = state.core.throat * 0.5
         belt_r = state.belt.radius
 
@@ -269,9 +252,7 @@ class ParticleFlowEngine6D:
             r = math.hypot(p.x, p.y)
             ax = ay = az = aw = av = au = 0.0
 
-            # ── Phase-space force vectors ─────────────────────────────────────
             if p.phase == 0:
-                # INTAKE: collapse into core throat
                 tf = throat / (r + 1e-9)
                 ax = -1.5 * (p.x / belt_r) * tf
                 ay = -1.5 * (p.y / belt_r) * tf
@@ -281,7 +262,6 @@ class ParticleFlowEngine6D:
                     p.phase = 1
 
             elif p.phase == 1:
-                # TRANSIT: tangential orbital spin-up on extended axes
                 ax = -1.0 * p.y * state.spin * GEAR_SHIFT
                 ay =  1.0 * p.x * state.spin * GEAR_SHIFT
                 az =  0.1 * (p.w - p.v)
@@ -291,7 +271,6 @@ class ParticleFlowEngine6D:
                     p.phase = 2
 
             elif p.phase == 2:
-                # EXHAUST: radial dispersion through shadow remainder
                 ax = 2.0 * (p.x / (r + 1e-9)) * SHADOW
                 ay = 2.0 * (p.y / (r + 1e-9)) * SHADOW
                 az = 0.8 * p.z * state.pressure
@@ -299,7 +278,6 @@ class ParticleFlowEngine6D:
                     p.phase = 3
 
             elif p.phase == 3:
-                # RETURN: inverse containment pressure snap-back
                 inv_p = 1.0 / (state.pressure + 1e-9)
                 ax = -2.5 * p.x * inv_p
                 ay = -2.5 * p.y * inv_p
@@ -308,11 +286,9 @@ class ParticleFlowEngine6D:
                 if r < throat * 1.4:
                     p.phase = 0
 
-            # ── Kinematic integration ─────────────────────────────────────────
             p.dx += ax * dt; p.dy += ay * dt; p.dz += az * dt
             p.dw += aw * dt; p.dv += av * dt; p.du += au * dt
 
-            # Viscous drag — stabilizes high-spin states
             drag = max(0.5, 1.0 - 0.04 * state.pressure)
             p.dx *= drag; p.dy *= drag; p.dz *= drag
             p.dw *= drag; p.dv *= drag; p.du *= drag
@@ -332,8 +308,6 @@ class ParticleFlowEngine6D:
     def get_data_matrix(self) -> np.ndarray:
         return np.array([[p.x, p.y, p.z, p.w, p.v, p.u] for p in self.particles])
 
-    # ── Projection: PCA ───────────────────────────────────────────────────────
-
     def plot_pca_projection(self, n_components: int = 3, save_path=None):
         if len(self.particles) < 10:
             print("Not enough particles for PCA."); return
@@ -343,7 +317,6 @@ class ParticleFlowEngine6D:
         proj = data_c @ Vt.T[:, :n_components]
         explained = (S**2 / np.sum(S**2))[:3]
         colors = [p.color for p in self.particles]
-
         fig = plt.figure(figsize=(10, 7), facecolor='#0f0f14')
         if n_components == 3:
             ax = fig.add_subplot(111, projection='3d', facecolor='#0f0f14')
@@ -362,8 +335,6 @@ class ParticleFlowEngine6D:
         else: plt.show()
         print(f"PCA Variance → PC1:{explained[0]:.1%} PC2:{explained[1]:.1%} PC3:{explained[2]:.1%}")
 
-    # ── Projection: t-SNE ─────────────────────────────────────────────────────
-
     def plot_tsne_projection(self, perplexity: float = 30.0, save_path=None):
         if not TSNE_AVAILABLE:
             print("t-SNE unavailable — install scikit-learn."); return
@@ -381,8 +352,6 @@ class ParticleFlowEngine6D:
         plt.tight_layout()
         if save_path: plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor()); plt.close()
         else: plt.show()
-
-    # ── Projection: UMAP ─────────────────────────────────────────────────────
 
     def plot_umap_projection(self, n_neighbors=15, min_dist=0.1, save_path=None):
         if not UMAP_AVAILABLE:
@@ -407,8 +376,6 @@ class ParticleFlowEngine6D:
         plt.tight_layout()
         if save_path: plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor()); plt.close()
         else: plt.show()
-
-    # ── Unified manifold router: UMAP → t-SNE → PCA ──────────────────────────
 
     def plot_manifold_projection(self, method: str = 'tsne', save_path: str = None):
         if len(self.particles) < 10:
@@ -518,15 +485,9 @@ class RealTimeEngineAnimator:
         plt.show()
 
 
-# ── JED Network Broker (JSON-RPC + telemetry logger) ─────────────────────────
+# ── JED Network Broker ────────────────────────────────────────────────────────
 
 class JEDNetworkBroker:
-    """
-    Asynchronous JSON-RPC command broker and telemetry flat-file logger.
-    Methods: update_geometry, get_status
-    Streams telemetry JSON to all connected clients and logs to disk.
-    """
-
     def __init__(self, solver: SixCylinderBoundary, host='127.0.0.1', port=8888,
                  log_file='manifold_telemetry.log'):
         self.solver   = solver
@@ -535,7 +496,6 @@ class JEDNetworkBroker:
         self.log_file = log_file
         self.clients  = []
         self._running = False
-
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(f"\n# --- NEW MANIFOLD SESSION: {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
         print(f"📂 Telemetry log: {os.path.abspath(self.log_file)}")
@@ -579,7 +539,6 @@ class JEDNetworkBroker:
             method = req.get('method')
             params = req.get('params', {})
             rid    = req.get('id')
-
             if method == 'update_geometry':
                 curr = self.solver.last_state or self.solver.compute()
                 self.solver.compute(
@@ -597,7 +556,6 @@ class JEDNetworkBroker:
             else:
                 resp = {'jsonrpc': '2.0',
                         'error': {'code': -32601, 'message': 'Method not found'}, 'id': rid}
-
             sock.sendall((json.dumps(resp) + '\n').encode('utf-8'))
         except Exception as e:
             err = {'jsonrpc': '2.0', 'error': {'code': -32700, 'message': str(e)}, 'id': None}
@@ -605,7 +563,6 @@ class JEDNetworkBroker:
             except socket.error: pass
 
     def push_telemetry(self, state: SystemState, metrics: dict):
-        """Append to disk log and broadcast to all connected clients."""
         frame = {
             'timestamp':   state.timestamp,
             'spin':        state.spin,
@@ -638,11 +595,6 @@ class JEDNetworkBroker:
 # ── Telemetry Stream Dashboard ────────────────────────────────────────────────
 
 class TelemetryStreamDashboard:
-    """
-    Connects to the JED broker socket stream and renders a live
-    3-panel Matplotlib dashboard: spin / stability / belt radius.
-    """
-
     def __init__(self, host='127.0.0.1', port=8888, max_points=100):
         self.host       = host
         self.port       = port
@@ -690,7 +642,6 @@ class TelemetryStreamDashboard:
             ax.grid(True, color='#252530', linestyle=':')
             ax.tick_params(colors='gray', labelsize=8)
             for s in ax.spines.values(): s.set_color('#252530')
-
         l1, = ax1.plot([], [], color='#00ffcc', linewidth=1.5)
         ax1.set_ylabel("Spin Vector", color='white')
         l2, = ax2.plot([], [], color='#ff3366', linewidth=1.5)
@@ -722,8 +673,6 @@ class TelemetryStreamDashboard:
 # ── Toroidal Node Wrapper ─────────────────────────────────────────────────────
 
 class ToroidalNodeWrapper:
-    """Unified access point: boundary solver + 6D particle engine."""
-
     def __init__(self, node_id='FPT-6D-CORE', base_radius=60.0, count=300):
         self.node_id  = node_id
         self.boundary = SixCylinderBoundary(base_radius)
@@ -748,66 +697,7 @@ class ToroidalNodeWrapper:
             print(f"  -> {k:<26}: {v:.6f}")
 
 
-# ── Entry Points ──────────────────────────────────────────────────────────────
-
-def run_demo():
-    print("🚀 6-Cylindrical Boundary System — FPT Module")
-    print(f"   TR={TOROIDAL_ROOT}  GS={GEAR_SHIFT}  SH={SHADOW}\n")
-
-    node = ToroidalNodeWrapper(node_id='FPT-Unified-Alpha', count=300)
-
-    print("Running 40 kinematic cycles (acceleration physics, dt=0.04)...")
-    for i in range(40):
-        state = node.tick(
-            spin=1.75 + 0.45 * math.sin(i * 0.35),
-            temp=0.1 * (i % 10),
-            dt=0.04,
-        )
-
-    print(state.summary())
-    node.display_metrics(state)
-    print(f"\n  Closed-Loop Delta : {node.boundary.closed_loop_delta(state):.12f}")
-    print(f"  Flux Balance      : {node.boundary.flux_balance(state)}")
-    print(f"  Phase Counts      : {node.engine.phase_counts()}")
-
-    print("\n🧬 Manifold projection...")
-    node.engine.plot_manifold_projection(method='pca')
-
-    print("\n🖥️  Real-time animator...")
-    RealTimeEngineAnimator(node.boundary, node.engine).start_live_render(frames=200, interval=30)
-
-
-def run_engine_server():
-    print("🏗️  Initializing JED manifold engine server...")
-    solver = SixCylinderBoundary(base_radius=50.0)
-    engine = ParticleFlowEngine6D(count=300)
-    broker = JEDNetworkBroker(solver=solver)
-    broker.start()
-
-    print(f"\n💡 Dashboard client:  python {os.path.basename(__file__)} --plotter")
-    print("   RPC inject example:")
-    print('   echo \'{"method":"update_geometry","params":{"spin":2.8,"temp":0.65},"id":1}\' '
-          '| nc 127.0.0.1 8888\n')
-    print("Ctrl+C to stop.")
-    try:
-        while True:
-            state   = solver.last_state or solver.compute(spin=1.5, pressure=1.0, temp=0.15)
-            engine.step(state, dt=0.04)
-            metrics = solver.to_toroidal_metrics(state)
-            broker.push_telemetry(state, metrics)
-            time.sleep(0.033)
-    except KeyboardInterrupt:
-        print("\n⚡ Shutdown signal received.")
-    finally:
-        broker.stop()
-        print("🏁 Engine cleanly closed.")
-
-
-def run_plotter_client():
-    dash = TelemetryStreamDashboard(port=8888)
-    dash.connect()
-    dash.launch()
-
+# ── PWC Substrate Interface ───────────────────────────────────────────────────
 
 @dataclass
 class GSState:
@@ -857,11 +747,11 @@ class ManifoldState:
     mean_x:           float
     mean_y:           float
     mean_z:           float
-    mean_w:           float   # extended dim — spin axis carry
-    mean_v:           float   # extended dim — temp coupling
-    mean_u:           float   # extended dim — pressure coupling
-    spatial_spread:   float   # std of x,y,z
-    extended_spread:  float   # std of w,v,u
+    mean_w:           float
+    mean_v:           float
+    mean_u:           float
+    spatial_spread:   float
+    extended_spread:  float
     timestamp:        float
 
     @classmethod
@@ -872,8 +762,6 @@ class ManifoldState:
                        0.0, 0.0, time.time())
         data = engine.get_data_matrix()
         mean = data.mean(axis=0)
-        spatial_spread  = float(np.std(data[:, :3]))
-        extended_spread = float(np.std(data[:, 3:]))
         return cls(
             total_particles=len(engine.particles),
             intake_count=counts['INTAKE'],
@@ -882,73 +770,57 @@ class ManifoldState:
             return_count=counts['RETURN'],
             mean_x=float(mean[0]), mean_y=float(mean[1]), mean_z=float(mean[2]),
             mean_w=float(mean[3]), mean_v=float(mean[4]), mean_u=float(mean[5]),
-            spatial_spread=spatial_spread,
-            extended_spread=extended_spread,
+            spatial_spread=float(np.std(data[:, :3])),
+            extended_spread=float(np.std(data[:, 3:])),
             timestamp=time.time(),
         )
 
 
 @dataclass
 class PIDState:
-    """
-    PID controller state for closed-loop spin / pressure / temp regulation.
-    Tracks setpoint error, integral accumulation, and last derivative.
-    """
-    spin_setpoint:      float = 1.5
-    pressure_setpoint:  float = 1.0
-    temp_setpoint:      float = 0.0
-
-    spin_error:         float = 0.0
-    pressure_error:     float = 0.0
-    temp_error:         float = 0.0
-
-    spin_integral:      float = 0.0
-    pressure_integral:  float = 0.0
-    temp_integral:      float = 0.0
-
-    spin_derivative:    float = 0.0
+    spin_setpoint:       float = 1.5
+    pressure_setpoint:   float = 1.0
+    temp_setpoint:       float = 0.0
+    spin_error:          float = 0.0
+    pressure_error:      float = 0.0
+    temp_error:          float = 0.0
+    spin_integral:       float = 0.0
+    pressure_integral:   float = 0.0
+    temp_integral:       float = 0.0
+    spin_derivative:     float = 0.0
     pressure_derivative: float = 0.0
-    temp_derivative:    float = 0.0
-
-    # Output corrections — applied to next compute() call
-    spin_correction:    float = 0.0
+    temp_derivative:     float = 0.0
+    spin_correction:     float = 0.0
     pressure_correction: float = 0.0
-    temp_correction:    float = 0.0
-
-    timestamp:          float = field(default_factory=time.time)
+    temp_correction:     float = 0.0
+    timestamp:           float = field(default_factory=time.time)
 
 
 @dataclass
 class SafetyFlags:
-    """
-    System health and quarantine flags.
-    Any True flag suppresses the corresponding axis in closed_loop_tick().
-    """
-    spin_quarantine:     bool  = False   # block spin mutations
-    pressure_quarantine: bool  = False   # block pressure mutations
-    temp_quarantine:     bool  = False   # block temp mutations
-    pressure_cap_active: bool  = False   # pressure was clamped this tick
-    relaxation_active:   bool  = False   # relaxation strength applied
-    delta_violation:     bool  = False   # closed_loop_delta drifted > threshold
-    stability_warning:   bool  = False   # stability < 0.99
+    spin_quarantine:     bool  = False
+    pressure_quarantine: bool  = False
+    temp_quarantine:     bool  = False
+    pressure_cap_active: bool  = False
+    relaxation_active:   bool  = False
+    delta_violation:     bool  = False
+    stability_warning:   bool  = False
     timestamp:           float = field(default_factory=time.time)
 
 
 @dataclass
 class LifecycleState:
-    """Substrate lifecycle counters and health summary."""
-    tick_count:          int   = 0
-    uptime_seconds:      float = 0.0
-    total_particles_spawned: int = 0
-    quarantine_events:   int   = 0
-    delta_violations:    int   = 0
-    last_snapshot_time:  float = field(default_factory=time.time)
-    healthy:             bool  = True
+    tick_count:              int   = 0
+    uptime_seconds:          float = 0.0
+    total_particles_spawned: int   = 0
+    quarantine_events:       int   = 0
+    delta_violations:        int   = 0
+    last_snapshot_time:      float = field(default_factory=time.time)
+    healthy:                 bool  = True
 
 
 @dataclass
 class SubstrateSnapshot:
-    """Full substrate state — passed to the PWC cognitive layer each tick."""
     gs_state:        GSState
     manifold_state:  ManifoldState
     pid_state:       PIDState
@@ -957,40 +829,27 @@ class SubstrateSnapshot:
     telemetry:       List[dict] = field(default_factory=list)
 
 
-# ── PID Controller ────────────────────────────────────────────────────────────
-
 class SubstratePID:
-    """
-    Simple PID for spin / pressure / temp axes.
-    Kp, Ki, Kd tunable per axis.
-    Integral windup clamped to ±max_integral.
-    """
-
-    def __init__(self,
-                 kp=0.4, ki=0.05, kd=0.1,
-                 max_integral=5.0,
-                 max_correction=0.5):
+    def __init__(self, kp=0.4, ki=0.05, kd=0.1, max_integral=5.0, max_correction=0.5):
         self.kp = kp; self.ki = ki; self.kd = kd
-        self.max_integral  = max_integral
+        self.max_integral   = max_integral
         self.max_correction = max_correction
 
     def update(self, pid: PIDState, gs: GSState, dt: float) -> PIDState:
         def _axis(setpoint, actual, integral, derivative, prev_error):
             error      = setpoint - actual
-            integral   = max(-self.max_integral,
-                             min(self.max_integral, integral + error * dt))
+            integral   = max(-self.max_integral, min(self.max_integral, integral + error * dt))
             derivative = (error - prev_error) / max(dt, 1e-6)
             correction = self.kp * error + self.ki * integral + self.kd * derivative
             correction = max(-self.max_correction, min(self.max_correction, correction))
             return error, integral, derivative, correction
 
-        se, si, sd, sc = _axis(pid.spin_setpoint,     gs.spin,     pid.spin_integral,
-                                pid.spin_derivative,   pid.spin_error)
-        pe, pi_, pd, pc = _axis(pid.pressure_setpoint, gs.pressure, pid.pressure_integral,
-                                pid.pressure_derivative, pid.pressure_error)
-        te, ti, td, tc  = _axis(pid.temp_setpoint,     gs.temp,     pid.temp_integral,
-                                pid.temp_derivative,   pid.temp_error)
-
+        se, si, sd, sc   = _axis(pid.spin_setpoint,     gs.spin,
+                                  pid.spin_integral,     pid.spin_derivative,     pid.spin_error)
+        pe, pi_, pd, pc  = _axis(pid.pressure_setpoint, gs.pressure,
+                                  pid.pressure_integral, pid.pressure_derivative, pid.pressure_error)
+        te, ti, td, tc   = _axis(pid.temp_setpoint,     gs.temp,
+                                  pid.temp_integral,     pid.temp_derivative,     pid.temp_error)
         return PIDState(
             spin_setpoint=pid.spin_setpoint,
             pressure_setpoint=pid.pressure_setpoint,
@@ -1003,74 +862,30 @@ class SubstratePID:
         )
 
 
-# ── Substrate Engine ──────────────────────────────────────────────────────────
-
 class SubstrateEngine:
-    """
-    The PWC substrate interface.
+    DELTA_THRESHOLD  = 1e-9
+    PRESSURE_CAP     = 2.0
+    RELAXATION_ALPHA = 0.85
 
-    Wraps SixCylinderBoundary + ParticleFlowEngine6D + JEDNetworkBroker
-    and exposes the three functions the cognitive layer needs:
-
-        closed_loop_tick(...)   — apply PID, step physics, enforce safety
-        snapshot_substrate()    — return SubstrateSnapshot
-        get_recent_telemetry()  — return last N telemetry frames
-    """
-
-    DELTA_THRESHOLD   = 1e-9   # closed_loop_delta tolerance
-    PRESSURE_CAP      = 2.0    # hard pressure ceiling
-    RELAXATION_ALPHA  = 0.85   # exponential smoothing on relaxation
-
-    def __init__(self,
-                 base_radius:      float = 60.0,
-                 particle_count:   int   = 300,
-                 dt:               float = 0.04,
-                 telemetry_maxlen: int   = 200,
-                 broker:           Optional['JEDNetworkBroker'] = None,
-                 pid_kp: float = 0.4, pid_ki: float = 0.05, pid_kd: float = 0.1):
-
-        self.boundary  = SixCylinderBoundary(base_radius)
-        self.engine    = ParticleFlowEngine6D(particle_count)
-        self.broker    = broker
-        self.dt        = dt
-        self._pid_ctrl = SubstratePID(kp=pid_kp, ki=pid_ki, kd=pid_kd)
-
-        # Mutable state
-        self._pid      = PIDState()
-        self._safety   = SafetyFlags()
+    def __init__(self, base_radius=60.0, particle_count=300, dt=0.04,
+                 telemetry_maxlen=200, broker=None,
+                 pid_kp=0.4, pid_ki=0.05, pid_kd=0.1):
+        self.boundary   = SixCylinderBoundary(base_radius)
+        self.engine     = ParticleFlowEngine6D(particle_count)
+        self.broker     = broker
+        self.dt         = dt
+        self._pid_ctrl  = SubstratePID(kp=pid_kp, ki=pid_ki, kd=pid_kd)
+        self._pid       = PIDState()
+        self._safety    = SafetyFlags()
         self._lifecycle = LifecycleState()
         self._telemetry_ring: List[dict] = []
         self._telemetry_maxlen = telemetry_maxlen
         self._start_time = time.time()
-        self._lock = threading.RLock()   # RLock — allows re-entry from tick → snapshot
+        self._lock = threading.RLock()
 
-    # ── Primary Interface ─────────────────────────────────────────────────────
-
-    def closed_loop_tick(
-        self,
-        spin:             float = None,
-        pressure:         float = None,
-        temp:             float = None,
-        belt_mod:         float = None,
-        relaxation_strength: float = 1.0,
-        quarantine_spin:  bool  = False,
-        quarantine_pressure: bool = False,
-        quarantine_temp:  bool  = False,
-    ) -> SubstrateSnapshot:
-        """
-        One full closed-loop tick:
-          1. Read last GS state.
-          2. Update PID errors and compute corrections.
-          3. Apply corrections (unless quarantined).
-          4. Enforce pressure cap.
-          5. Apply relaxation strength (smoothing toward setpoint).
-          6. Step geometry solver.
-          7. Step particle engine.
-          8. Update safety flags.
-          9. Update lifecycle counters.
-         10. Push telemetry.
-         11. Return SubstrateSnapshot.
-        """
+    def closed_loop_tick(self, spin=None, pressure=None, temp=None, belt_mod=None,
+                         relaxation_strength=1.0, quarantine_spin=False,
+                         quarantine_pressure=False, quarantine_temp=False) -> SubstrateSnapshot:
         with self._lock:
             last = self.boundary.last_state
             if last is None:
@@ -1082,49 +897,34 @@ class SubstrateEngine:
                 )
 
             gs = GSState.from_system_state(last, self.boundary)
-
-            # ── 1. PID update ─────────────────────────────────────────────────
             self._pid = self._pid_ctrl.update(self._pid, gs, self.dt)
 
-            # ── 2. Resolve target params ──────────────────────────────────────
-            # External override > PID-corrected setpoint > last state
             def _resolve(override, setpoint, correction, quarantined, last_val):
-                if quarantined:   return last_val
+                if quarantined:          return last_val
                 if override is not None: return override
                 return setpoint + correction * relaxation_strength
 
-            target_spin = _resolve(
-                spin,     self._pid.spin_setpoint,
-                self._pid.spin_correction,     quarantine_spin,     last.spin)
-            target_pressure = _resolve(
-                pressure, self._pid.pressure_setpoint,
-                self._pid.pressure_correction, quarantine_pressure, last.pressure)
-            target_temp = _resolve(
-                temp,     self._pid.temp_setpoint,
-                self._pid.temp_correction,     quarantine_temp,     last.temp)
-            target_belt = belt_mod if belt_mod is not None else last.belt_mod
+            target_spin     = _resolve(spin,     self._pid.spin_setpoint,
+                                       self._pid.spin_correction,     quarantine_spin,     last.spin)
+            target_pressure = _resolve(pressure, self._pid.pressure_setpoint,
+                                       self._pid.pressure_correction, quarantine_pressure, last.pressure)
+            target_temp     = _resolve(temp,     self._pid.temp_setpoint,
+                                       self._pid.temp_correction,     quarantine_temp,     last.temp)
+            target_belt     = belt_mod if belt_mod is not None else last.belt_mod
 
-            # ── 3. Pressure cap ───────────────────────────────────────────────
             pressure_capped = target_pressure > self.PRESSURE_CAP
             if pressure_capped:
                 target_pressure = self.PRESSURE_CAP
 
-            # ── 4. Step geometry ──────────────────────────────────────────────
             new_state = self.boundary.compute(
                 spin=target_spin, pressure=target_pressure,
                 temp=target_temp, belt_mod=target_belt,
             )
-
-            # ── 5. Step particles ─────────────────────────────────────────────
             self.engine.step(new_state, dt=self.dt)
 
-            # ── 6. Safety flags ───────────────────────────────────────────────
             delta     = self.boundary.closed_loop_delta(new_state)
             metrics   = self.boundary.to_toroidal_metrics(new_state)
             stability = metrics['closed_loop_stability']
-
-            delta_viol = abs(delta) > self.DELTA_THRESHOLD
-            stab_warn  = stability < 0.99
 
             self._safety = SafetyFlags(
                 spin_quarantine=quarantine_spin,
@@ -1132,34 +932,33 @@ class SubstrateEngine:
                 temp_quarantine=quarantine_temp,
                 pressure_cap_active=pressure_capped,
                 relaxation_active=(relaxation_strength != 1.0),
-                delta_violation=delta_viol,
-                stability_warning=stab_warn,
+                delta_violation=abs(delta) > self.DELTA_THRESHOLD,
+                stability_warning=stability < 0.99,
                 timestamp=time.time(),
             )
 
-            # ── 7. Lifecycle ──────────────────────────────────────────────────
             self._lifecycle.tick_count += 1
             self._lifecycle.uptime_seconds = time.time() - self._start_time
             self._lifecycle.total_particles_spawned += len(self.engine.particles)
             if quarantine_spin or quarantine_pressure or quarantine_temp:
                 self._lifecycle.quarantine_events += 1
-            if delta_viol:
+            if abs(delta) > self.DELTA_THRESHOLD:
                 self._lifecycle.delta_violations += 1
-            self._lifecycle.healthy = not delta_viol and not stab_warn
+            self._lifecycle.healthy = (not self._safety.delta_violation
+                                       and not self._safety.stability_warning)
             self._lifecycle.last_snapshot_time = time.time()
 
-            # ── 8. Telemetry ring ─────────────────────────────────────────────
             frame = {
-                'tick':       self._lifecycle.tick_count,
-                'timestamp':  new_state.timestamp,
-                'spin':       new_state.spin,
-                'pressure':   new_state.pressure,
-                'temp':       new_state.temp,
-                'stability':  stability,
+                'tick':        self._lifecycle.tick_count,
+                'timestamp':   new_state.timestamp,
+                'spin':        new_state.spin,
+                'pressure':    new_state.pressure,
+                'temp':        new_state.temp,
+                'stability':   stability,
                 'core_throat': new_state.core.throat,
                 'belt_radius': new_state.belt.radius,
-                'delta':      delta,
-                'healthy':    self._lifecycle.healthy,
+                'delta':       delta,
+                'healthy':     self._lifecycle.healthy,
             }
             self._telemetry_ring.append(frame)
             if len(self._telemetry_ring) > self._telemetry_maxlen:
@@ -1171,141 +970,72 @@ class SubstrateEngine:
             return self.snapshot_substrate()
 
     def snapshot_substrate(self) -> SubstrateSnapshot:
-        """Return a full typed snapshot of current substrate state."""
         with self._lock:
             last = self.boundary.last_state or self.boundary.compute()
             return SubstrateSnapshot(
-                gs_state       = GSState.from_system_state(last, self.boundary),
-                manifold_state = ManifoldState.from_engine(self.engine),
-                pid_state      = self._pid,
-                safety_flags   = self._safety,
-                lifecycle_state= self._lifecycle,
-                telemetry      = list(self._telemetry_ring[-10:]),
+                gs_state        = GSState.from_system_state(last, self.boundary),
+                manifold_state  = ManifoldState.from_engine(self.engine),
+                pid_state       = self._pid,
+                safety_flags    = self._safety,
+                lifecycle_state = self._lifecycle,
+                telemetry       = list(self._telemetry_ring[-10:]),
             )
 
     def get_recent_telemetry(self, n: int = 50) -> List[dict]:
-        """Return the last n telemetry frames from the async ring buffer."""
         with self._lock:
             return list(self._telemetry_ring[-n:])
 
-    # ── Setpoint control (for PWC to drive) ──────────────────────────────────
-
-    def set_setpoints(self, spin: float = None, pressure: float = None,
-                      temp: float = None):
-        """PWC cognitive layer calls this to steer the substrate."""
+    def set_setpoints(self, spin=None, pressure=None, temp=None):
         with self._lock:
             if spin     is not None: self._pid.spin_setpoint     = spin
             if pressure is not None: self._pid.pressure_setpoint = pressure
             if temp     is not None: self._pid.temp_setpoint     = temp
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# COGNITIVE CONTROLLER
-# ══════════════════════════════════════════════════════════════════════════════
-# sense → predict → gauge → adjust → step
-#
-# Sits on top of:
-#   SixCylinderBoundary  — the structural self (thermodynamic skeleton)
-#   ParticleFlowEngine6D — the flow field (phenomenology / experience)
-#
-# Does not reach into either. Reads only through SubstrateEngine.snapshot_substrate()
-# and steers only through SubstrateEngine.closed_loop_tick().
-# ──────────────────────────────────────────────────────────────────────────────
+# ── Cognitive Controller ──────────────────────────────────────────────────────
 
 @dataclass
 class CognitiveReport:
-    """What the CognitiveController produced on one cycle."""
-    tick:                  int
-    timestamp:             float
-
-    # ── Sense ─────────────────────────────────────────────────────────────────
-    throat_velocity:       float    # raw read from GS
-    spatial_spread:        float    # particle cloud in x,y,z
-    extended_spread:       float    # particle cloud in w,v,u
-    phase_balance:         float    # TRANSIT+EXHAUST / total  (0→1)
-    stability:             float    # closed_loop_stability
-
-    # ── Predict ───────────────────────────────────────────────────────────────
-    curvature_drift:       float    # delta between current & target curvature mean
-    flux_pressure:         float    # intake_flux / exhaust_flux ratio
-    phase_momentum:        float    # exponential smoothed phase_balance
-
-    # ── Gauge ─────────────────────────────────────────────────────────────────
-    task_load:             float    # 0.0 calm → 1.0 saturated
-    arousal:               float    # spin proxy, normalized
-    coherence:             float    # 1 - abs(curvature_drift)
-
-    # ── Adjust ───────────────────────────────────────────────────────────────
-    spin_command:          float
-    pressure_command:      float
-    temp_command:          float
-    relaxation_strength:   float
-    quarantine_spin:       bool
-    quarantine_pressure:   bool
-    quarantine_temp:       bool
-
-    # ── Health ────────────────────────────────────────────────────────────────
-    healthy:               bool
-    warnings:              List[str]
+    tick:                int
+    timestamp:           float
+    throat_velocity:     float
+    spatial_spread:      float
+    extended_spread:     float
+    phase_balance:       float
+    stability:           float
+    curvature_drift:     float
+    flux_pressure:       float
+    phase_momentum:      float
+    task_load:           float
+    arousal:             float
+    coherence:           float
+    spin_command:        float
+    pressure_command:    float
+    temp_command:        float
+    relaxation_strength: float
+    quarantine_spin:     bool
+    quarantine_pressure: bool
+    quarantine_temp:     bool
+    healthy:             bool
+    warnings:            List[str]
 
 
 class CognitiveController:
-    """
-    The cognitive loop over the 6-cylinder substrate.
-
-    Loop: sense → predict → gauge → adjust → step
-
-    sense    — read GSState + ManifoldState from SubstrateEngine
-    predict  — curvature drift, flux ratio, phase momentum
-    gauge    — task_load, arousal, coherence from predictions
-    adjust   — compute spin/pressure/temp commands + safety flags
-    step     — call SubstrateEngine.closed_loop_tick() with commands
-
-    Parameters
-    ----------
-    substrate        : SubstrateEngine — the body/flow pair
-    target_curvature : float — desired curvature_mean the controller steers toward
-    task_load_ceil   : float — task_load above this triggers relaxation
-    arousal_ceil     : float — spin normalizer ceiling
-    smooth_alpha     : float — EMA smoothing on phase_momentum (0=no memory, 1=frozen)
-    """
-
-    def __init__(
-        self,
-        substrate:        'SubstrateEngine',
-        target_curvature: float = 1.4,
-        task_load_ceil:   float = 0.75,
-        arousal_ceil:     float = 5.0,
-        smooth_alpha:     float = 0.85,
-    ):
+    def __init__(self, substrate: SubstrateEngine, target_curvature=1.4,
+                 task_load_ceil=0.75, arousal_ceil=5.0, smooth_alpha=0.85):
         self.substrate        = substrate
         self.target_curvature = target_curvature
         self.task_load_ceil   = task_load_ceil
         self.arousal_ceil     = arousal_ceil
         self.smooth_alpha     = smooth_alpha
+        self._phase_momentum  = 0.0
+        self._tick            = 0
+        self._report_history: List[CognitiveReport] = []
 
-        # Internal smoothed state
-        self._phase_momentum:   float = 0.0
-        self._tick:             int   = 0
-        self._report_history:   List[CognitiveReport] = []
-
-    # ── Full cognitive cycle ──────────────────────────────────────────────────
-
-    def cycle(
-        self,
-        external_spin:     float = None,
-        external_pressure: float = None,
-        external_temp:     float = None,
-        external_belt_mod: float = None,
-    ) -> CognitiveReport:
-        """
-        Run one full sense → predict → gauge → adjust → step cycle.
-        Returns a CognitiveReport describing what happened.
-        External overrides bypass the cognitive output on that axis.
-        """
+    def cycle(self, external_spin=None, external_pressure=None,
+              external_temp=None, external_belt_mod=None) -> CognitiveReport:
         self._tick += 1
 
-        # ── 1. SENSE ─────────────────────────────────────────────────────────
         snap    = self.substrate.snapshot_substrate()
         gs      = snap.gs_state
         mf      = snap.manifold_state
@@ -1317,67 +1047,41 @@ class CognitiveController:
         extended_spread = mf.extended_spread
         stability       = 1.0 - abs(gs.closed_loop_delta)
 
-        total = mf.total_particles or 1
-        active = mf.transit_count + mf.exhaust_count
-        phase_balance = active / total     # how much of the flow is moving
+        total         = mf.total_particles or 1
+        phase_balance = (mf.transit_count + mf.exhaust_count) / total
 
-        # ── 2. PREDICT ───────────────────────────────────────────────────────
-        # Curvature drift — how far the body is from the target shape
-        curvature_mean = (gs.core_curvature + gs.belt_curvature + gs.cap_curvature) / 3.0
+        curvature_mean  = (gs.core_curvature + gs.belt_curvature + gs.cap_curvature) / 3.0
         curvature_drift = curvature_mean - self.target_curvature
 
-        # Flux pressure — imbalance between intake and exhaust
         flux       = self.substrate.boundary.flux_balance(
-                         self.substrate.boundary.last_state
-                         or self.substrate.boundary.compute())
+                         self.substrate.boundary.last_state or self.substrate.boundary.compute())
         flux_ratio = flux['intake_flux'] / (flux['exhaust_flux'] + 1e-9)
 
-        # Phase momentum — smoothed activity signal (EMA)
-        self._phase_momentum = (
-            self.smooth_alpha * self._phase_momentum
-            + (1.0 - self.smooth_alpha) * phase_balance
-        )
+        self._phase_momentum = (self.smooth_alpha * self._phase_momentum
+                                + (1.0 - self.smooth_alpha) * phase_balance)
 
-        # ── 3. GAUGE ─────────────────────────────────────────────────────────
-        # task_load: combined cognitive load proxy
         task_load = min(1.0,
             0.4 * abs(curvature_drift) / (self.target_curvature + 1e-9)
             + 0.3 * abs(flux_ratio - 1.0)
             + 0.3 * (1.0 - self._phase_momentum)
         )
-
-        # arousal: spin normalized to ceiling
-        arousal = min(1.0, gs.spin / self.arousal_ceil)
-
-        # coherence: system holding its intended shape
+        arousal   = min(1.0, gs.spin / self.arousal_ceil)
         coherence = max(0.0, 1.0 - abs(curvature_drift) / (self.target_curvature + 1e-9))
 
-        # ── 4. ADJUST ────────────────────────────────────────────────────────
         warnings: List[str] = []
-
-        # Relaxation: back off when over the task ceiling
         relaxation = 1.0
         if task_load > self.task_load_ceil:
             relaxation = max(0.3, 1.0 - (task_load - self.task_load_ceil) * 2.0)
             warnings.append(f"task_load={task_load:.3f} → relaxation={relaxation:.3f}")
 
-        # Spin command: steer toward target curvature
-        # curvature_mean ∝ spin → nudge spin opposite to drift
-        spin_cmd = max(0.1, gs.spin - curvature_drift * 0.3 * relaxation)
-
-        # Pressure command: flux imbalance → adjust pressure
-        # high flux_ratio (intake > exhaust) → increase pressure to push through
+        spin_cmd     = max(0.1, gs.spin - curvature_drift * 0.3 * relaxation)
         pressure_cmd = max(0.2, min(SubstrateEngine.PRESSURE_CAP,
                            gs.pressure + (flux_ratio - 1.0) * 0.15 * relaxation))
-
-        # Temp command: extended spread too high → cool down
-        # extended spread blowing out → temp is destabilizing w,v,u axes
         temp_cmd = gs.temp
         if extended_spread > spatial_spread * 2.0:
             temp_cmd = max(0.0, gs.temp - 0.05 * relaxation)
             warnings.append(f"extended_spread={extended_spread:.3f} → cooling temp")
 
-        # Quarantine: block axes where safety flags are already raised
         q_spin     = safety.spin_quarantine
         q_pressure = safety.pressure_quarantine or safety.pressure_cap_active
         q_temp     = safety.temp_quarantine
@@ -1385,62 +1089,41 @@ class CognitiveController:
         if safety.delta_violation:
             warnings.append("delta_violation — quarantining pressure")
             q_pressure = True
-
         if safety.stability_warning:
             warnings.append("stability_warning — quarantining spin")
             q_spin = True
 
-        # External overrides win over cognitive output
         final_spin     = external_spin     if external_spin     is not None else spin_cmd
         final_pressure = external_pressure if external_pressure is not None else pressure_cmd
         final_temp     = external_temp     if external_temp     is not None else temp_cmd
         final_belt     = external_belt_mod
 
-        # ── 5. STEP ──────────────────────────────────────────────────────────
         self.substrate.closed_loop_tick(
-            spin=final_spin,
-            pressure=final_pressure,
-            temp=final_temp,
-            belt_mod=final_belt,
+            spin=final_spin, pressure=final_pressure,
+            temp=final_temp, belt_mod=final_belt,
             relaxation_strength=relaxation,
             quarantine_spin=q_spin,
             quarantine_pressure=q_pressure,
             quarantine_temp=q_temp,
         )
 
-        # ── Report ────────────────────────────────────────────────────────────
         report = CognitiveReport(
-            tick=self._tick,
-            timestamp=time.time(),
+            tick=self._tick, timestamp=time.time(),
             throat_velocity=throat_velocity,
-            spatial_spread=spatial_spread,
-            extended_spread=extended_spread,
-            phase_balance=phase_balance,
-            stability=stability,
-            curvature_drift=curvature_drift,
-            flux_pressure=flux_ratio,
+            spatial_spread=spatial_spread, extended_spread=extended_spread,
+            phase_balance=phase_balance, stability=stability,
+            curvature_drift=curvature_drift, flux_pressure=flux_ratio,
             phase_momentum=self._phase_momentum,
-            task_load=task_load,
-            arousal=arousal,
-            coherence=coherence,
-            spin_command=final_spin,
-            pressure_command=final_pressure,
-            temp_command=final_temp,
-            relaxation_strength=relaxation,
-            quarantine_spin=q_spin,
-            quarantine_pressure=q_pressure,
-            quarantine_temp=q_temp,
-            healthy=lc.healthy,
-            warnings=warnings,
+            task_load=task_load, arousal=arousal, coherence=coherence,
+            spin_command=final_spin, pressure_command=final_pressure,
+            temp_command=final_temp, relaxation_strength=relaxation,
+            quarantine_spin=q_spin, quarantine_pressure=q_pressure,
+            quarantine_temp=q_temp, healthy=lc.healthy, warnings=warnings,
         )
-
         self._report_history.append(report)
         if len(self._report_history) > 200:
             self._report_history.pop(0)
-
         return report
-
-    # ── Introspection ─────────────────────────────────────────────────────────
 
     def get_report_history(self, n: int = 20) -> List[CognitiveReport]:
         return list(self._report_history[-n:])
@@ -1469,32 +1152,69 @@ class CognitiveController:
         print(f"{'─'*55}")
 
 
-# ── Demo entry point update ───────────────────────────────────────────────────
+# ── Entry Points ──────────────────────────────────────────────────────────────
+
+def run_demo():
+    print("🚀 6-Cylindrical Boundary System — FPT Module")
+    print(f"   TR={TOROIDAL_ROOT}  GS={GEAR_SHIFT}  SH={SHADOW}\n")
+    node = ToroidalNodeWrapper(node_id='FPT-Unified-Alpha', count=300)
+    print("Running 40 kinematic cycles (acceleration physics, dt=0.04)...")
+    for i in range(40):
+        state = node.tick(spin=1.75 + 0.45 * math.sin(i * 0.35),
+                          temp=0.1 * (i % 10), dt=0.04)
+    print(state.summary())
+    node.display_metrics(state)
+    print(f"\n  Closed-Loop Delta : {node.boundary.closed_loop_delta(state):.12f}")
+    print(f"  Flux Balance      : {node.boundary.flux_balance(state)}")
+    print(f"  Phase Counts      : {node.engine.phase_counts()}")
+    print("\n🧬 Manifold projection...")
+    node.engine.plot_manifold_projection(method='pca')
+    print("\n🖥️  Real-time animator...")
+    RealTimeEngineAnimator(node.boundary, node.engine).start_live_render(frames=200, interval=30)
+
+
+def run_engine_server():
+    print("🏗️  Initializing JED manifold engine server...")
+    solver = SixCylinderBoundary(base_radius=50.0)
+    engine = ParticleFlowEngine6D(count=300)
+    broker = JEDNetworkBroker(solver=solver)
+    broker.start()
+    print(f"\n💡 Dashboard:  python {os.path.basename(__file__)} --plotter")
+    print('   RPC inject: echo \'{"method":"update_geometry","params":{"spin":2.8,"temp":0.65},"id":1}\' | nc 127.0.0.1 8888\n')
+    print("Ctrl+C to stop.")
+    try:
+        while True:
+            state   = solver.last_state or solver.compute(spin=1.5, pressure=1.0, temp=0.15)
+            engine.step(state, dt=0.04)
+            metrics = solver.to_toroidal_metrics(state)
+            broker.push_telemetry(state, metrics)
+            time.sleep(0.033)
+    except KeyboardInterrupt:
+        print("\n⚡ Shutdown.")
+    finally:
+        broker.stop()
+        print("🏁 Engine closed.")
+
+
+def run_plotter_client():
+    dash = TelemetryStreamDashboard(port=8888)
+    dash.connect()
+    dash.launch()
+
 
 def run_cognitive_demo():
     print("🧠 6-Cylinder Cognitive Controller — Full Loop Demo")
     print(f"   TR={TOROIDAL_ROOT}  GS={GEAR_SHIFT}  SH={SHADOW}\n")
-
-    substrate = SubstrateEngine(
-        base_radius=60.0, particle_count=200, dt=0.04,
-        pid_kp=0.4, pid_ki=0.05, pid_kd=0.1,
-    )
-    controller = CognitiveController(
-        substrate=substrate,
-        target_curvature=1.4,
-        task_load_ceil=0.75,
-        smooth_alpha=0.85,
-    )
-
+    substrate  = SubstrateEngine(base_radius=60.0, particle_count=200, dt=0.04,
+                                 pid_kp=0.4, pid_ki=0.05, pid_kd=0.1)
+    controller = CognitiveController(substrate=substrate, target_curvature=1.4,
+                                     task_load_ceil=0.75, smooth_alpha=0.85)
     print("Running 20 cognitive cycles...\n")
     for i in range(20):
-        # Inject a temp spike at cycle 10 to stress the system
         ext_temp = 0.8 if i == 10 else None
-        report = controller.cycle(external_temp=ext_temp)
-
+        report   = controller.cycle(external_temp=ext_temp)
         if i % 5 == 0 or report.warnings:
             controller.print_report(report)
-
     snap = substrate.snapshot_substrate()
     print(f"\n📊 Final Lifecycle:")
     print(f"   ticks={snap.lifecycle_state.tick_count}")
@@ -1502,18 +1222,18 @@ def run_cognitive_demo():
     print(f"   quarantine_events={snap.lifecycle_state.quarantine_events}")
     print(f"   delta_violations={snap.lifecycle_state.delta_violations}")
     print(f"   healthy={snap.lifecycle_state.healthy}")
-
     recent = substrate.get_recent_telemetry(5)
     print(f"\n📡 Last 5 telemetry frames:")
     for f in recent:
         print(f"   tick={f['tick']}  spin={f['spin']:.4f}  "
               f"stability={f['stability']:.6f}  healthy={f['healthy']}")
-
     print("\n✅ Cognitive loop complete.")
 
 
 if __name__ == '__main__':
-    if   len(sys.argv) > 1 and sys.argv[1] == '--plotter':  run_plotter_client()
-    elif len(sys.argv) > 1 and sys.argv[1] == '--server':   run_engine_server()
+    if   len(sys.argv) > 1 and sys.argv[1] == '--plotter':   run_plotter_client()
+    elif len(sys.argv) > 1 and sys.argv[1] == '--server':    run_engine_server()
     elif len(sys.argv) > 1 and sys.argv[1] == '--cognitive': run_cognitive_demo()
-    else:                                                     run_demo()
+    else:                                                      run_demo()
+PYEOF
+echo "done"
