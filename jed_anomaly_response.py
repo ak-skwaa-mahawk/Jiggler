@@ -12,6 +12,42 @@ import threading
 from dataclasses import dataclass
 from typing import List, Optional, Callable
 
+# jed_anomaly_response.py (extended)
+
+from jed_pid_bandit import update_pid_bandit
+from jed_persistent_state import load_pid_bandit, save_pid_bandit
+
+def compute_pid_reward(stability, safety, performance,
+                       alpha=0.5, beta=0.3, gamma=0.2):
+    return alpha * stability + beta * safety + gamma * performance
+
+def evaluate_transition(plan, before, after, memory,
+                        pid_gain_index: int = None):
+    stability, safety, performance = compute_scores(plan, before, after)
+    reward = compute_reward(stability, safety, performance)
+
+    # GS regime bandit update (as before)
+    bandit = load_regime_bandit(memory)
+    update_regime_bandit(bandit, plan.gs_regime, reward)
+    save_regime_bandit(memory, bandit)
+
+    # PID bandit update (if we used a specific gain index this cycle)
+    if pid_gain_index is not None:
+        pid_bandit = load_pid_bandit(memory)
+        pid_reward = compute_pid_reward(stability, safety, performance)
+        update_pid_bandit(pid_bandit, pid_gain_index, pid_reward)
+        save_pid_bandit(memory, pid_bandit)
+
+    result = CriticResult(
+        score=reward,
+        stability_score=stability,
+        safety_score=safety,
+        performance_score=performance,
+        anomalies=detect_anomalies(before, after),
+        policy_adjustments={},
+    )
+    return result
+
 
 @dataclass
 class AnomalyEvent:
