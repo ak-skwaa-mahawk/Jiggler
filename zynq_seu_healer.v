@@ -4,19 +4,19 @@ module zynq_seu_healer (
     input clk_500mhz,
     input rst_n,
     input sefi_flag,       // High if a Single Event Functional Interruption occurs
-    input dpr_done,        // Input from PCAP/ICAP indicating reconfiguration finished
-    output reg dpr_start,  // Triggers the configuration engine
-    output reg veto_pulse  // Isolates downstream logic during recovery
+    input dpr_done,        // Input from configuration engine indicating completion
+    output reg dpr_start,  // Triggers the partial reconfiguration hardware
+    output reg veto_pulse  // Safely blocks downstream logic from bad data during repair
 );
 
-    // State Encoding using localparams
+    // State definitions using safe binary encoding
     localparam STATE_IDLE     = 2'b00;
     localparam STATE_SCRUB    = 2'b01;
     localparam STATE_RECOVER  = 2'b10;
 
     reg [1:0] current_state, next_state;
 
-    // 1. Sequential State Transition Layer (2ns Timing Target)
+    // 1. Sequential State Register Layer (Maintains strict 2ns timing)
     always @(posedge clk_500mhz or negedge rst_n) begin
         if (!rst_n) 
             current_state <= STATE_IDLE;
@@ -24,7 +24,7 @@ module zynq_seu_healer (
             current_state <= next_state;
     end
 
-    // 2. Combinatorial Next-State Logic Gating
+    // 2. Combinatorial Next-State Evaluation Logic
     always @(*) begin
         next_state = current_state;
         case (current_state)
@@ -32,18 +32,16 @@ module zynq_seu_healer (
                 if (sefi_flag) next_state = STATE_SCRUB;
             end
             STATE_SCRUB: begin
-                // Remain in scrub state until hardware indicates completion
                 if (dpr_done) next_state = STATE_RECOVER;
             end
             STATE_RECOVER: begin
-                // 1-cycle cooldown state to let pipelines settle
-                next_state = STATE_IDLE;
+                next_state = STATE_IDLE; // Cooldown cycle to clear pipelines
             end
             default: next_state = STATE_IDLE;
         endcase
     end
 
-    // 3. Registered Outputs Layer (Eliminates Glitches / Preserves Setup Time)
+    // 3. Registered Output Buffer Layer (Eliminates Glitches & Preserves Set-up Time)
     always @(posedge clk_500mhz or negedge rst_n) begin
         if (!rst_n) begin
             veto_pulse <= 1'b0;
@@ -55,11 +53,11 @@ module zynq_seu_healer (
                     dpr_start  <= 1'b0;
                 end
                 STATE_SCRUB: begin
-                    veto_pulse <= 1'b1; // Hold veto line high to shield logic
-                    dpr_start  <= 1'b1; // Pulse or hold the start bit
+                    veto_pulse <= 1'b1; // Lock out corrupt signal lines
+                    dpr_start  <= 1'b1; // Signal the ICAP/PCAP engine to flash memory
                 end
                 STATE_RECOVER: begin
-                    veto_pulse <= 1'b1; // Keep veto high while clocks stabilize
+                    veto_pulse <= 1'b1; // Maintain safety block while lines settle
                     dpr_start  <= 1'b0;
                 end
             endcase
