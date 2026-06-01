@@ -1,3 +1,9 @@
+tordial:
+  safety_bounds:
+    max_d: 180
+    max_r: 600
+    min_sigma_t: -3500
+
 # Tordial–GS Manifold Formal Specification
 
 **Version**: 1.0  
