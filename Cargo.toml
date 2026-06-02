@@ -1,3 +1,6 @@
+[lib]
+name = "sovereign_engine"
+crate-type = ["cdylib", "staticlib"]   # ← Added staticlib for iOS
 [features]
 default = []
 # Enable Candle + candle-nn for agentic/ML policy path (CPU by default)
