@@ -13,15 +13,18 @@ categories = ["api-bindings", "simulation"]
 name = "sovereign_engine"
 crate-type = ["cdylib"]
 
+[features]
+default = [] # Explicitly ensures no accidental corporate telemetry feature flags can creep in via updates
+
 [dependencies]
-# Zero external dependencies — maximum auditability, minimal attack surface, no telemetry
+# Zero external dependencies — maximum auditability, minimal attack surface, zero telemetry leaks
 
 [profile.release]
 opt-level = 3          # Highest optimization for resonance math paths
-lto = "fat"            # Full link-time optimization (cross-function inlining)
-codegen-units = 1      # Single codegen unit for maximum optimization
-panic = "abort"        # No unwinding machinery — smaller binary, deterministic FFI
-strip = true           # Completely strips all symbols & debug info (eliminates telemetry markers)
-debug = false
-overflow-checks = false
-incremental = false
+lto = "fat"            # Full link-time optimization across crate boundaries
+codegen-units = 1      # Single unit to maximize deep compiler cross-inlining
+panic = "abort"        # Drops unwinding overhead, guarantees deterministic boundary crashes
+strip = true           # Drops all debug symbols, symbol maps, and build telemetry paths
+debug = false          # Confirms no debug info generation
+overflow-checks = true # RECOMMENDED CHANGE: Keep true for math loops to stop malicious value wraparound
+incremental = false    # Enforces complete, monolithic clean builds
