@@ -1,22 +1,47 @@
+syntax = "proto3";
+
+package issttoft;
+
+// ISST-TOFT Sovereign Inference Service
+service InferenceService {
+  rpc EncodeRadHardGlyph (GlyphRequest) returns (GlyphResponse);
+  rpc RunClientlessPulse (PulseRequest) returns (PulseResponse);
+
+  // === SixCylinderBoundary GS Coupling (Tordial–GS) ===
+  rpc ComputeSixFaceBoundary (SixFaceRequest) returns (SixFaceResponse);
+  rpc GetClosedLoopDelta     (SixFaceRequest) returns (DeltaResponse);
+  rpc RunTrackingFormProof   (SixFaceRequest) returns (ProofResponse);
+}
+
+// === Existing messages (unchanged) ===
+message GlyphRequest { ... }
+message GlyphResponse { ... }
+message PulseRequest { ... }
+message PulseResponse { ... }
+
+// === New SixCylinderBoundary messages ===
 message SixFaceRequest {
-  double spin = 1;
+  double spin     = 1;
   double pressure = 2;
-  double temp = 3;
+  double temp     = 3;
   double belt_mod = 4;
 }
 
 message SixFaceResponse {
-  double core_curvature = 1;
-  double belt_curvature = 2;
-  double cap_curvature = 3;
-  double closed_loop_delta = 4;
-  double gs_density = 5;
+  double core_curvature        = 1;
+  double belt_curvature        = 2;
+  double cap_curvature         = 3;
+  double closed_loop_delta     = 4;
+  double gs_density            = 5;
   double closed_loop_stability = 6;
+  string regime                = 7;   // SUBCRITICAL | MARGINAL | GOLDILOCKS | DEEP_GS
 }
 
-message DeltaResponse { double delta = 1; }
-message ProofResponse { bool all_pillars_hold = 1; string details = 2; }
+message DeltaResponse {
+  double delta = 1;
+}
 
-rpc ComputeSixFaceBoundary (SixFaceRequest) returns (SixFaceResponse);
-rpc GetClosedLoopDelta (SixFaceRequest) returns (DeltaResponse);
-rpc RunTrackingFormProof (SixFaceRequest) returns (ProofResponse);
+message ProofResponse {
+  bool   all_pillars_hold = 1;
+  string details          = 2;
+}
