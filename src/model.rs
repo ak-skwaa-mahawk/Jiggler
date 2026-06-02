@@ -19,6 +19,22 @@ pub struct SovereignAgentPolicy {
     actor: Linear,
 }
 
+let refined: Vec<f32> = if req.use_agentic {
+    #[cfg(feature = "candle")]
+    {
+        model::apply_agentic_policy(&req.terrain_data, Self::living_toroidal_pi_r())
+            .map_err(|e| Status::internal(format!("Agentic policy failed: {}", e)))?
+    }
+    #[cfg(not(feature = "candle"))]
+    {
+        return Err(Status::unimplemented(
+            "Agentic policy (use_agentic=true) requires building with --features candle or --features cuda"
+        ));
+    }
+} else {
+    base_waveform
+};
+
 impl SovereignAgentPolicy {
     pub fn new(vs: VarBuilder) -> CandleResult<Self> {
         Ok(Self {
