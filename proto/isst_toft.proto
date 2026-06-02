@@ -1,0 +1,22 @@
+message SixFaceRequest {
+  double spin = 1;
+  double pressure = 2;
+  double temp = 3;
+  double belt_mod = 4;
+}
+
+message SixFaceResponse {
+  double core_curvature = 1;
+  double belt_curvature = 2;
+  double cap_curvature = 3;
+  double closed_loop_delta = 4;
+  double gs_density = 5;
+  double closed_loop_stability = 6;
+}
+
+message DeltaResponse { double delta = 1; }
+message ProofResponse { bool all_pillars_hold = 1; string details = 2; }
+
+rpc ComputeSixFaceBoundary (SixFaceRequest) returns (SixFaceResponse);
+rpc GetClosedLoopDelta (SixFaceRequest) returns (DeltaResponse);
+rpc RunTrackingFormProof (SixFaceRequest) returns (ProofResponse);
