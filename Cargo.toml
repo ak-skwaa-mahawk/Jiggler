@@ -1,3 +1,9 @@
+[features]
+default = []
+# Enable Candle + candle-nn for agentic/ML policy path (CPU by default)
+candle = ["dep:candle-core", "dep:candle-nn"]
+# Enable CUDA support for Candle (implies candle feature)
+cuda = ["candle", "candle-core/cuda"]
 [package]
 name = "sovereign_engine"
 version = "1.0.0"
