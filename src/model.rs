@@ -1,3 +1,4 @@
+#![cfg(feature = "candle")]
 //! src/model.rs
 //! Sovereign Agentic Policy Model (Candle-based)
 //!
