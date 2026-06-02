@@ -1,3 +1,27 @@
+[package]
+name = "sovereign_engine"
+version = "1.0.0"
+edition = "2021"
+authors = ["Two Mile Solutions LLC <johnbcarrolljr@gmail.com>"]
+description = "Sovereign π_r Core Engine — Defense-in-depth FFI boundary for resonance metric propagation and 99733-Q Extraction Guard"
+license = "Apache-2.0"
+repository = "https://github.com/ak-skwaa-mahawk/sovereign_engine"
+keywords = ["ffi", "sovereign", "resonance", "neutrosophic", "indigenous-tech"]
+categories = ["api-bindings", "simulation"]
+
+[lib]
+name = "sovereign_engine"
+crate-type = ["cdylib"]
+
 [dependencies]
-num-complex = "0.4"
-rustfft = "6"
+# Zero external dependencies — maximum auditability, minimal attack surface, no telemetry
+
+[profile.release]
+opt-level = 3          # Highest optimization for resonance math paths
+lto = "fat"            # Full link-time optimization (cross-function inlining)
+codegen-units = 1      # Single codegen unit for maximum optimization
+panic = "abort"        # No unwinding machinery — smaller binary, deterministic FFI
+strip = true           # Completely strips all symbols & debug info (eliminates telemetry markers)
+debug = false
+overflow-checks = false
+incremental = false
