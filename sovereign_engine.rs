@@ -2,6 +2,16 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+typedef _PropagateSolitonC = Pointer<GuardedOutput> Function(
+    Pointer<SovereignMetric>, Double, Double, Double, Double);
+typedef _PropagateSolitonDart = Pointer<GuardedOutput> Function(
+    Pointer<SovereignMetric>, double, double, double, double);
+
+final _propagateSoliton = _sovereignLib
+    .lookup<NativeFunction<_PropagateSolitonC>>('propagate_soliton')
+    .asFunction<_PropagateSolitonDart>();
+
+
 // Global counter for simulated deterministic auditing without external dependencies
 static REJECTION_COUNT: AtomicU64 = AtomicU64::new(0);
 
