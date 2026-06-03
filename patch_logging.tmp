@@ -1,0 +1,11 @@
+cat << 'EOF' > patch_logging.tmp
+    def log_live_telemetry(self):
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        for r_name, nodes in [("Live_A", self.nodes_a), ("Live_B", self.nodes_b), ("Live_C", self.nodes_c)]:
+            for n in nodes:
+                c.execute("INSERT INTO nodes (node_id, ring, d, r, sigma_T, drift_phase, fission_count, parent_id) VALUES (?,?,?,?,?,?,0,NULL)",
+                    (n.node_id, r_name, n.d, n.r, n.sigma_T, n.drift_phase))
+        conn.commit()
+        conn.close()
+EOF
