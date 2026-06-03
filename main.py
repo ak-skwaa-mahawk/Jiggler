@@ -2,7 +2,7 @@ cat << 'EOF' > main.py
 """
 main.py
 Zero-Dependency Native HTTP Micro-Gateway Interface for Verifiable Tordial-GS Matrix Ledger
-Includes Injection, Termination, Curvature Migration, What-If Admission, and Ring Safety APIs
+Includes Injection, Termination, Curvature Migration, and Autonomous Ring Rebalancing APIs
 """
 
 import sqlite3
@@ -38,36 +38,18 @@ class MockMatrixEngine:
         return type('Node', (), {"node_id": node_id, "d": d, "r": r, "sigma_T": sigma_T, "drift_phase": drift_phase})()
 
     def inspect_ring_safety(self, ring: str):
-        """Calculates live structural stress, safety ceilings, and remaining capacity budget"""
         ring = ring.upper()
-        if ring not in ["A", "B", "C"]:
-            return None
-            
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
-        c.execute("""
-            SELECT COUNT(*) as node_count, 
-                   COALESCE(AVG(sigma_T), 0.0) as current_avg
-            FROM nodes WHERE ring = ?;
-        """, (f"Injected_{ring}",))
+        c.execute("SELECT COUNT(*) as node_count, COALESCE(AVG(sigma_T), 0.0) as current_avg FROM nodes WHERE ring = ?;", (f"Injected_{ring}",))
         row = c.fetchone()
         conn.close()
-        
         current_avg = round(row["current_avg"], 4)
         budget = round(MAX_RING_PRESSURE_ALLOWANCE - current_avg, 4)
-        status = "NOMINAL" if budget >= 0 else "CRITICAL_OVERLOAD"
-        
         return {
-          "ring": ring,
-          "safety_envelope": {
-            "status": status,
-            "node_count": row["node_count"],
-            "current_average_pressure": current_avg,
-            "safety_ceiling": MAX_RING_PRESSURE_ALLOWANCE,
-            "remaining_pressure_budget": max(0.0, budget),
-            "available_capacity_headroom": "READY" if budget > 0 else "SATURATED"
-          }
+            "ring": ring, "node_count": row["node_count"], "current_average_pressure": current_avg,
+            "remaining_pressure_budget": max(0.0, budget), "status": "NOMINAL" if budget >= 0 else "CRITICAL_OVERLOAD"
         }
 
     def audit_admission(self, node_id: int, target_ring: str):
@@ -75,56 +57,56 @@ class MockMatrixEngine:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
-        
         c.execute("SELECT sigma_T FROM nodes WHERE node_id = ?", (node_id,))
         source_node = c.fetchone()
         if not source_node:
             conn.close()
             return None
-
-        c.execute("""
-            SELECT COUNT(*) as node_count, 
-                   COALESCE(SUM(sigma_T), 0.0) as cumulative_pressure,
-                   COALESCE(AVG(sigma_T), 0.0) as current_avg
-            FROM nodes WHERE ring = ?;
-        """, (f"Injected_{target_ring}",))
+        c.execute("SELECT COUNT(*) as node_count, COALESCE(SUM(sigma_T), 0.0) as cumulative_pressure FROM nodes WHERE ring = ?;", (f"Injected_{target_ring}",))
         dest_stats = c.fetchone()
-        
         projected_count = dest_stats["node_count"] + 1
-        projected_pressure = dest_stats["cumulative_pressure"] + source_node["sigma_T"]
-        projected_average = projected_pressure / projected_count
+        projected_average = (dest_stats["cumulative_pressure"] + source_node["sigma_T"]) / projected_count
         conn.close()
+        return "ALLOWED" if projected_average <= MAX_RING_PRESSURE_ALLOWANCE else "REJECTED"
 
-        evaluation = "ALLOWED" if projected_average <= MAX_RING_PRESSURE_ALLOWANCE else "REJECTED_PRESSURE_OVERFLOW"
+    def rebalance_manifold(self):
+        """Autonomous Scheduler: Automatically moves elements out of high-pressure rings"""
+        rings = ["A", "B", "C"]
+        stats = {r: self.inspect_ring_safety(r) for r in rings}
         
-        return {
-            "evaluation": evaluation,
-            "node_id": node_id,
-            "target_ring": target_ring,
-            "impact": {
-                "node_tensor_pressure": round(source_node["sigma_T"], 4),
-                "current_ring_average": round(dest_stats["current_avg"], 4),
-                "projected_ring_average": round(projected_average, 4),
-                "safety_ceiling": MAX_RING_PRESSURE_ALLOWANCE
-            }
-        }
-
-    def migrate_process(self, node_id: int, target_ring: str):
-        target_ring = target_ring.upper()
-        audit = self.audit_admission(node_id, target_ring)
-        if not audit: return {"status": "NOT_FOUND"}
-        if audit["evaluation"] == "REJECTED_PRESSURE_OVERFLOW":
-            return {"status": "VIOLATION", "projected_pressure": audit["impact"]["projected_ring_average"], "ceiling": MAX_RING_PRESSURE_ALLOWANCE}
+        # Sort rings to isolate pressure extremes
+        sorted_rings = sorted(rings, key=lambda r: stats[r]["current_average_pressure"])
+        coolest_ring = sorted_rings[0]
+        hottest_ring = sorted_rings[-1]
         
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("UPDATE nodes SET ring = ? WHERE node_id = ?", (f"Injected_{target_ring}", node_id))
-        conn.commit()
-        c.execute("SELECT d, r, sigma_T, drift_phase FROM nodes WHERE node_id = ?", (node_id,))
-        conn.row_factory = sqlite3.Row
-        node_state = dict(conn.cursor().fetchone())
-        conn.close()
-        return {"status": "SUCCESS", "data": node_state}
+        hot_pressure = stats[hottest_ring]["current_average_pressure"]
+        cool_pressure = stats[coolest_ring]["current_average_pressure"]
+        
+        # Trigger condition: Hottest ring is strained and a substantial gradient exists
+        if hot_pressure > 25.0 and (hot_pressure - cool_pressure) > 10.0:
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            
+            # Select the most effective node from the strained ring to offload
+            c.execute("SELECT node_id, sigma_T FROM nodes WHERE ring = ? ORDER BY sigma_T DESC LIMIT 1;", (f"Injected_{hottest_ring}",))
+            candidate = c.fetchone()
+            
+            if candidate:
+                node_id = candidate["node_id"]
+                # Run lookahead verification before applying auto-migration
+                if self.audit_admission(node_id, coolest_ring) == "ALLOWED":
+                    c.execute("UPDATE nodes SET ring = ? WHERE node_id = ?", (f"Injected_{coolest_ring}", node_id))
+                    conn.commit()
+                    conn.close()
+                    return {
+                        "status": "REBALANCED",
+                        "action": f"Auto-offloaded node {node_id} from Ring {hottest_ring} to Ring {coolest_ring}",
+                        "gradient_mitigated": round(hot_pressure - cool_pressure, 4)
+                    }
+            conn.close()
+            
+        return {"status": "BALANCED", "detail": "Curvature load remains inside equilibrium margins", "metrics": stats}
 
     def terminate_process(self, node_id: int) -> bool:
         conn = sqlite3.connect(DB_PATH)
@@ -152,16 +134,14 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
         
         if parsed_url.path == "/":
             self._set_headers(200)
-            self.wfile.write(json.dumps({"status": "ONLINE", "substrate": "Bounded Geometry Spec"}).encode("utf-8"))
+            self.wfile.write(json.dumps({"status": "ONLINE"}).encode("utf-8"))
             return
 
-        # NEW Safety Envelope Route: /manifold/ring/<ring_id>/safety
         elif len(path_segments) == 4 and path_segments[0] == "manifold" and path_segments[1] == "ring" and path_segments[3] == "safety":
-            target_ring = path_segments[2].upper()
-            report = matrix.inspect_ring_safety(target_ring)
+            report = matrix.inspect_ring_safety(path_segments[2])
             if not report:
                 self._set_headers(400)
-                self.wfile.write(json.dumps({"error": "Invalid ring domain mapping requested"}).encode("utf-8"))
+                self.wfile.write(json.dumps({"error": "Invalid domain"}).encode("utf-8"))
                 return
             self._set_headers(200)
             self.wfile.write(json.dumps(report).encode("utf-8"))
@@ -173,56 +153,33 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
                 node_id = int(query_params.get("node_id", [0])[0])
                 target_ring = query_params.get("target_ring", ["C"])[0].upper()
                 audit_report = matrix.audit_admission(node_id, target_ring)
-                if not audit_report:
-                    self._set_headers(404)
-                    self.wfile.write(json.dumps({"error": "Node ID signature not tracked in ledger"}).encode("utf-8"))
-                    return
-                status_code = 200 if audit_report["evaluation"] == "ALLOWED" else 403
-                self._set_headers(status_code)
-                self.wfile.write(json.dumps(audit_report).encode("utf-8"))
+                self._set_headers(200)
+                self.wfile.write(json.dumps({"node_id": node_id, "target_ring": target_ring, "admission": audit_report}).encode("utf-8"))
             except Exception as e:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        elif parsed_url.path == "/manifold/telemetry":
-            conn = sqlite3.connect(DB_PATH)
-            conn.row_factory = sqlite3.Row
-            c = conn.cursor()
-            c.execute("SELECT ring, COUNT(*) as recorded_ticks, AVG(sigma_T) as mean_tensor_pressure FROM nodes GROUP BY ring;")
-            rows = c.fetchall()
-            conn.close()
-            self._set_headers(200)
-            payload = {"rings": {row["ring"]: {"datapoints": row["recorded_ticks"], "avg_pressure": round(row["mean_tensor_pressure"], 4)} for row in rows}}
-            self.wfile.write(json.dumps(payload).encode("utf-8"))
-            return
-
     def do_POST(self):
-        content_length = int(self.headers['Content-Length'])
-        body = self.rfile.read(content_length)
-        try: data = json.loads(body.decode('utf-8'))
-        except Exception: data = {}
-
         if self.path == "/process/spawn":
+            content_length = int(self.headers['Content-Length'])
+            try: data = json.loads(self.rfile.read(content_length).decode('utf-8'))
+            except Exception: data = {}
             ring = data.get("ring", "A")
             node = matrix.spawn_process(ring, data.get("d", 6), data.get("r", 18), data.get("drift_phase", 0.0))
             self._set_headers(201)
-            self.wfile.write(json.dumps({"status": "SPAWNED", "node_id": node.node_id, "ring": ring.upper(), "initial_state": {"d": node.d, "r": node.r, "sigma_T": round(node.sigma_T, 4), "drift_phase": node.drift_phase}}).encode("utf-8"))
+            self.wfile.write(json.dumps({"status": "SPAWNED", "node_id": node.node_id, "ring": ring.upper(), "sigma_T": round(node.sigma_T, 4)}).encode("utf-8"))
             return
 
-        elif self.path.startswith("/process/migrate/"):
-            node_id = int(self.path.split("/")[-1])
-            target_ring = data.get("target_ring", "C")
-            result = matrix.migrate_process(node_id, target_ring)
-            if result["status"] == "SUCCESS":
+        # NEW Autonomous Orchestration Hook: /kernel/rebalance
+        elif self.path == "/kernel/rebalance":
+            try:
+                dispatch_log = matrix.rebalance_manifold()
                 self._set_headers(200)
-                self.wfile.write(json.dumps({"status": "MIGRATED", "node_id": node_id, "to_ring": f"Injected_{target_ring.upper()}", "state": result["data"]}).encode("utf-8"))
-            elif result["status"] == "VIOLATION":
-                self._set_headers(403)
-                self.wfile.write(json.dumps({"status": "REJECTED_PRESSURE_OVERFLOW", "detail": f"Target ring stabilization breached. Projected: {result['projected_pressure']} (Max allowed: {result['ceiling']})"}).encode("utf-8"))
-            else:
-                self._set_headers(404)
-                self.wfile.write(json.dumps({"status": "NOT_FOUND"}).encode("utf-8"))
+                self.wfile.write(json.dumps(dispatch_log).encode("utf-8"))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"status": "SCHEDULER_ERROR", "detail": str(e)}).encode("utf-8"))
             return
 
     def do_DELETE(self):
@@ -239,7 +196,7 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     server_address = ("127.0.0.1", 8080)
     httpd = HTTPServer(server_address, NativeLedgerGateway)
-    print("[+] Sovereign Micro-Kernel REST Core Engine Online with Introspection at http://127.0.0.1:8080")
+    print("[+] Sovereign Orchestrator Framework Live at http://127.0.0.1:8080")
     try: httpd.serve_forever()
     except KeyboardInterrupt: httpd.server_close()
 EOF
