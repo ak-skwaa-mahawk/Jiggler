@@ -2,13 +2,11 @@
 """
 SovereignTunnel — The Slide's Offensive Tunneling Primitive
 
-Part of The Slide (autonomous lateral movement loop).
-Anchored to The Floor.
-Protected by Extraction Guard + W-state + recursive π_r.
-Modulated by 79.79 Hz resonance and Frame Energy.
+Now with real SSH backend for:
+- Remote command execution (execute_command)
+- File transfer (send_file)
 
-This module provides adaptive, self-healing, sovereign-controlled
-tunneling for Phase 3 (Contextual Pivot) of The Slide.
+Requires: pip install paramiko
 """
 
 from __future__ import annotations
@@ -17,60 +15,65 @@ from typing import Optional, Dict, Any
 import time
 import logging
 
-from sovereign_engine.frame_energy import FrameEnergy, EraFrameId
-from sovereign_engine.resonance_pulse import ResonancePulse  # your existing 79.79 Hz module
+try:
+    import paramiko
+except ImportError:
+    paramiko = None
 
 logger = logging.getLogger("sovereign.slide.tunnel")
+
+
+@dataclass
+class TunnelResult:
+    success: bool
+    stdout: str = ""
+    stderr: str = ""
+    exit_code: int = 0
+    tunnel_id: Optional[str] = None
 
 
 @dataclass
 class TunnelState:
     tunnel_id: str
     target_host: str
-    current_frame: EraFrameId
-    stability: float = 1.0          # recursive π_r stability
+    current_frame: Any
+    stability: float = 1.0
     frame_energy: float = 0.0
     last_heartbeat: float = field(default_factory=time.time)
     is_active: bool = True
 
+    # SSH connection details
+    username: Optional[str] = None
+    key_path: Optional[str] = None
+    password: Optional[str] = None
+    port: int = 22
+    ssh_client: Optional[Any] = None   # paramiko.SSHClient
+
 
 class SovereignTunnel:
     """
-    Sovereign-controlled adaptive tunnel.
-
-    Used by The Slide for offensive pivoting.
-    Prioritizes lowest frame_energy paths and self-heals using
-    resonance + recursive π_r feedback.
+    Sovereign-controlled adaptive tunnel with real SSH backend.
     """
 
-    def __init__(
-        self,
-        frame_energy: FrameEnergy,
-        resonance_pulse: ResonancePulse,
-        extraction_guard: Any,           # your ExtractionGuard instance
-        base_resonance_hz: float = 79.79,
-    ):
-        self.frame_energy = frame_energy
-        self.resonance_pulse = resonance_pulse
-        self.extraction_guard = extraction_guard
-        self.base_resonance_hz = base_resonance_hz
+    def __init__(self, base_resonance_hz: float = 79.79):
         self.active_tunnels: Dict[str, TunnelState] = {}
         self.tunnel_counter = 0
+        self.base_resonance_hz = base_resonance_hz
+
+    # ============================================================
+    # Tunnel Management
+    # ============================================================
 
     def open_tunnel(
         self,
         target_host: str,
-        preferred_frame: Optional[EraFrameId] = None,
+        preferred_frame: Any = None,
+        username: str = "root",
+        key_path: Optional[str] = None,
+        password: Optional[str] = None,
+        port: int = 22,
         context: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
-        """
-        Open a new sovereign tunnel to target_host.
-        Chooses the lowest-energy frame if none is provided.
-        """
-        if preferred_frame is None:
-            # Let FrameEnergy decide the best frame for this connection
-            preferred_frame = self._select_best_frame(target_host, context)
-
         tunnel_id = f"slide_tun_{self.tunnel_counter}"
         self.tunnel_counter += 1
 
@@ -78,135 +81,151 @@ class SovereignTunnel:
             tunnel_id=tunnel_id,
             target_host=target_host,
             current_frame=preferred_frame,
-            stability=1.0,
-            frame_energy=self.frame_energy.compute(
-                preferred_frame,
-                self.frame_energy.floor_anchor,  # simplified
-                ProjectedState(frame=preferred_frame, projected_coords=[], coherence=1.0, gradient_norm=0.0)
-            ),
+            username=username,
+            key_path=key_path,
+            password=password,
+            port=port,
         )
 
-        # Initial resonance pulse to stabilize the tunnel
-        self.resonance_pulse.fire_pulse(amplitude=0.8, phase=0.0)
-
         self.active_tunnels[tunnel_id] = tunnel
-        logger.info(f"[The Slide] Opened sovereign tunnel {tunnel_id} → {target_host} (frame={preferred_frame})")
-
+        logger.info(f"[SovereignTunnel] Opened tunnel {tunnel_id} → {target_host}")
         return tunnel_id
 
+    def _get_ssh_client(self, tunnel: TunnelState) -> Optional[paramiko.SSHClient]:
+        """Lazily create and cache SSH connection."""
+        if tunnel.ssh_client and tunnel.ssh_client.get_transport() and tunnel.ssh_client.get_transport().is_active():
+            return tunnel.ssh_client
+
+        if paramiko is None:
+            logger.error("paramiko is not installed. Run: pip install paramiko")
+            return None
+
+        try:
+            client = paramiko.SSHClient()
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+            if tunnel.key_path:
+                pkey = paramiko.RSAKey.from_private_key_file(tunnel.key_path)
+                client.connect(
+                    hostname=tunnel.target_host,
+                    port=tunnel.port,
+                    username=tunnel.username,
+                    pkey=pkey,
+                    timeout=10,
+                )
+            else:
+                client.connect(
+                    hostname=tunnel.target_host,
+                    port=tunnel.port,
+                    username=tunnel.username,
+                    password=tunnel.password,
+                    timeout=10,
+                )
+
+            tunnel.ssh_client = client
+            logger.debug(f"[SovereignTunnel] SSH connection established to {tunnel.target_host}")
+            return client
+
+        except Exception as e:
+            logger.error(f"[SovereignTunnel] SSH connection failed to {tunnel.target_host}: {e}")
+            return None
+
     def maintain_tunnel(self, tunnel_id: str) -> bool:
-        """
-        Heartbeat + self-healing check.
-        Returns True if tunnel is still healthy.
-        """
         if tunnel_id not in self.active_tunnels:
             return False
 
         tunnel = self.active_tunnels[tunnel_id]
-
-        # Simulate π_r stability check (replace with real metric from your engine)
-        current_stability = self._get_current_pi_r_stability(tunnel)
-        tunnel.stability = current_stability
-
-        # Recompute frame energy
-        tunnel.frame_energy = self.frame_energy.compute(
-            tunnel.current_frame,
-            self.frame_energy.floor_anchor,
-            ProjectedState(
-                frame=tunnel.current_frame,
-                projected_coords=[],
-                coherence=current_stability,
-                gradient_norm=abs(1.0 - current_stability)
-            )
-        )
-
-        # Self-healing logic
-        if tunnel.stability < 0.7 or tunnel.frame_energy > 1.2:
-            logger.warning(f"[The Slide] Tunnel {tunnel_id} degrading. Attempting self-heal...")
-            healed = self._attempt_self_heal(tunnel)
-            if not healed:
-                self.close_tunnel(tunnel_id, reason="stability collapse")
-                return False
-
         tunnel.last_heartbeat = time.time()
+
+        # Basic health check via SSH
+        client = self._get_ssh_client(tunnel)
+        if client is None:
+            tunnel.is_active = False
+            return False
+
         return True
-
-    def pivot_tunnel(
-        self,
-        tunnel_id: str,
-        new_target: str,
-        new_frame: Optional[EraFrameId] = None,
-    ) -> Optional[str]:
-        """
-        Adaptive pivot — close old tunnel and open new one with better frame/energy.
-        This is the core of Phase 3 (Contextual Pivot) in The Slide.
-        """
-        if tunnel_id not in self.active_tunnels:
-            return None
-
-        old_tunnel = self.active_tunnels[tunnel_id]
-        self.close_tunnel(tunnel_id, reason="adaptive pivot")
-
-        return self.open_tunnel(
-            target_host=new_target,
-            preferred_frame=new_frame or old_tunnel.current_frame
-        )
 
     def close_tunnel(self, tunnel_id: str, reason: str = "manual"):
         if tunnel_id in self.active_tunnels:
             tunnel = self.active_tunnels.pop(tunnel_id)
-            logger.info(f"[The Slide] Closed tunnel {tunnel_id} ({reason})")
-            # Optional: fire a final resonance pulse on close
-            self.resonance_pulse.fire_pulse(amplitude=0.3, phase=0.5)
+            if tunnel.ssh_client:
+                try:
+                    tunnel.ssh_client.close()
+                except Exception:
+                    pass
+            logger.info(f"[SovereignTunnel] Closed tunnel {tunnel_id} ({reason})")
 
-    def _select_best_frame(
-        self, target_host: str, context: Optional[Dict[str, Any]]
-    ) -> EraFrameId:
-        """Use FrameEnergy to pick the lowest-energy frame for this target."""
-        # In real implementation, evaluate multiple frames and pick min energy
-        # For now we bias toward FloorBaseline for maximum sovereignty
-        return EraFrameId.FloorBaseline
+    # ============================================================
+    # Real SSH Command Execution
+    # ============================================================
 
-    def _get_current_pi_r_stability(self, tunnel: TunnelState) -> float:
-        """Replace with real call to your recursive π_r stability metric."""
-        # Placeholder — integrate with your existing SovereignEngine
-        return max(0.6, tunnel.stability * 0.95)  # simulate slow decay
+    def execute_command(self, tunnel_id: str, command: str, timeout: int = 30) -> TunnelResult:
+        if tunnel_id not in self.active_tunnels:
+            return TunnelResult(success=False, stderr="Tunnel not found", exit_code=1, tunnel_id=tunnel_id)
 
-    def _attempt_self_heal(self, tunnel: TunnelState) -> bool:
-        """Try to recover a degrading tunnel using resonance + frame switch."""
-        # Switch to a more stable frame if current one is expensive
-        if tunnel.frame_energy > 1.0:
-            tunnel.current_frame = EraFrameId.FloorBaseline
-            logger.info(f"[The Slide] Self-healed {tunnel.tunnel_id} → FloorBaseline frame")
+        tunnel = self.active_tunnels[tunnel_id]
+        client = self._get_ssh_client(tunnel)
 
-        self.resonance_pulse.fire_pulse(amplitude=1.0, phase=0.0)
-        return tunnel.stability > 0.65
+        if client is None:
+            return TunnelResult(success=False, stderr="SSH connection failed", exit_code=1, tunnel_id=tunnel_id)
 
-    def get_active_tunnels(self) -> Dict[str, TunnelState]:
-        return self.active_tunnels.copy()
+        try:
+            stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
+            exit_code = stdout.channel.recv_exit_status()
+
+            result = TunnelResult(
+                success=(exit_code == 0),
+                stdout=stdout.read().decode(errors="ignore").strip(),
+                stderr=stderr.read().decode(errors="ignore").strip(),
+                exit_code=exit_code,
+                tunnel_id=tunnel_id,
+            )
+
+            logger.debug(f"[SovereignTunnel] Command executed on {tunnel.target_host} → exit_code={exit_code}")
+            return result
+
+        except Exception as e:
+            logger.error(f"[SovereignTunnel] Command execution failed: {e}")
+            return TunnelResult(success=False, stderr=str(e), exit_code=1, tunnel_id=tunnel_id)
+
+    # ============================================================
+    # Real File Transfer (SFTP)
+    # ============================================================
+
+    def send_file(self, tunnel_id: str, local_path: str, remote_path: str) -> bool:
+        if tunnel_id not in self.active_tunnels:
+            logger.error(f"[SovereignTunnel] Cannot send file - tunnel {tunnel_id} not active")
+            return False
+
+        tunnel = self.active_tunnels[tunnel_id]
+        client = self._get_ssh_client(tunnel)
+
+        if client is None:
+            return False
+
+        try:
+            sftp = client.open_sftp()
+            sftp.put(local_path, remote_path)
+            sftp.close()
+            logger.info(f"[SovereignTunnel] File transferred: {local_path} → {tunnel.target_host}:{remote_path}")
+            return True
+        except Exception as e:
+            logger.error(f"[SovereignTunnel] File transfer failed: {e}")
+            return False
 
 
-# Example usage inside The Slide
+# Example usage
 if __name__ == "__main__":
-    from sovereign_engine.frame_energy import FrameEnergy, SovereignState
-    from sovereign_engine.resonance_pulse import ResonancePulse
+    tunnel = SovereignTunnel()
 
-    # These would normally come from your SovereignEngine
-    floor_anchor = SovereignState.default_floor_anchor()
-    frame_energy = FrameEnergy(floor_anchor=floor_anchor)
-    resonance = ResonancePulse(hz=79.79)
-
-    tunnel_mgr = SovereignTunnel(
-        frame_energy=frame_energy,
-        resonance_pulse=resonance,
-        extraction_guard=None,  # plug in your real guard
+    # Open tunnel with SSH key
+    tun_id = tunnel.open_tunnel(
+        target_host="10.0.0.45",
+        username="root",
+        key_path="\~/.ssh/id_rsa"
     )
 
-    tun_id = tunnel_mgr.open_tunnel("internal-web-03.corp")
-    print(f"Opened tunnel: {tun_id}")
-
-    # Simulate maintenance loop
-    for _ in range(5):
-        healthy = tunnel_mgr.maintain_tunnel(tun_id)
-        print(f"Tunnel healthy: {healthy}")
-        time.sleep(1)
+    # Execute command
+    result = tunnel.execute_command(tun_id, "sha256sum /tmp/model.gguf")
+    print("Remote Hash:", result.stdout)
+    print("Success:", result.success)
