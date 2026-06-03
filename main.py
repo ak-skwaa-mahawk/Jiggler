@@ -2,12 +2,14 @@ cat << 'EOF' > main.py
 """
 main.py
 Zero-Dependency Native HTTP Micro-Gateway Interface for Verifiable Tordial-GS Matrix Ledger
-Includes Auto-Healing Database Schemas, Injection, Termination, and Rebalancing APIs
+Features an Autonomous Background Heartbeat Daemon for Continuous Cross-Ring Rebalancing
 """
 
 import sqlite3
 import json
 import random
+import threading
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -15,14 +17,19 @@ DB_PATH = "tordial_manifold.db"
 PHI_OP = 1.65036
 GEAR_SHIFT = 1.04
 MAX_RING_PRESSURE_ALLOWANCE = 45.0
+HEARTBEAT_INTERVAL_SEC = 4.0  # Autonomous cycle rate
 
 class MockMatrixEngine:
     def __init__(self):
         self.current_tick = 42
         self._bootstrap_db()
+        self.is_running = True
+        
+        # Start the Autonomous Heartbeat Daemon
+        self.heartbeat_thread = threading.Thread(target=self._run_heartbeat, daemon=True)
+        self.heartbeat_thread.start()
 
     def _bootstrap_db(self):
-        """Ensures the core tracking ledger schema is instantiated automatically"""
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("""
@@ -90,6 +97,7 @@ class MockMatrixEngine:
         return "ALLOWED" if projected_average <= MAX_RING_PRESSURE_ALLOWANCE else "REJECTED"
 
     def rebalance_manifold(self):
+        """Internal balancing loop used by both HTTP requests and the background daemon thread"""
         rings = ["A", "B", "C"]
         stats = {r: self.inspect_ring_safety(r) for r in rings}
         
@@ -119,8 +127,18 @@ class MockMatrixEngine:
                         "gradient_mitigated": round(hot_pressure - cool_pressure, 4)
                     }
             conn.close()
-            
-        return {"status": "BALANCED", "detail": "Curvature load remains inside equilibrium margins", "metrics": stats}
+        return {"status": "BALANCED", "metrics": stats}
+
+    def _run_heartbeat(self):
+        """Autonomous daemon execution loop ticking in isolation from network requests"""
+        while self.is_running:
+            try:
+                log = self.rebalance_manifold()
+                if log["status"] == "REBALANCED":
+                    print(f"\n[HEARTBEAT OPTIMIZATION] {log['action']} | Mitigation Delta: {log['gradient_mitigated']}")
+            except Exception as e:
+                print(f"\n[HEARTBEAT EXCEPTION] Background balance error: {str(e)}")
+            time.sleep(HEARTBEAT_INTERVAL_SEC)
 
     def terminate_process(self, node_id: int) -> bool:
         conn = sqlite3.connect(DB_PATH)
@@ -148,30 +166,13 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
         
         if parsed_url.path == "/":
             self._set_headers(200)
-            self.wfile.write(json.dumps({"status": "ONLINE"}).encode("utf-8"))
+            self.wfile.write(json.dumps({"status": "ONLINE", "mode": "CONTINUOUS_HEARTBEAT"}).encode("utf-8"))
             return
 
         elif len(path_segments) == 4 and path_segments[0] == "manifold" and path_segments[1] == "ring" and path_segments[3] == "safety":
             report = matrix.inspect_ring_safety(path_segments[2])
-            if not report:
-                self._set_headers(400)
-                self.wfile.write(json.dumps({"error": "Invalid domain"}).encode("utf-8"))
-                return
             self._set_headers(200)
             self.wfile.write(json.dumps(report).encode("utf-8"))
-            return
-
-        elif parsed_url.path == "/kernel/admission":
-            query_params = parse_qs(parsed_url.query)
-            try:
-                node_id = int(query_params.get("node_id", [0])[0])
-                target_ring = query_params.get("target_ring", ["C"])[0].upper()
-                audit_report = matrix.audit_admission(node_id, target_ring)
-                self._set_headers(200)
-                self.wfile.write(json.dumps({"node_id": node_id, "target_ring": target_ring, "admission": audit_report}).encode("utf-8"))
-            except Exception as e:
-                self._set_headers(400)
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
     def do_POST(self):
@@ -183,16 +184,6 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
             node = matrix.spawn_process(ring, data.get("d", 6), data.get("r", 18), data.get("drift_phase", 0.0))
             self._set_headers(201)
             self.wfile.write(json.dumps({"status": "SPAWNED", "node_id": node.node_id, "ring": ring.upper(), "sigma_T": round(node.sigma_T, 4)}).encode("utf-8"))
-            return
-
-        elif self.path == "/kernel/rebalance":
-            try:
-                dispatch_log = matrix.rebalance_manifold()
-                self._set_headers(200)
-                self.wfile.write(json.dumps(dispatch_log).encode("utf-8"))
-            except Exception as e:
-                self._set_headers(500)
-                self.wfile.write(json.dumps({"status": "SCHEDULER_ERROR", "detail": str(e)}).encode("utf-8"))
             return
 
     def do_DELETE(self):
@@ -209,8 +200,11 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     server_address = ("127.0.0.1", 8080)
     httpd = HTTPServer(server_address, NativeLedgerGateway)
-    print("[+] Sovereign Self-Healing Orchestrator Live at http://127.0.0.1:8080")
-    try: httpd.serve_forever()
-    except KeyboardInterrupt: httpd.server_close()
+    print("[+] Continuous Heartbeat Fabric Gateway Online at http://127.0.0.1:8080")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        matrix.is_running = False
+        httpd.server_close()
 EOF
 dos2unix main.py
