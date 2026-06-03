@@ -1,0 +1,11 @@
+{
+  "evaluation": "REJECTED_PRESSURE_OVERFLOW",
+  "node_id": 744,
+  "target_ring": "C",
+  "impact": {
+    "node_tensor_pressure": 417.6695,
+    "current_ring_average": 24.0743,
+    "projected_ring_average": 220.8719,
+    "safety_ceiling": 45.0
+  }
+}
