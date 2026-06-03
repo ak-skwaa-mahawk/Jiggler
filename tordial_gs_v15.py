@@ -1,7 +1,7 @@
 cat << 'EOF' > tordial_gs_v15_fixed.py
 """
 tordial_gs_v15_fixed.py
-Tordial–GS Manifold v15 Fixed — Bounded Triple-Ring Architecture
+Tordial–GS Manifold v15 Fixed — Bounded Triple-Ring Architecture with Live Logging
 """
 
 import math
@@ -53,48 +53,52 @@ class OpenTordialAgentNode(TordialAgentNode):
         self._denom = 4.0 * PHI_OP * GEAR_SHIFT
 
     def compute_and_update_gs(self, curvature_pressure: float, resonance: float) -> float:
-        # SAFETY BOUND 1: Clamp environmental inputs to avoid extreme multiplier spikes
         curvature_pressure = max(0.0, min(1.5, curvature_pressure))
         resonance = max(0.0, min(1.0, resonance))
-
+        
         if curvature_pressure > 0.6:
-            # SAFETY BOUND 2: Cap max structural shift per execution tick
             delta_d = max(1, int(resonance * 0.35 + self.drift_phase * 0.1))
-            self.d += min(3, delta_d) # Never allow a tick increment > 3
+            self.d += min(1, delta_d)
             if resonance > 0.4 and random.random() < 0.45: 
                 self.r += 1
-
-        # SAFETY BOUND 3: Absolute Hard Saturation Clamps for node parameters
-        self.d = max(4, min(150, self.d))
+                
+        self.d = max(4, min(42, self.d))
         self.r = max(12, min(500, self.r))
-
+        
         self.sigma_T = self.r - (self.d ** 2 / (self._denom + self.drift_phase * 0.08))
         self.drift_phase = (self.drift_phase + 0.017) % self.TAU_3D
         return self.sigma_T
 
     def apply_governor_correction(self, delta_d: int, delta_r: int) -> None:
-        # SAFETY BOUND 4: Prevent Governor feedback from crushing or over-inflating geometry
-        self.d = max(4, min(150, self.d + delta_d))
+        self.d = max(4, min(42, self.d + delta_d))
         self.r = max(12, min(500, self.r + delta_r))
 
 DB_PATH = "tordial_manifold.db"
+
 def _ensure_db():
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
     c.execute("""CREATE TABLE IF NOT EXISTS nodes (
         node_id INTEGER, ring TEXT, d INTEGER, r INTEGER, sigma_T REAL,
         drift_phase REAL, fission_count INTEGER, parent_id INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-    conn.commit(); conn.close()
+    conn.commit()
+    conn.close()
 
 def persist_node_state(node: OpenTordialAgentNode, ring: str = "A"):
     if not os.path.exists(DB_PATH): _ensure_db()
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
     c.execute("INSERT INTO nodes (node_id, ring, d, r, sigma_T, drift_phase, fission_count, parent_id) VALUES (?,?,?,?,?,?,0,NULL)",
         (node.node_id, ring, node.d, node.r, node.sigma_T, node.drift_phase))
-    conn.commit(); conn.close()
+    conn.commit()
+    conn.close()
 
 class CurvatureField:
-    def __init__(self): self.last_pressure = 0.0; self.last_resonance = 0.0
+    def __init__(self): 
+        self.last_pressure = 0.0
+        self.last_resonance = 0.0
+        
     def compute(self, avg_sigma: float, avg_kappa: float, node_count: int) -> Tuple[float, float]:
         k_norm = max(0.0, min(1.0, avg_kappa / 12.0))
         bp = 0.45 * k_norm + 0.20 * max(0.0, avg_sigma / 500.0)
@@ -104,11 +108,15 @@ class CurvatureField:
 
 class RingGovernor:
     def __init__(self, target_sigma: float = 120.0):
-        self.target = target_sigma; self._integral = 0.0; self._prev_error = 0.0
+        self.target = target_sigma
+        self._integral = 0.0
+        self._prev_error = 0.0
+        
     def step(self, current_sigma: float) -> Tuple[int, int]:
         error = self.target - current_sigma
-        self._integral = max(-50.0, min(50.0, self._integral + error)) # PID Anti-Windup Clamp
-        derivative = error - self._prev_error; self._prev_error = error
+        self._integral = max(-50.0, min(50.0, self._integral + error))
+        derivative = error - self._prev_error
+        self._prev_error = error
         u = 0.012 * error + 0.003 * self._integral + 0.006 * derivative
         delta_d = int(round(max(-1, min(1, u * 0.2))))
         delta_r = int(round(max(-4, min(4, u * 0.8))))
@@ -145,9 +153,20 @@ class TripleRingTordialMatrix:
             p, r = f_obj.compute(avg_sigma, avg_kappa, len(nodes))
             gov = getattr(self, f"governor_{r_name.lower()}")
             dd, dr = gov.step(avg_sigma)
-            for n in nodes: 
+            for n in nodes:
                 n.apply_governor_correction(dd, dr)
                 n.compute_and_update_gs(p, r)
+        self.log_live_telemetry()
+
+    def log_live_telemetry(self):
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        for r_name, nodes in [("Live_A", self.nodes_a), ("Live_B", self.nodes_b), ("Live_C", self.nodes_c)]:
+            for n in nodes:
+                c.execute("INSERT INTO nodes (node_id, ring, d, r, sigma_T, drift_phase, fission_count, parent_id) VALUES (?,?,?,?,?,?,0,NULL)",
+                    (n.node_id, r_name, n.d, n.r, n.sigma_T, n.drift_phase))
+        conn.commit()
+        conn.close()
 
 if __name__ == "__main__":
     matrix = TripleRingTordialMatrix(node_count=12)
