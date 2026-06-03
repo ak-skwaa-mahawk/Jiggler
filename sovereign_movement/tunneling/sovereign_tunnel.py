@@ -15,6 +15,54 @@ from typing import Optional, Dict, Any
 import time
 import logging
 
+# sovereign_movement/tunneling/sovereign_tunnel.py
+
+# ... (previous code remains the same until the send_file method)
+
+    def send_file(
+        self,
+        tunnel_id: str,
+        local_path: str,
+        remote_path: str,
+        progress_callback: Optional[callable] = None,
+        chunk_size: int = 1024 * 1024,  # 1MB chunks
+    ) -> bool:
+        """
+        Transfer a file using SFTP with optional progress callback.
+        """
+        if tunnel_id not in self.active_tunnels:
+            logger.error(f"[SovereignTunnel] Cannot send file - tunnel {tunnel_id} not active")
+            return False
+
+        tunnel = self.active_tunnels[tunnel_id]
+        client = self._get_ssh_client(tunnel)
+
+        if client is None:
+            return False
+
+        try:
+            total_size = os.path.getsize(local_path)
+            transferred = 0
+
+            sftp = client.open_sftp()
+
+            def progress_handler(sent_bytes, total_bytes):
+                nonlocal transferred
+                transferred = sent_bytes
+                if progress_callback:
+                    percentage = (sent_bytes / total_size) * 100 if total_size > 0 else 0
+                    progress_callback(sent_bytes, total_size, percentage)
+
+            sftp.put(local_path, remote_path, callback=progress_handler)
+            sftp.close()
+
+            logger.info(f"[SovereignTunnel] File transfer completed: {local_path} → {remote_path}")
+            return True
+
+        except Exception as e:
+            logger.error(f"[SovereignTunnel] File transfer failed: {e}")
+            return False
+
 try:
     import paramiko
 except ImportError:
