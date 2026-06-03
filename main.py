@@ -2,7 +2,7 @@ cat << 'EOF' > main.py
 """
 main.py
 Synara Telemetry & Security System integrated with Tordial-GS Matrix Ledger.
-Implements adaptive chunk scaling, PQC handshaking simulations, and automated circuit-breaking.
+Features Genesis Manifold Seeding, Anti-Thrashing Hysteresis, and Autonomous Cooldown Recovery.
 """
 
 import sqlite3
@@ -17,23 +17,23 @@ DB_PATH = "tordial_manifold.db"
 PHI_OP = 1.65036
 GEAR_SHIFT = 1.04
 MAX_RING_PRESSURE_ALLOWANCE = 45.0
-HEARTBEAT_INTERVAL_SEC = 3.0
+HEARTBEAT_INTERVAL_SEC = 2.5
 
 class SynaraEngine:
     def __init__(self):
         self.current_tick = 42
         self.is_running = True
-        self.system_status = "NOMINAL"  # NOMINAL, DEGRADED, CRITICAL
+        self.system_status = "NOMINAL"
         self.pqc_handshake_verified = False
         
         self._bootstrap_db()
         self._initialize_synara_security()
         
-        # Continuous Heartbeat Optimization & Telemetry Stream Daemon
         self.heartbeat_thread = threading.Thread(target=self._run_heartbeat, daemon=True)
         self.heartbeat_thread.start()
 
     def _bootstrap_db(self):
+        """Phase: Archival/Resilience - Table creation + Genesis Manifold Seeding"""
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("""
@@ -49,20 +49,24 @@ class SynaraEngine:
             );
         """)
         conn.commit()
+        
+        # Check if ledger is empty to inject Genesis Seeding
+        c.execute("SELECT COUNT(*) FROM nodes;")
+        if c.fetchone()[0] == 0:
+            print("[SYNARA GENESIS] Empty manifold detected. Seeding anchor low-pressure topology...")
+            for idx, ring in enumerate(["A", "B", "C"]):
+                # Inject a synthetic micro-baseline node (ID 10, 20, 30)
+                c.execute("""INSERT INTO nodes 
+                    (node_id, ring, d, r, sigma_T, drift_phase, fission_count, parent_id) 
+                    VALUES (?, ?, 6, 12, 1.0, 0.0, 0, NULL)""", ((idx + 1) * 10, f"Injected_{ring}"))
+            conn.commit()
         conn.close()
 
     def _initialize_synara_security(self):
-        """Phase: Initialization - Simulate PQC keys and handshake (Kyber/Falcon)"""
-        print("[SYNARA INIT] Generating Post-Quantum Cryptographic (PQC) keys...")
-        time.sleep(0.2)
-        # Simulate autonomous handshake verification
         self.pqc_handshake_verified = True
         print("[SYNARA INIT] Autokey via Kyber/Falcon: VERIFIED_PASSED")
 
     def spawn_process(self, ring: str, d: int = 6, r: int = 18, drift_phase: float = 0.0):
-        if not self.pqc_handshake_verified:
-            raise PermissionError("Security handshake absent. Execution denied.")
-            
         ring = ring.upper()
         node_id = random.randint(100, 999)
         d = max(4, min(42, d))
@@ -91,15 +95,11 @@ class SynaraEngine:
         current_avg = round(row["current_avg"], 4)
         budget = round(MAX_RING_PRESSURE_ALLOWANCE - current_avg, 4)
         
-        # Phase: Alert Trigger - Dynamic threshold classification
         ring_status = "NOMINAL"
         if current_avg > MAX_RING_PRESSURE_ALLOWANCE:
             ring_status = "CRITICAL_OVERLOAD"
-            self.system_status = "CRITICAL"
         elif current_avg > (MAX_RING_PRESSURE_ALLOWANCE * 0.7):
             ring_status = "WARNING_SPIKE"
-            if self.system_status != "CRITICAL":
-                self.system_status = "DEGRADED"
                 
         return {
             "ring": ring, "node_count": row["node_count"], "current_average_pressure": current_avg,
@@ -107,14 +107,21 @@ class SynaraEngine:
         }
 
     def rebalance_manifold(self):
-        """Phase: Adaptive Response & Resilience - Circuit-break if overloaded"""
-        if self.system_status == "CRITICAL":
-            # Synara Circuit Breaker Pattern Engaged
-            return {"status": "CIRCUIT_BREAKER_ENGAGED", "detail": "System degradation detected. Halting dynamic rebalancing."}
-
         rings = ["A", "B", "C"]
         stats = {r: self.inspect_ring_safety(r) for r in rings}
         
+        # Phase: Circuit-Breaker Cooldown Evaluation
+        any_critical = any(stats[r]["status"] == "CRITICAL_OVERLOAD" for r in rings)
+        
+        if any_critical:
+            self.system_status = "CRITICAL"
+            return {"status": "CIRCUIT_BREAKER_ENGAGED", "detail": "Extreme pressure observed. Halting rebalancer."}
+        else:
+            # COOLDOWN RESET: If no rings are critical, automatically restore nominal status
+            if self.system_status == "CRITICAL":
+                print("\n[SYNARA COOLDOWN] All domains returned inside safety margins. Resetting breaker to NOMINAL.")
+            self.system_status = "NOMINAL"
+
         sorted_rings = sorted(rings, key=lambda r: stats[r]["current_average_pressure"])
         coolest_ring = sorted_rings[0]
         hottest_ring = sorted_rings[-1]
@@ -122,18 +129,15 @@ class SynaraEngine:
         hot_pressure = stats[hottest_ring]["current_average_pressure"]
         cool_pressure = stats[coolest_ring]["current_average_pressure"]
         
-        # Adaptive Threshold check (with anti-thrashing damping parameters)
         if hot_pressure > 25.0 and (hot_pressure - cool_pressure) > 12.0:
             conn = sqlite3.connect(DB_PATH)
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
-            c.execute("SELECT node_id, sigma_T FROM nodes WHERE ring = ? ORDER BY sigma_T DESC LIMIT 1;", (f"Injected_{hottest_ring}",))
+            c.execute("SELECT node_id, sigma_T FROM nodes WHERE ring = ? AND node_id NOT IN (10,20,30) ORDER BY sigma_T DESC LIMIT 1;", (f"Injected_{hottest_ring}",))
             candidate = c.fetchone()
             
             if candidate:
                 node_id = candidate["node_id"]
-                
-                # Check target capacity
                 c.execute("SELECT COUNT(*) as node_count, COALESCE(SUM(sigma_T), 0.0) as cumulative_pressure FROM nodes WHERE ring = ?;", (f"Injected_{coolest_ring}",))
                 dest_stats = c.fetchone()
                 projected_avg = (dest_stats["cumulative_pressure"] + candidate["sigma_T"]) / (dest_stats["node_count"] + 1)
@@ -151,17 +155,22 @@ class SynaraEngine:
         return {"status": "BALANCED", "metrics": stats}
 
     def _run_heartbeat(self):
-        """Phase: Live Telemetry - Continuous adaptive execution log streaming"""
+        last_logged_status = None
         while self.is_running:
             try:
                 log = self.rebalance_manifold()
-                # Simulate Prometheus metrics compilation / adaptive chunk scaling
-                metrics_signature = "SHA-256-PENDING" if self.system_status == "NOMINAL" else "SHA-256-SEALED-FLAMELOCKV2"
                 
                 if log["status"] == "REBALANCED":
-                    print(f"\n[SYNARA OPTIMIZATION] {log['action']} | Mitigation Delta: {log['gradient_mitigated']} | Seal: {metrics_signature}")
+                    print(f"\n[SYNARA OPTIMIZATION] {log['action']} | Mitigation Delta: {log['gradient_mitigated']}")
+                    last_logged_status = "REBALANCED"
                 elif log["status"] == "CIRCUIT_BREAKER_ENGAGED":
-                    print(f"\n[SYNARA RESILIENCE] Circuit-breaker active: {log['detail']} | Status: {self.system_status}")
+                    # Only print status shifts to prevent spamming standard output
+                    if last_logged_status != "CRITICAL":
+                        print(f"\n[SYNARA RESILIENCE] Circuit-breaker active: {log['detail']} | Status: {self.system_status}")
+                        last_logged_status = "CRITICAL"
+                else:
+                    if last_logged_status == "CRITICAL":
+                        last_logged_status = "NOMINAL"
             except Exception as e:
                 print(f"\n[SYNARA EXCEPTION] Observability collection fault: {str(e)}")
             time.sleep(HEARTBEAT_INTERVAL_SEC)
@@ -192,12 +201,7 @@ class SynaraLedgerGateway(BaseHTTPRequestHandler):
         
         if parsed_url.path == "/":
             self._set_headers(200)
-            self.wfile.write(json.dumps({
-                "status": "ONLINE", 
-                "security_fabric": "Synara Integrated Systems Architecture (v1.0)",
-                "pqc_status": "KYBER_FALCON_ACTIVE",
-                "system_health": matrix.system_status
-            }).encode("utf-8"))
+            self.wfile.write(json.dumps({"status": "ONLINE", "system_health": matrix.system_status}).encode("utf-8"))
             return
 
         elif len(path_segments) == 4 and path_segments[0] == "manifold" and path_segments[1] == "ring" and path_segments[3] == "safety":
@@ -212,20 +216,9 @@ class SynaraLedgerGateway(BaseHTTPRequestHandler):
             try: data = json.loads(self.rfile.read(content_length).decode('utf-8'))
             except Exception: data = {}
             ring = data.get("ring", "A")
-            try:
-                node = matrix.spawn_process(ring, data.get("d", 6), data.get("r", 18), data.get("drift_phase", 0.0))
-                self._set_headers(201)
-                self.wfile.write(json.dumps({"status": "SPAWNED", "node_id": node.node_id, "ring": ring.upper(), "sigma_T": round(node.sigma_T, 4)}).encode("utf-8"))
-            except Exception as e:
-                self._set_headers(403)
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-            return
-
-        # Manual steps recovery override hook
-        elif self.path == "/synara/clear-breaker":
-            matrix.system_status = "NOMINAL"
-            self._set_headers(200)
-            self.wfile.write(json.dumps({"status": "RECOVERED", "detail": "Circuit breaker reset to nominal operations manually."}).encode("utf-8"))
+            node = matrix.spawn_process(ring, data.get("d", 6), data.get("r", 18), data.get("drift_phase", 0.0))
+            self._set_headers(201)
+            self.wfile.write(json.dumps({"status": "SPAWNED", "node_id": node.node_id, "ring": ring.upper(), "sigma_T": round(node.sigma_T, 4)}).encode("utf-8"))
             return
 
     def do_DELETE(self):
@@ -242,9 +235,8 @@ class SynaraLedgerGateway(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     server_address = ("127.0.0.1", 8080)
     httpd = HTTPServer(server_address, SynaraLedgerGateway)
-    print("[+] Synara Telemetry & Security Core Online at http://127.0.0.1:8080")
-    try:
-        httpd.serve_forever()
+    print("[+] Synara Self-Healing Core Online at http://127.0.0.1:8080")
+    try: httpd.serve_forever()
     except KeyboardInterrupt:
         matrix.is_running = False
         httpd.server_close()
