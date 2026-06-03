@@ -2,7 +2,7 @@ cat << 'EOF' > main.py
 """
 main.py
 Zero-Dependency Native HTTP Micro-Gateway Interface for Verifiable Tordial-GS Matrix Ledger
-Includes Injection, Termination, Curvature Migration, and Autonomous Ring Rebalancing APIs
+Includes Auto-Healing Database Schemas, Injection, Termination, and Rebalancing APIs
 """
 
 import sqlite3
@@ -19,6 +19,26 @@ MAX_RING_PRESSURE_ALLOWANCE = 45.0
 class MockMatrixEngine:
     def __init__(self):
         self.current_tick = 42
+        self._bootstrap_db()
+
+    def _bootstrap_db(self):
+        """Ensures the core tracking ledger schema is instantiated automatically"""
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS nodes (
+                node_id INTEGER PRIMARY KEY,
+                ring TEXT NOT NULL,
+                d INTEGER NOT NULL,
+                r INTEGER NOT NULL,
+                sigma_T REAL NOT NULL,
+                drift_phase REAL NOT NULL,
+                fission_count INTEGER DEFAULT 0,
+                parent_id INTEGER
+            );
+        """)
+        conn.commit()
+        conn.close()
 
     def spawn_process(self, ring: str, d: int = 6, r: int = 18, drift_phase: float = 0.0):
         ring = ring.upper()
@@ -61,7 +81,7 @@ class MockMatrixEngine:
         source_node = c.fetchone()
         if not source_node:
             conn.close()
-            return None
+            return "NOT_FOUND"
         c.execute("SELECT COUNT(*) as node_count, COALESCE(SUM(sigma_T), 0.0) as cumulative_pressure FROM nodes WHERE ring = ?;", (f"Injected_{target_ring}",))
         dest_stats = c.fetchone()
         projected_count = dest_stats["node_count"] + 1
@@ -70,11 +90,9 @@ class MockMatrixEngine:
         return "ALLOWED" if projected_average <= MAX_RING_PRESSURE_ALLOWANCE else "REJECTED"
 
     def rebalance_manifold(self):
-        """Autonomous Scheduler: Automatically moves elements out of high-pressure rings"""
         rings = ["A", "B", "C"]
         stats = {r: self.inspect_ring_safety(r) for r in rings}
         
-        # Sort rings to isolate pressure extremes
         sorted_rings = sorted(rings, key=lambda r: stats[r]["current_average_pressure"])
         coolest_ring = sorted_rings[0]
         hottest_ring = sorted_rings[-1]
@@ -82,19 +100,15 @@ class MockMatrixEngine:
         hot_pressure = stats[hottest_ring]["current_average_pressure"]
         cool_pressure = stats[coolest_ring]["current_average_pressure"]
         
-        # Trigger condition: Hottest ring is strained and a substantial gradient exists
         if hot_pressure > 25.0 and (hot_pressure - cool_pressure) > 10.0:
             conn = sqlite3.connect(DB_PATH)
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
-            
-            # Select the most effective node from the strained ring to offload
             c.execute("SELECT node_id, sigma_T FROM nodes WHERE ring = ? ORDER BY sigma_T DESC LIMIT 1;", (f"Injected_{hottest_ring}",))
             candidate = c.fetchone()
             
             if candidate:
                 node_id = candidate["node_id"]
-                # Run lookahead verification before applying auto-migration
                 if self.audit_admission(node_id, coolest_ring) == "ALLOWED":
                     c.execute("UPDATE nodes SET ring = ? WHERE node_id = ?", (f"Injected_{coolest_ring}", node_id))
                     conn.commit()
@@ -171,7 +185,6 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "SPAWNED", "node_id": node.node_id, "ring": ring.upper(), "sigma_T": round(node.sigma_T, 4)}).encode("utf-8"))
             return
 
-        # NEW Autonomous Orchestration Hook: /kernel/rebalance
         elif self.path == "/kernel/rebalance":
             try:
                 dispatch_log = matrix.rebalance_manifold()
@@ -196,7 +209,7 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     server_address = ("127.0.0.1", 8080)
     httpd = HTTPServer(server_address, NativeLedgerGateway)
-    print("[+] Sovereign Orchestrator Framework Live at http://127.0.0.1:8080")
+    print("[+] Sovereign Self-Healing Orchestrator Live at http://127.0.0.1:8080")
     try: httpd.serve_forever()
     except KeyboardInterrupt: httpd.server_close()
 EOF
