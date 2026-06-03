@@ -1,0 +1,30 @@
+cat << 'EOF' > patch_nodes.tmp
+class OpenTordialAgentNode(TordialAgentNode):
+    def __init__(self, d: int, r: int, node_id: int, x: float = 0.0, y: float = 0.0):
+        super().__init__(d, r, node_id)
+        self.drift_phase = (x + y) % self.TAU_3D
+        self.sigma_T: float = 0.0
+        self._denom = 4.0 * PHI_OP * GEAR_SHIFT
+
+    def compute_and_update_gs(self, curvature_pressure: float, resonance: float) -> float:
+        curvature_pressure = max(0.0, min(1.5, curvature_pressure))
+        resonance = max(0.0, min(1.0, resonance))
+        
+        if curvature_pressure > 0.6:
+            delta_d = max(1, int(resonance * 0.35 + self.drift_phase * 0.1))
+            self.d += min(1, delta_d) # STABILIZED: Dampened step acceleration limit from 3 to 1
+            if resonance > 0.4 and random.random() < 0.45: 
+                self.r += 1
+                
+        # STABILIZED hard boundaries preventing mathematical cross-inversion
+        self.d = max(4, min(42, self.d))
+        self.r = max(12, min(500, self.r))
+        
+        self.sigma_T = self.r - (self.d ** 2 / (self._denom + self.drift_phase * 0.08))
+        self.drift_phase = (self.drift_phase + 0.017) % self.TAU_3D
+        return self.sigma_T
+
+    def apply_governor_correction(self, delta_d: int, delta_r: int) -> None:
+        self.d = max(4, min(42, self.d + delta_d))
+        self.r = max(12, min(500, self.r + delta_r))
+EOF
