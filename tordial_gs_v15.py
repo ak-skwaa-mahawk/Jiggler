@@ -1,4 +1,4 @@
-cat > tordial_gs_v15_fixed.py << 'EOF'
+cat << 'EOF' > tordial_gs_v15_fixed.py
 """
 tordial_gs_v15_fixed.py
 Tordial–GS Manifold v15 Fixed — Bounded Triple-Ring Architecture
@@ -10,6 +10,7 @@ import numpy as np
 import random
 import os
 import sqlite3
+import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -146,5 +147,20 @@ class TripleRingTordialMatrix:
             dd, dr = gov.step(avg_sigma)
             for n in nodes: 
                 n.apply_governor_correction(dd, dr)
+                n.compute_and_update_gs(p, r)
+
+if __name__ == "__main__":
+    matrix = TripleRingTordialMatrix(node_count=12)
+    print(f"[+] Matrix seeded | Rings A/B/C | {len(matrix.nodes_a + matrix.nodes_b + matrix.nodes_c)} nodes total")
+
+    for tick in range(50):
+        matrix.execute_heavy_load_cycle(system_load=1.0)
+        if tick % 10 == 0:
+            total = matrix.nodes_a + matrix.nodes_b + matrix.nodes_c
+            avg_s = sum(n.sigma_T for n in total) / len(total)
+            print(f"[tick {tick:03d}] nodes={len(total)} avg_sigma_T={avg_s:.4f}")
+        time.sleep(0.01)
+
+    print("[+] Run complete")
 EOF
 dos2unix tordial_gs_v15_fixed.py
