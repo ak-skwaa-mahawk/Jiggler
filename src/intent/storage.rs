@@ -1,3 +1,28 @@
+// src/intent/storage.rs
+
+use super::types::{IntentBandId, IntentBandState, IntentReason, ModeId};
+use anyhow::Result;
+
+pub trait IntentStorage: Send + Sync {
+    fn load_all_bands(&self) -> Result<Vec<IntentBandState>>;
+    fn update_band(&self, band: &IntentBandState) -> Result<()>;
+    fn append_event(
+        &self,
+        ts: i64,
+        band: &IntentBandId,
+        mode: ModeId,
+        delta_i: f64,
+        reason: IntentReason,
+    ) -> Result<()>;
+
+    /// Atomic update + event append (recommended for production)
+    fn update_band_and_append_event(
+        &self,
+        band: &IntentBandState,
+        delta_i: f64,
+        reason: IntentReason,
+    ) -> Result<()>;
+}
 use super::types::{IntentBandId, IntentBandState, IntentReason, ModeId};
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection, OptionalExtension};
