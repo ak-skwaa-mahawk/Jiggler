@@ -1,0 +1,16 @@
+{
+  "ring": "A",
+  "tick": 1234,
+  "node_count": 200,
+  "nodes": [
+    {
+      "node_id": 0,
+      "d": 12,
+      "r": 44,
+      "sigma_T": 37.53,
+      "drift_phase": 1.204,
+      "curvature_kappa": 3.1275
+    },
+    ...
+  ]
+}
