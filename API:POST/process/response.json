@@ -1,0 +1,11 @@
+{
+  "status": "SPAWNED",
+  "node_id": 37,
+  "ring": "A",
+  "initial_state": {
+    "d": 6,
+    "r": 18,
+    "sigma_T": 14.58,
+    "drift_phase": 0.0
+  }
+}
