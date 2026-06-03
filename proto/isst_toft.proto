@@ -2,24 +2,61 @@ syntax = "proto3";
 
 package issttoft;
 
+import "google/protobuf/empty.proto";
+
+// =====================================================
 // ISST-TOFT Sovereign Inference Service
+// =====================================================
 service InferenceService {
+  // === Core Services ===
   rpc EncodeRadHardGlyph (GlyphRequest) returns (GlyphResponse);
   rpc RunClientlessPulse (PulseRequest) returns (PulseResponse);
 
-  // === SixCylinderBoundary GS Coupling (Tordial–GS) ===
+  // === SixCylinderBoundary GS Coupling ===
   rpc ComputeSixFaceBoundary (SixFaceRequest) returns (SixFaceResponse);
   rpc GetClosedLoopDelta     (SixFaceRequest) returns (DeltaResponse);
   rpc RunTrackingFormProof   (SixFaceRequest) returns (ProofResponse);
+
+  // === Intent Engine Exposure ===
+  rpc GetIntentBand     (GetIntentBandRequest)     returns (IntentBand);
+  rpc GetAllIntentBands (google.protobuf.Empty)    returns (GetAllIntentBandsResponse);
 }
 
-// === Existing messages (unchanged) ===
-message GlyphRequest { ... }
-message GlyphResponse { ... }
-message PulseRequest { ... }
-message PulseResponse { ... }
+// =====================================================
+// Existing Messages (Core Services)
+// =====================================================
 
-// === New SixCylinderBoundary messages ===
+message GlyphRequest {
+  repeated float terrain_data = 1;
+  bool use_agentic = 2;
+}
+
+message GlyphResponse {
+  repeated float refined_waveform = 1;
+  uint64 waveform_checksum = 2;
+  string status = 3;
+  float coherence = 4;
+  string message = 5;
+  string quantum_layer = 6;
+  float toroidal_pi_r = 7;
+}
+
+message PulseRequest {
+  repeated float feed_data = 1;
+}
+
+message PulseResponse {
+  repeated float refined_signal = 1;
+  string status = 2;
+  float coherence = 3;
+  string message = 4;
+  float toroidal_pi_r = 5;
+}
+
+// =====================================================
+// SixCylinderBoundary Messages
+// =====================================================
+
 message SixFaceRequest {
   double spin     = 1;
   double pressure = 2;
@@ -44,4 +81,25 @@ message DeltaResponse {
 message ProofResponse {
   bool   all_pillars_hold = 1;
   string details          = 2;
+}
+
+// =====================================================
+// Intent Engine Messages
+// =====================================================
+
+message GetIntentBandRequest {
+  string band_id = 1;
+  int32  mode    = 2;   // defaults to 0 if not provided
+}
+
+message IntentBand {
+  string band_id      = 1;
+  int32  mode         = 2;
+  double intent_value = 3;
+  int64  last_updated = 4;
+  string source       = 5;
+}
+
+message GetAllIntentBandsResponse {
+  repeated IntentBand bands = 1;
 }
