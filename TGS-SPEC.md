@@ -1,3 +1,20 @@
+# Tordial–GS Formal Specification (TGS-SPEC)
+
+**Version**: v5.1  
+**Status**: Living Document
+
+This document is the single source of truth.  
+Sections 1–6 define the conceptual and axiomatic foundation.  
+Section 7 contains the formal dynamic openness invariants.
+
+## 1. Overview and Scope
+## 2. Core Entities (Tordial Manifold, GS Field, Sovereign Nodes)
+## 3. Observer–Flame Principle (Dark Matter as Unobserved Potential)
+## 4. SixCylinderBoundary Coupling
+## 5. Closed-Loop Geometry and TOROIDAL_ROOT
+## 6. Energy, Fission, and Sovereign Mass Conservation
+## 7. Dynamic Openness Axioms (The Non-Finiteness Loophole)
+
 ## Section 7: Dynamic Openness Axioms (The Non-Finiteness Loophole)
 
 ### 7.1 The Drift Inheritance Axiom
