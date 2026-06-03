@@ -2,7 +2,7 @@ cat << 'EOF' > main.py
 """
 main.py
 Zero-Dependency Native HTTP Micro-Gateway Interface for Verifiable Tordial-GS Matrix Ledger
-Includes Injection, Termination, Curvature Migration, and What-If Admission Analysis APIs
+Includes Injection, Termination, Curvature Migration, What-If Admission, and Ring Safety APIs
 """
 
 import sqlite3
@@ -28,8 +28,6 @@ class MockMatrixEngine:
         denom = 4.0 * PHI_OP * GEAR_SHIFT + 0.08 * drift_phase
         sigma_T = r - (d ** 2 / denom)
         
-        node_obj = type('Node', (), {"node_id": node_id, "d": d, "r": r, "sigma_T": sigma_T, "drift_phase": drift_phase})()
-        
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("""INSERT INTO nodes 
@@ -37,7 +35,40 @@ class MockMatrixEngine:
             VALUES (?,?,?,?,?,?,0,NULL)""", (node_id, f"Injected_{ring}", d, r, sigma_T, drift_phase))
         conn.commit()
         conn.close()
-        return node_obj
+        return type('Node', (), {"node_id": node_id, "d": d, "r": r, "sigma_T": sigma_T, "drift_phase": drift_phase})()
+
+    def inspect_ring_safety(self, ring: str):
+        """Calculates live structural stress, safety ceilings, and remaining capacity budget"""
+        ring = ring.upper()
+        if ring not in ["A", "B", "C"]:
+            return None
+            
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("""
+            SELECT COUNT(*) as node_count, 
+                   COALESCE(AVG(sigma_T), 0.0) as current_avg
+            FROM nodes WHERE ring = ?;
+        """, (f"Injected_{ring}",))
+        row = c.fetchone()
+        conn.close()
+        
+        current_avg = round(row["current_avg"], 4)
+        budget = round(MAX_RING_PRESSURE_ALLOWANCE - current_avg, 4)
+        status = "NOMINAL" if budget >= 0 else "CRITICAL_OVERLOAD"
+        
+        return {
+          "ring": ring,
+          "safety_envelope": {
+            "status": status,
+            "node_count": row["node_count"],
+            "current_average_pressure": current_avg,
+            "safety_ceiling": MAX_RING_PRESSURE_ALLOWANCE,
+            "remaining_pressure_budget": max(0.0, budget),
+            "available_capacity_headroom": "READY" if budget > 0 else "SATURATED"
+          }
+        }
 
     def audit_admission(self, node_id: int, target_ring: str):
         target_ring = target_ring.upper()
@@ -81,8 +112,7 @@ class MockMatrixEngine:
     def migrate_process(self, node_id: int, target_ring: str):
         target_ring = target_ring.upper()
         audit = self.audit_admission(node_id, target_ring)
-        if not audit:
-            return {"status": "NOT_FOUND"}
+        if not audit: return {"status": "NOT_FOUND"}
         if audit["evaluation"] == "REJECTED_PRESSURE_OVERFLOW":
             return {"status": "VIOLATION", "projected_pressure": audit["impact"]["projected_ring_average"], "ceiling": MAX_RING_PRESSURE_ALLOWANCE}
         
@@ -90,7 +120,6 @@ class MockMatrixEngine:
         c = conn.cursor()
         c.execute("UPDATE nodes SET ring = ? WHERE node_id = ?", (f"Injected_{target_ring}", node_id))
         conn.commit()
-        
         c.execute("SELECT d, r, sigma_T, drift_phase FROM nodes WHERE node_id = ?", (node_id,))
         conn.row_factory = sqlite3.Row
         node_state = dict(conn.cursor().fetchone())
@@ -119,10 +148,23 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed_url = urlparse(self.path)
+        path_segments = parsed_url.path.strip("/").split("/")
         
         if parsed_url.path == "/":
             self._set_headers(200)
             self.wfile.write(json.dumps({"status": "ONLINE", "substrate": "Bounded Geometry Spec"}).encode("utf-8"))
+            return
+
+        # NEW Safety Envelope Route: /manifold/ring/<ring_id>/safety
+        elif len(path_segments) == 4 and path_segments[0] == "manifold" and path_segments[1] == "ring" and path_segments[3] == "safety":
+            target_ring = path_segments[2].upper()
+            report = matrix.inspect_ring_safety(target_ring)
+            if not report:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "Invalid ring domain mapping requested"}).encode("utf-8"))
+                return
+            self._set_headers(200)
+            self.wfile.write(json.dumps(report).encode("utf-8"))
             return
 
         elif parsed_url.path == "/kernel/admission":
@@ -130,13 +172,11 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
             try:
                 node_id = int(query_params.get("node_id", [0])[0])
                 target_ring = query_params.get("target_ring", ["C"])[0].upper()
-                
                 audit_report = matrix.audit_admission(node_id, target_ring)
                 if not audit_report:
                     self._set_headers(404)
                     self.wfile.write(json.dumps({"error": "Node ID signature not tracked in ledger"}).encode("utf-8"))
                     return
-                
                 status_code = 200 if audit_report["evaluation"] == "ALLOWED" else 403
                 self._set_headers(status_code)
                 self.wfile.write(json.dumps(audit_report).encode("utf-8"))
@@ -199,7 +239,7 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     server_address = ("127.0.0.1", 8080)
     httpd = HTTPServer(server_address, NativeLedgerGateway)
-    print("[+] Sovereign Micro-Kernel REST Core Engine Online with Analysis Tools at http://127.0.0.1:8080")
+    print("[+] Sovereign Micro-Kernel REST Core Engine Online with Introspection at http://127.0.0.1:8080")
     try: httpd.serve_forever()
     except KeyboardInterrupt: httpd.server_close()
 EOF
