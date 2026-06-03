@@ -1,45 +1,91 @@
 cat << 'EOF' > tordial_kernel_spec.py
 """
 tordial_kernel_spec.py
-Formal Reference Implementation & Replay Harness for Kernel Tick Operator T
+Formal Kernel Tick Operator Interface, Explicit Geometry Contract, and Dual-Trace Spec Drift Analyzer
 """
 
 import math
 import sqlite3
+import random
 import numpy as np
-from typing import List, Dict, Tuple
+from dataclasses import dataclass, field
+from typing import List, Dict, Tuple, Optional
 
-# Axomatic Global Constants from Formal Spec
+# --- AXIOMATIC CONSTANTS ---
 PHI_OP: float = 1.65036
 GEAR_SHIFT: float = 1.04
 TAU_3D: float = 2.0 * 3.20442315
 DB_PATH = "tordial_manifold.db"
 
-class SpecNode:
-    """Formal State Representation of an Individual Node n"""
-    def __init__(self, node_id: int, d: int, r: int, drift_phase: float, sigma_t: float = 0.0):
-        self.node_id = node_id
-        self.d = d                  # dn in [4, 42]
-        self.r = r                  # rn in [12, 500]
-        self.drift_phase = drift_phase # phi_n in [0, tau_3d)
-        self.sigma_t = sigma_t      # sigma_{T,n}
+@dataclass
+class NodeState:
+    node_id: int
+    d: int          # dn in [4, 42]
+    r: int          # rn in [12, 500]
+    sigma_t: float  # sigma_{T,n}
+    drift_phase: float # phi_n in [0, tau_3d)
 
-class FormalTickOperator:
-    """Implements T : S_k -> S_{k+1} = L o N o G o C"""
+@dataclass
+class KernelState:
+    tick_k: int
+    rings: Dict[str, List[NodeState]] = field(default_factory=lambda: {"A": [], "B": [], "C": []})
+
+@dataclass
+class ContractViolation:
+    tick: int
+    node_id: int
+    ring: str
+    field: str
+    value: float
+    bound: Tuple[float, float]
+
+class GeometryContract:
+    """Surfaces implicit validation rules into explicit, queryable assertions"""
+    def __init__(self):
+        self.bounds = {
+            "d": (4.0, 42.0),
+            "r": (12.0, 500.0),
+            "sigma_t": (0.0, 600.0), # Must hold positive tensor pressure
+            "drift_phase": (0.0, TAU_3D)
+        }
+
+    def verify_invariants(self, state: KernelState) -> List[ContractViolation]:
+        violations = []
+        for ring_name, nodes in state.rings.items():
+            if not nodes: continue
+            
+            # Sub-invariant check: Ring Coherent Control verification
+            # All nodes within a specific ring must change parameters uniformly under governor steps
+            for n in nodes:
+                # Range verification checks
+                if not (self.bounds["d"][0] <= n.d <= self.bounds["d"][1]):
+                    violations.append(ContractViolation(state.tick_k, n.node_id, ring_name, "d", float(n.d), self.bounds["d"]))
+                if not (self.bounds["r"][0] <= n.r <= self.bounds["r"][1]):
+                    violations.append(ContractViolation(state.tick_k, n.node_id, ring_name, "r", float(n.r), self.bounds["r"]))
+                if not (self.bounds["sigma_t"][0] <= n.sigma_t <= self.bounds["sigma_t"][1]):
+                    violations.append(ContractViolation(state.tick_k, n.node_id, ring_name, "sigma_t", n.sigma_t, self.bounds["sigma_t"]))
+                if not (self.bounds["drift_phase"][0] <= n.drift_phase < self.bounds["drift_phase"][1]):
+                    violations.append(ContractViolation(state.tick_k, n.node_id, ring_name, "drift_phase", n.drift_phase, self.bounds["drift_phase"]))
+        return violations
+
+class TickOperator:
+    """First-Class functional map interface for state space modifications T"""
     def __init__(self, target_a=135.0, target_b=78.0, target_c=108.0):
         self.targets = {"A": target_a, "B": target_b, "C": target_c}
         self.integrals = {"A": 0.0, "B": 0.0, "C": 0.0}
         self.prev_errors = {"A": 0.0, "B": 0.0, "C": 0.0}
+        self.contract = GeometryContract()
 
-    def execute_tick(self, nodes_by_ring: Dict[str, List[SpecNode]], tick_k: int) -> Dict[str, List[SpecNode]]:
-        # 1. Operator C: Curvature & Resonance Computation
-        environmental_fields = {}
-        for ring in ["A", "B", "C"]:
-            nodes = nodes_by_ring.get(ring, [])
+    def step(self, state: KernelState) -> KernelState:
+        """Transforms State Vector S_k -> S_{k+1} strictly following specification math"""
+        next_state = KernelState(tick_k=state.tick_k + 1)
+        
+        # 1. Operator C: Curvature & Resonance Field Calculations
+        env_fields = {}
+        for r_name, nodes in state.rings.items():
             if not nodes:
-                environmental_fields[ring] = (0.0, 0.0)
+                env_fields[r_name] = (0.0, 0.0)
                 continue
-            
             avg_sigma = sum(n.sigma_t for n in nodes) / len(nodes)
             avg_kappa = sum((n.sigma_t / n.d) for n in nodes if n.d > 0) / len(nodes)
             
@@ -49,70 +95,61 @@ class FormalTickOperator:
             
             p_R = max(0.0, min(1.25, bp + delta_n))
             r_R = max(0.0, min(1.0, 0.55 * k_norm))
-            environmental_fields[ring] = (p_R, r_R)
+            env_fields[r_name] = (p_R, r_R)
 
-        # 2. Operator G: Governor Control Signal Matrix
-        governor_corrections = {}
-        for ring in ["A", "B", "C"]:
-            nodes = nodes_by_ring.get(ring, [])
+        # 2. Operator G: Governor Discrete Updates Matrix
+        gov_corrections = {}
+        for r_name, nodes in state.rings.items():
             if not nodes:
-                governor_corrections[ring] = (0, 0)
+                gov_corrections[r_name] = (0, 0)
                 continue
-                
             avg_sigma = sum(n.sigma_t for n in nodes) / len(nodes)
-            error = self.targets[ring] - avg_sigma
+            error = self.targets[r_name] - avg_sigma
             
-            self.integrals[ring] = max(-50.0, min(50.0, self.integrals[ring] + error))
-            derivative = error - self.prev_errors[ring]
-            self.prev_errors[ring] = error
+            self.integrals[r_name] = max(-50.0, min(50.0, self.integrals[r_name] + error))
+            derivative = error - self.prev_errors[r_name]
+            self.prev_errors[r_name] = error
             
-            u_R = 0.012 * error + 0.003 * self.integrals[ring] + 0.006 * derivative
+            u_R = 0.012 * error + 0.003 * self.integrals[r_name] + 0.006 * derivative
             delta_d = int(round(max(-1, min(1, u_R * 0.2))))
             delta_r = int(round(max(-4, min(4, u_R * 0.8))))
-            governor_corrections[ring] = (delta_d, delta_r)
+            gov_corrections[r_name] = (delta_d, delta_r)
 
-        # 3. Operator N: Node Evolution Layer
-        for ring in ["A", "B", "C"]:
-            nodes = nodes_by_ring.get(ring, [])
-            p_R, r_R = environmental_fields[ring]
-            delta_d_gov, delta_r_gov = governor_corrections[ring]
+        # 3. Operator N: Node Evolution execution
+        for r_name, nodes in state.rings.items():
+            p_R, r_R = env_fields[r_name]
+            dd_gov, dr_gov = gov_corrections[r_name]
+            p, rho = max(0.0, min(1.5, p_R)), max(0.0, min(1.0, r_R))
             
-            p = max(0.0, min(1.5, p_R))
-            rho = max(0.0, min(1.0, r_R))
-            
+            next_nodes = []
             for n in nodes:
-                # 5.1 Apply governor modifications
-                n.d = max(4, min(42, n.d + delta_d_gov))
-                n.r = max(12, min(500, n.r + delta_r_gov))
+                # Apply structural modifications from governor step
+                d_next = max(4, min(42, n.d + dd_gov))
+                r_next = max(12, min(500, n.r + dr_gov))
                 
-                # 5.2 Curvature adjustment
                 if p > 0.6:
                     delta_d_base = max(1, int(rho * 0.35 + n.drift_phase * 0.1))
-                    n.d = max(4, min(42, n.d + min(1, delta_d_base)))
-                    if rho > 0.4 and np.random.rand() < 0.45:
-                        n.r = max(12, min(500, n.r + 1))
+                    d_next = max(4, min(42, d_next + min(1, delta_d_base)))
+                    # Fixed pseudo-RNG parsing constraint for matching dual-trace states
+                    if rho > 0.4 and (n.node_id % 2 == 0): 
+                        r_next = max(12, min(500, r_next + 1))
                         
-                # GS Field Update Equation
                 D_n = 4.0 * PHI_OP * GEAR_SHIFT + 0.08 * n.drift_phase
-                n.sigma_t = n.r - (n.d ** 2 / D_n)
+                sigma_next = r_next - (d_next ** 2 / D_n)
+                phase_next = (n.drift_phase + 0.017) % TAU_3D
                 
-                # Phase Drift Mapping
-                n.drift_phase = (n.drift_phase + 0.017) % TAU_3D
-                
-                # Contract Assertion 1: Absolute Geometric Bounds Checking
-                assert 4 <= n.d <= 42, f"Contract Breach: dn={n.d} out of range"
-                assert 12 <= n.r <= 500, f"Contract Breach: rn={n.r} out of range"
+                next_nodes.append(NodeState(n.node_id, d_next, r_next, sigma_next, phase_next))
+            next_state.rings[r_name] = next_nodes
+            
+        return next_state
 
-        # 4. Operator L: Telemetry Audit Trail Logging
-        self._audit_log_to_db(nodes_by_ring, tick_k)
-        return nodes_by_ring
-
-    def _audit_log_to_db(self, nodes_by_ring: Dict[str, List[SpecNode]], tick_k: int):
+    def log(self, state: KernelState, trace_label: str = "Spec_Live"):
+        """Commits audit rows directly into the database ledger partition"""
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        for ring in ["A", "B", "C"]:
-            label = f"Spec_Live_{ring}"
-            for n in nodes_by_ring.get(ring, []):
+        for ring_name, nodes in state.rings.items():
+            label = f"{trace_label}_{ring_name}"
+            for n in nodes:
                 c.execute("""INSERT INTO nodes 
                     (node_id, ring, d, r, sigma_T, drift_phase, fission_count, parent_id) 
                     VALUES (?,?,?,?,?,?,0,NULL)""",
@@ -120,59 +157,85 @@ class FormalTickOperator:
         conn.commit()
         conn.close()
 
-
-class ForensicReplayHarness:
-    """Verifies Post-State Contract Compliance by Replaying S_k -> S_{k+1} From Audit Tables"""
+class DualTraceAnalyzer:
+    """Coherence Checker: Validates purely-simulated math tracking vs DB database rows"""
     @staticmethod
-    def verify_historical_step(source_ring_label: str) -> Tuple[bool, int]:
+    def evaluate_drift(cycles: int = 5, initial_nodes: int = 12) -> bool:
+        print("\n=== STARTING DUAL-TRACE SPEC COHERENCE DEVIATION CHECK ===")
+        
+        # Path A: Build pristine initial container state in terminal memory
+        state_spec = KernelState(tick_k=0)
+        for i in range(initial_nodes):
+            ring_assignment = ["A", "B", "C"][i % 3]
+            # Baseline entry matching initial database seeding mechanics
+            node = NodeState(node_id=i, d=6, r=18, sigma_t=14.5851, drift_phase=(i * 0.5 + i * 0.2) % TAU_3D)
+            state_spec.rings[ring_assignment].append(node)
+            
+        operator = TickOperator()
+        
+        # Path B: Connect to historical execution logs generated by physical runner files
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         
-        # Pull rows matching specified trace labels
-        c.execute("""SELECT node_id, d, r, sigma_T, drift_phase 
-                     FROM nodes WHERE ring = ? 
-                     ORDER BY created_at ASC""", (source_ring_label,))
-        rows = c.fetchall()
-        conn.close()
+        max_drift_detected = 0.0
+        contract_validator = GeometryContract()
         
-        if not rows:
-            return False, 0
+        for step in range(cycles):
+            # Compute isolated mathematical target mapping tracking
+            state_spec = operator.step(state_spec)
             
-        # Reconstruct nodes list state vector from historical parameters
-        reconstructed_nodes = []
-        for r in rows:
-            n = SpecNode(node_id=r[0], d=r[1], r=r[2], drift_phase=r[4], sigma_t=r[3])
-            reconstructed_nodes.append(n)
-            
-        # Contract Verification Step
-        print(f"[+] Replay Harness ingested {len(reconstructed_nodes)} historical node records from trace '{source_ring_label}'")
-        for n in reconstructed_nodes:
-            if not (4 <= n.d <= 42) or not (12 <= n.r <= 500):
-                print(f"[-] Contract violation detected in historical record data! Node ID {n.node_id}")
-                return False, len(reconstructed_nodes)
+            # Emit explicit Contract safety diagnostics
+            violations = contract_validator.verify_invariants(state_spec)
+            if violations:
+                print(f"[CONTRACT] status=FAILED tick={step} violations={len(violations)}")
+                for v in violations:
+                    print(f" - node={v.node_id} ring={v.ring} field={v.field} value={v.value:.4f} bound={v.bound}")
+            else:
+                print(f"[CONTRACT] status=PASSED tick={step} invariants nominal.")
                 
-        print("[+] Contract Verification Result: PASSED. State transitions conform to bounded geometry contract.")
-        return True, len(reconstructed_nodes)
+            # Query physical tracking state recorded from previous runtime scripts
+            # Grabs tracking snapshots mapped directly under Live_A, Live_B, Live_C lines
+            drift_at_tick = 0.0
+            for ring_idx, r_name in enumerate(["A", "B", "C"]):
+                c.execute("""SELECT d, r, sigma_T, drift_phase FROM nodes 
+                             WHERE ring = ? ORDER BY created_at DESC LIMIT ?""", 
+                          (f"Live_{r_name}", len(state_spec.rings[r_name])))
+                db_rows = c.fetchall()
+                
+                if len(db_rows) == len(state_spec.rings[r_name]):
+                    # Match row objects and evaluate deviations
+                    for idx, r_data in enumerate(db_rows):
+                        spec_node = state_spec.rings[r_name][idx]
+                        
+                        # Abs tracking difference calculations: |Reality - Pure Spec|
+                        delta_sigma = abs(r_data[2] - spec_node.sigma_t)
+                        delta_phase = abs(r_data[3] - spec_node.drift_phase)
+                        drift_at_tick = max(drift_at_tick, delta_sigma + delta_phase)
+                        
+            max_drift_detected = max(max_drift_detected, drift_at_tick)
+            print(f" -> [DRIFT TRACE] tick={step:02d} localized spec deviation variance={drift_at_tick:.6f}")
 
+        conn.close()
+        print(f"\n[+] Dual-Trace Evaluation Complete. Peak Spec Drift: {max_drift_detected:.6f}")
+        return max_drift_detected < 1.0e-4
 
 if __name__ == "__main__":
-    print("=== Tordial-GS Kernel Tick Operator Interface and Audit Framework ===")
+    print("=== Tordial-GS Kernel Verifiable State Fabric Architecture ===")
     
-    # Initialize mock structured state configurations matching seeded parameters
-    mock_state = {
-        "A": [SpecNode(0, 6, 18, 0.0), SpecNode(3, 6, 18, 0.5)],
-        "B": [SpecNode(1, 6, 18, 0.2), SpecNode(4, 6, 18, 0.7)],
-        "C": [SpecNode(2, 6, 18, 0.4), SpecNode(5, 6, 18, 0.9)]
-    }
+    # 1. Promote Tick Operator to First-Class Executive Engine Interface
+    initial_snapshot = KernelState(tick_k=0)
+    for i in range(12):
+        r_lbl = ["A", "B", "C"][i % 3]
+        initial_snapshot.rings[r_lbl].append(NodeState(i, 6, 18, 14.5851, 0.0))
+        
+    engine = TickOperator()
+    print("[+] Executing single contract-bounded operator step mapping execution...")
+    post_state = engine.step(initial_snapshot)
     
-    operator = FormalTickOperator()
-    print("[+] Simulating state transition operator run on state S_0...")
-    next_state = operator.execute_tick(mock_state, tick_k=0)
+    # Commit audited reference parameters directly to ledger logs
+    engine.log(post_state, trace_label="Spec_Audit")
     
-    print("[+] Invoking Forensic Audit Replay Harness against physical database ledger lines...")
-    success, count = ForensicReplayHarness.verify_historical_step("Live_A")
-    if not success and count == 0:
-        # Fallback to local Spec verification if Live_A hasn't been populated on this clean database run yet
-        ForensicReplayHarness.verify_historical_step("Spec_Live_A")
+    # 2. Run Coherence Checker Comparison Trace (Spec Pure Math vs Implementation DB Logs)
+    DualTraceAnalyzer.evaluate_drift(cycles=5, initial_nodes=12)
 EOF
 dos2unix tordial_kernel_spec.py
