@@ -2,7 +2,7 @@ cat << 'EOF' > main.py
 """
 main.py
 Zero-Dependency Native HTTP Micro-Gateway Interface for Verifiable Tordial-GS Matrix Ledger
-Features an Autonomous Background Heartbeat Daemon for Continuous Cross-Ring Rebalancing
+Features an Autonomous Background Heartbeat Daemon with Anti-Thrashing Hysteresis Damping
 """
 
 import sqlite3
@@ -17,15 +17,13 @@ DB_PATH = "tordial_manifold.db"
 PHI_OP = 1.65036
 GEAR_SHIFT = 1.04
 MAX_RING_PRESSURE_ALLOWANCE = 45.0
-HEARTBEAT_INTERVAL_SEC = 4.0  # Autonomous cycle rate
+HEARTBEAT_INTERVAL_SEC = 3.0
 
 class MockMatrixEngine:
     def __init__(self):
         self.current_tick = 42
         self._bootstrap_db()
         self.is_running = True
-        
-        # Start the Autonomous Heartbeat Daemon
         self.heartbeat_thread = threading.Thread(target=self._run_heartbeat, daemon=True)
         self.heartbeat_thread.start()
 
@@ -88,16 +86,17 @@ class MockMatrixEngine:
         source_node = c.fetchone()
         if not source_node:
             conn.close()
-            return "NOT_FOUND"
+            return {"status": "NOT_FOUND", "projected_avg": 999.0}
         c.execute("SELECT COUNT(*) as node_count, COALESCE(SUM(sigma_T), 0.0) as cumulative_pressure FROM nodes WHERE ring = ?;", (f"Injected_{target_ring}",))
         dest_stats = c.fetchone()
         projected_count = dest_stats["node_count"] + 1
         projected_average = (dest_stats["cumulative_pressure"] + source_node["sigma_T"]) / projected_count
         conn.close()
-        return "ALLOWED" if projected_average <= MAX_RING_PRESSURE_ALLOWANCE else "REJECTED"
+        status = "ALLOWED" if projected_average <= MAX_RING_PRESSURE_ALLOWANCE else "REJECTED"
+        return {"status": status, "projected_avg": projected_average}
 
     def rebalance_manifold(self):
-        """Internal balancing loop used by both HTTP requests and the background daemon thread"""
+        """Autonomous Scheduler with Hysteresis Damping to arrest ping-pong thrashing"""
         rings = ["A", "B", "C"]
         stats = {r: self.inspect_ring_safety(r) for r in rings}
         
@@ -108,7 +107,8 @@ class MockMatrixEngine:
         hot_pressure = stats[hottest_ring]["current_average_pressure"]
         cool_pressure = stats[coolest_ring]["current_average_pressure"]
         
-        if hot_pressure > 25.0 and (hot_pressure - cool_pressure) > 10.0:
+        # Invariant Gradient Condition
+        if hot_pressure > 25.0 and (hot_pressure - cool_pressure) > 12.0:
             conn = sqlite3.connect(DB_PATH)
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
@@ -117,20 +117,24 @@ class MockMatrixEngine:
             
             if candidate:
                 node_id = candidate["node_id"]
-                if self.audit_admission(node_id, coolest_ring) == "ALLOWED":
-                    c.execute("UPDATE nodes SET ring = ? WHERE node_id = ?", (f"Injected_{coolest_ring}", node_id))
-                    conn.commit()
-                    conn.close()
-                    return {
-                        "status": "REBALANCED",
-                        "action": f"Auto-offloaded node {node_id} from Ring {hottest_ring} to Ring {coolest_ring}",
-                        "gradient_mitigated": round(hot_pressure - cool_pressure, 4)
-                    }
+                audit = self.audit_admission(node_id, coolest_ring)
+                
+                if audit["status"] == "ALLOWED":
+                    # ANTI-THRASHING FILTER: Only migrate if the target ring's projected pressure
+                    # remains lower than the hot ring's current standing pressure baseline.
+                    if audit["projected_avg"] < (hot_pressure - 2.0):
+                        c.execute("UPDATE nodes SET ring = ? WHERE node_id = ?", (f"Injected_{coolest_ring}", node_id))
+                        conn.commit()
+                        conn.close()
+                        return {
+                            "status": "REBALANCED",
+                            "action": f"Auto-offloaded node {node_id} from Ring {hottest_ring} to Ring {coolest_ring}",
+                            "gradient_mitigated": round(hot_pressure - cool_pressure, 4)
+                        }
             conn.close()
         return {"status": "BALANCED", "metrics": stats}
 
     def _run_heartbeat(self):
-        """Autonomous daemon execution loop ticking in isolation from network requests"""
         while self.is_running:
             try:
                 log = self.rebalance_manifold()
@@ -166,7 +170,7 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
         
         if parsed_url.path == "/":
             self._set_headers(200)
-            self.wfile.write(json.dumps({"status": "ONLINE", "mode": "CONTINUOUS_HEARTBEAT"}).encode("utf-8"))
+            self.wfile.write(json.dumps({"status": "ONLINE", "mode": "STABILIZED_HEARTBEAT"}).encode("utf-8"))
             return
 
         elif len(path_segments) == 4 and path_segments[0] == "manifold" and path_segments[1] == "ring" and path_segments[3] == "safety":
@@ -200,7 +204,7 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     server_address = ("127.0.0.1", 8080)
     httpd = HTTPServer(server_address, NativeLedgerGateway)
-    print("[+] Continuous Heartbeat Fabric Gateway Online at http://127.0.0.1:8080")
+    print("[+] Stabilized Heartbeat Fabric Gateway Online at http://127.0.0.1:8080")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
