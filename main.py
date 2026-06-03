@@ -40,7 +40,6 @@ class MockMatrixEngine:
         return node_obj
 
     def audit_admission(self, node_id: int, target_ring: str):
-        """Dry-run calculation matrix to isolate metric shifts before table writes occur"""
         target_ring = target_ring.upper()
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
@@ -126,7 +125,6 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ONLINE", "substrate": "Bounded Geometry Spec"}).encode("utf-8"))
             return
 
-        # NEW Predictor Endpoint: /kernel/admission?node_id=N&target_ring=R
         elif parsed_url.path == "/kernel/admission":
             query_params = parse_qs(parsed_url.query)
             try:
@@ -184,7 +182,7 @@ class NativeLedgerGateway(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "REJECTED_PRESSURE_OVERFLOW", "detail": f"Target ring stabilization breached. Projected: {result['projected_pressure']} (Max allowed: {result['ceiling']})"}).encode("utf-8"))
             else:
                 self._set_headers(404)
-                self.wfile.write(json.dumps({"status": "NOT_FOUND"})).encode("utf-8"))
+                self.wfile.write(json.dumps({"status": "NOT_FOUND"}).encode("utf-8"))
             return
 
     def do_DELETE(self):
