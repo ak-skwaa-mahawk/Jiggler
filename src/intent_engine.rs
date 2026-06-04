@@ -1,12 +1,14 @@
 cat << 'EOF' > src/intent_engine.rs
-//! IntentEngine — Noise-Resistant, Stiffness-Weighted Self-Calibrating Core.
+//! IntentEngine — Self-Calibrating Core with Learning Governor and Non-Associative GS Operator.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 use tracing::info;
+
 use crate::issttoft::{IntentBand, IntentUpdate, HandshakeResponse, get_band_stiffness, CouplingMatrix};
+use crate::gs::GsCombiner;
 
 #[derive(Clone)]
 pub struct IntentEngine {
@@ -51,36 +53,7 @@ impl IntentEngine {
                 });
             }
         }
-        info!(target: "isst_toft::intent", "Stiffness-weighted, noise-resistant engine armed.");
-    }
-
-    pub fn step_damping_field(&self, dt: f64) {
-        let now = current_unix_timestamp();
-        let mut updates_to_fire = vec![];
-
-        if let Ok(mut bands) = self.intent_bands.lock() {
-            for band in bands.values_mut() {
-                if (band.intent_value - band.base_value).abs() > 0.001 {
-                    let lambda = 0.4 * (1.0 - band.stiffness);
-                    let delta = band.intent_value - band.base_value;
-                    
-                    band.intent_value -= delta * lambda * dt;
-                    band.last_updated = now;
-
-                    updates_to_fire.push(IntentUpdate {
-                        band_id: band.band_id.clone(),
-                        mode: band.mode,
-                        intent_value: band.intent_value,
-                        timestamp: now,
-                        reason: "ambient_field_relaxation".to_string(),
-                    });
-                }
-            }
-        }
-
-        for update in updates_to_fire {
-            let _ = self.intent_tx.send(update);
-        }
+        info!(target: "isst_toft::intent", "GS Non-Associative Core and Learning Governor armed.");
     }
 
     pub fn broadcast_update(&self, update: IntentUpdate) {
@@ -94,7 +67,7 @@ impl IntentEngine {
         }
     }
 
-    /// Calibrates C using noise-gated boundaries and stiffness-weighted alpha multipliers
+    /// Dynamic GS Curvature Tuning Loop with Complete Learning Governor Infrastructure
     pub fn update_c_from_strike(
         &self,
         source_band: usize,
@@ -112,17 +85,29 @@ impl IntentEngine {
                 let c_eff = observed / source_initial;
                 let old = matrix.get(target, source_band);
 
-                // 1. Noise Floor Gate: Filter out micro-adjustments
+                // 1. Governor: Magnitude Dead-band Gate
                 if (c_eff - old).abs() < 0.005 {
                     continue;
                 }
 
-                // 2. GS Stiffness Adaptive Modulator: High-inertia bands learn slower
-                let stiffness = get_band_stiffness(target);
-                let alpha_eff = alpha * (1.0 - stiffness);
+                let mut alpha_eff = alpha;
 
-                // 3. Extrapolate tracking trajectory
-                let new = (1.0 - alpha_eff) * old + alpha_eff * c_eff;
+                // 2. Governor: Stability Gating (Dampen step sizes during high-energy saturation shocks)
+                let high_energy = source_initial > 0.95;
+                if high_energy {
+                    alpha_eff *= 0.25; 
+                }
+
+                // 3. Governor: Curvature-Aware Gating (Anchor isolation protection)
+                if target == 0 {
+                    alpha_eff *= 0.10;
+                }
+
+                // 4. GS Non-Associative Curvature Operator Step
+                let stiffness = get_band_stiffness(target);
+                let state = matrix.edge_state_mut(target, source_band);
+                let new = GsCombiner::update(old, c_eff, stiffness, alpha_eff, state);
+
                 matrix.set(target, source_band, new);
             }
         }
