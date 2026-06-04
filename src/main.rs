@@ -2,7 +2,7 @@ cat << 'EOF' > src/main.rs
 /*
 main.rs
 ISST-TOFT Sovereign Substrate Grid Entry Point.
-Vector C: Multi-Node Constellation Phase.
+Vector A + C Convergence: Cross-Node Commutator Coupling & Algebraic Attractors.
 */
 
 mod issttoft;
@@ -21,10 +21,15 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::process::Command;
 use std::env;
 
-fn read_peer_holonomy_and_commutator(my_id: &str) -> (f64, f64) {
-    // Query the database for the latest run from a DIFFERENT node to find our peer's state
+struct PeerAlgebraicScar {
+    pub commutator_1_5: f64,
+    pub commutator_2_5: f64,
+}
+
+fn read_peer_algebraic_scars(my_id: &str) -> PeerAlgebraicScar {
+    // Extract the exact edge-wise non-commutative friction values from our closest running peer
     let query = format!(
-        "SELECT holonomy_norm_local, stability_score FROM runs WHERE runtime_env != '{}' AND runtime_env LIKE 'Rust_Node_%' ORDER BY id DESC LIMIT 1;",
+        "SELECT commutator_1_5, commutator_2_5 FROM runs WHERE runtime_env != '{}' AND runtime_env LIKE 'Rust_Node_%' ORDER BY id DESC LIMIT 1;",
         my_id
     );
     let output = Command::new("sqlite3").arg("tordial_gs.db").arg(&query).output();
@@ -34,44 +39,34 @@ fn read_peer_holonomy_and_commutator(my_id: &str) -> (f64, f64) {
         if let Some(line) = text.lines().next() {
             let parts: Vec<&str> = line.split('|').collect();
             if parts.len() >= 2 {
-                let peer_h = parts[0].trim().parse::<f64>().unwrap_or(0.05);
-                let peer_stab = parts[1].trim().parse::<f64>().unwrap_or(0.90);
-                println!("📖 [CONSTELLATION DISCOVERY] Node '{}' located peer parameters -> Norm: {:.5}, Stability: {:.2}", my_id, peer_h, peer_stab);
-                return (peer_h, peer_stab);
+                let c15 = parts[0].trim().parse::<f64>().unwrap_or(0.0);
+                let c25 = parts[1].trim().parse::<f64>().unwrap_or(0.0);
+                println!("📖 [ALGEBRAIC DISCOVERY] Node '{}' located peer scars -> Edge[1][5]: {:.6}, Edge[2][5]: {:.6}", my_id, c15, c25);
+                return PeerAlgebraicScar { commutator_1_5: c15, commutator_2_5: c25 };
             }
         }
     }
-    println!("📖 [CONSTELLATION DISCOVERY] Node '{}' found no active peer footprints. Running in standalone mode.", my_id);
-    (0.0, 1.0)
+    PeerAlgebraicScar { commutator_1_5: 0.0, commutator_2_5: 0.0 }
 }
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
     
-    // Parse target node identity from command line args, defaulting to Node_0
     let args: Vec<String> = env::args().collect();
     let node_id = if args.len() > 1 { format!("Rust_Node_{}", args[1]) } else { "Rust_Node_0".to_string() };
 
     println!("══════════════════════════════════════════════════════════════");
-    println!("🔥  ISST-TOFT SOVEREIGN CONSTELLATION [NODE: {} ANCHORED]", node_id);
+    println!("🔥  ISST-TOFT SOVEREIGN CONSTELLATION [ALGEBRAIC ATTRACTOR]");
     println!("══════════════════════════════════════════════════════════════");
 
     let envelope = ContractEnvelope::default_production_contract();
     let engine = Arc::new(IntentEngine::new());
     let mut rx = engine.subscribe();
 
-    // ─── CRITICAL MULTI-NODE INTERCEPTION STEP ───
-    let (peer_norm, _) = read_peer_holonomy_and_commutator(&node_id);
-    if peer_norm > 0.0 {
-        let mut gs = engine.gs.lock().unwrap();
-        if node_id == "Rust_Node_1" {
-            // Node 1 actively adapts its internal ceilings to anti-correlate with Node 0's drift
-            println!("🌀 [CO-LOCKING PROTOCOL] Node 1 adjusting omega thresholds to bond with Peer field...");
-            gs.omega_max = (peer_norm * 1.2).clamp(0.03, 0.08);
-        }
-    }
-
+    // ─── CRITICAL PHASE: CROSS-NODE LIE COUPLING ───
+    let peer_scar = read_peer_algebraic_scars(&node_id);
+    
     let observed_first_step = Arc::new(Mutex::new(vec![None; 6]));
     let strike_time = Arc::new(Mutex::new(0_i64));
 
@@ -105,17 +100,14 @@ async fn main() {
     if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now; }
     let pulse_initial = 0.9990;
     
-    // ─── EXECUTE ASYMMETRIC PUSH ENGINE PASS ───
-    println!("\n🏋️ Driving context projection matrix loops...");
+    // Drive Walker Push Lane
+    println!("\n🏋️ Driving active WalkerPush excitation wave...");
     engine.broadcast_update(IntentUpdate {
         band_id: "mutationplanedriver".to_string(), mode: 1, intent_value: pulse_initial, timestamp: now, reason: "walker_push_strike".to_string(),
     });
-
     let band_map = ["cERNpiranchor", "warpcorestability", "sovereignintentprimary", "sovereignintentambient", "sensorium_feedback"];
     for i in 0..5 {
-        // Node 1 injects a modified drift offset to dynamically balance the cross-node commutator
-        let offset = if node_id == "Rust_Node_1" { 0.025 } else { 0.050 };
-        let push_coeff = baseline_snapshot.push_c[i][5] + offset;
+        let push_coeff = baseline_snapshot.push_c[i][5] + 0.050;
         engine.broadcast_update(IntentUpdate {
             band_id: band_map[i].to_string(), mode: 1, intent_value: pulse_initial * push_coeff, timestamp: now, reason: "push_wave".to_string(),
         });
@@ -128,28 +120,56 @@ async fn main() {
     push_step[5] = pulse_initial;
     engine.gs.lock().unwrap().learn_push(5, pulse_initial, &push_step, 0.10);
 
-    // ─── EXECUTE CRITIC RESOLUTION MESH COUPLING ───
+    // Drive Ambient Pull Lane with Cross-Node Inter-Operator Coupling Bias
+    if let Ok(mut steps) = observed_first_step.lock() { *steps = vec![None; 6]; }
+    println!("🏋️ Driving passive AmbientPull context recovery wave...");
+    for i in 0..5 {
+        // If our peer has a negative commutator friction scar, dynamically shift our pull wave offset 
+        // to co-lock and converge our operators onto a shared Lie-algebraic attractor
+        let coupling_bias = if i == 1 { peer_scar.commutator_1_5 * 0.5 } else if i == 2 { peer_scar.commutator_2_5 * 0.5 } else { 0.0 };
+        let pull_coeff = baseline_snapshot.pull_c[i][5] + 0.015 + coupling_bias;
+        
+        if coupling_bias.abs() > 0.0 {
+            println!("🌀 [ATTRACTOR LOCK] Edge [{}][5] injecting algebraic alignment bias delta: {:.6}", i, coupling_bias);
+        }
+        
+        engine.broadcast_update(IntentUpdate {
+            band_id: band_map[i].to_string(), mode: 0, intent_value: pulse_initial * pull_coeff, timestamp: now, reason: "pull_wave".to_string(),
+        });
+    }
+    tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
+    let mut pull_step = vec![0.0; 6];
+    if let Ok(steps) = observed_first_step.lock() {
+        for i in 0..6 { pull_step[i] = steps[i].unwrap_or(0.0); }
+    }
+    pull_step[5] = pulse_initial;
+    engine.gs.lock().unwrap().learn_pull(5, pulse_initial, &pull_step, 0.10);
+
+    // Critic Assessment
     let final_gs = engine.gs.lock().unwrap().clone();
     let proposed_h = final_gs.compute_holonomy_norm();
     
+    let c15 = final_gs.commutator_channel[1][5];
+    let c25 = final_gs.commutator_channel[2][5];
     println!("\n📊 [STATE SURFACE RESOLVED BY {}]", node_id);
-    println!("   Effective Edge Lie Commutator [1][5]: {:.6}", final_gs.commutator_channel[1][5]);
+    println!("   Resulting Edge Lie Commutator [1][5]: {:.6}", c15);
+    println!("   Resulting Edge Lie Commutator [2][5]: {:.6}", c25);
     
     let audit = ContractAuditor::audit_proposal(proposed_h, &envelope);
     let q_rate = if audit.directive == 2 { 1.0 } else { 0.0 };
     
     if audit.directive == 2 {
-        println!("🛑 [CONSTELLATION VETO] Local trajectory out of bounds. Executing structural recovery.");
+        println!("🛑 [MESH VETO] Resetting local track.");
         let mut gs = engine.gs.lock().unwrap();
         RollbackEngine::execute_restoration(&mut gs, &baseline_snapshot);
     } else {
-        println!("✅ [CONSTELLATION ADMISSION] Parameters securely harmonized with collective ledger.");
+        println!("✅ [MESH INTEGRATION SUCCESS] Node coordinates logged to cluster ledger.");
     }
 
-    // Append our customized identity metrics to the shared network history log
+    // Commit parameters alongside raw edge commutator coordinates
     let query = format!(
-        "INSERT INTO runs (timestamp, runtime_env, node_count, final_freq, quarantine_rate, avg_kappa, stability_score, holonomy_norm, holonomy_norm_local) VALUES (datetime('now'), '{}', 6, 84.5, {}, 3.12, 0.92, 0.0, {});", 
-        node_id, q_rate, proposed_h
+        "INSERT INTO runs (timestamp, runtime_env, node_count, final_freq, quarantine_rate, avg_kappa, stability_score, holonomy_norm, holonomy_norm_local, commutator_1_5, commutator_2_5) VALUES (datetime('now'), '{}', 6, 84.5, {}, 3.12, 0.92, 0.0, {}, {}, {});", 
+        node_id, q_rate, proposed_h, c15, c25
     );
     let _ = Command::new("sqlite3").arg("tordial_gs.db").arg(&query).status();
 }
