@@ -1,5 +1,5 @@
 cat << 'EOF' > src/intent_engine.rs
-//! IntentEngine — Asymmetric Dual-Plane Directed Geometry Core Substrate.
+//! IntentEngine — Asymmetric Dual-Plane Split Connection Infrastructure Kernel.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -7,13 +7,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 use tracing::info;
 
-use crate::issttoft::{IntentBand, IntentUpdate, get_band_stiffness, CouplingMatrix, EdgeRole};
+use crate::issttoft::{IntentBand, IntentUpdate, get_band_stiffness, DirectedCoupling, DirectedCurvatureMemory};
 
 #[derive(Clone)]
 pub struct IntentEngine {
     intent_tx: broadcast::Sender<IntentUpdate>,
     intent_bands: Arc<Mutex<HashMap<String, IntentBand>>>,
-    pub coupling_matrix: Arc<Mutex<CouplingMatrix>>,
+    pub directed_coupling: Arc<Mutex<DirectedCoupling>>,
+    pub curvature_memory: Arc<Mutex<DirectedCurvatureMemory>>,
 }
 
 impl IntentEngine {
@@ -22,7 +23,8 @@ impl IntentEngine {
         let engine = Self {
             intent_tx,
             intent_bands: Arc::new(Mutex::new(HashMap::new())),
-            coupling_matrix: Arc::new(Mutex::new(CouplingMatrix::new())),
+            directed_coupling: Arc::new(Mutex::new(DirectedCoupling::new())),
+            curvature_memory: Arc::new(Mutex::new(DirectedCurvatureMemory::new())),
         };
         engine.seed_default_bands();
         engine
@@ -52,7 +54,7 @@ impl IntentEngine {
                 });
             }
         }
-        info!(target: "isst_toft::intent", "Directed dual-plane push/pull geometry matrix armed.");
+        info!(target: "isst_toft::intent", "Directed coupling planes and memory tracks online.");
     }
 
     pub fn broadcast_update(&self, update: IntentUpdate) {
@@ -65,23 +67,34 @@ impl IntentEngine {
         }
     }
 
-    /// Iterates across the target layout channels and routes updates directly by their active EdgeRole
-    pub fn update_c_from_strike(
+    pub fn update_from_walker_push(
         &self,
         source_band: usize,
         source_initial: f64,
         first_step_values: &[f64],
         alpha: f64,
-        role: EdgeRole,
     ) {
-        if source_initial.abs() < 1e-6 { return; }
-
-        if let Ok(mut matrix) = self.coupling_matrix.lock() {
+        if let (Ok(mut dc), Ok(mut cm)) = (self.directed_coupling.lock(), self.curvature_memory.lock()) {
             for target in 0..first_step_values.len() {
                 if target == source_band { continue; }
-
                 let observed = first_step_values[target];
-                matrix.gs_update_edge(target, source_band, observed, source_initial, alpha, role);
+                dc.gs_push_update(&mut cm, target, source_band, observed, source_initial, alpha);
+            }
+        }
+    }
+
+    pub fn update_from_ambient_pull(
+        &self,
+        source_band: usize,
+        source_initial: f64,
+        first_step_values: &[f64],
+        alpha: f64,
+    ) {
+        if let (Ok(mut dc), Ok(mut cm)) = (self.directed_coupling.lock(), self.curvature_memory.lock()) {
+            for target in 0..first_step_values.len() {
+                if target == source_band { continue; }
+                let observed = first_step_values[target];
+                dc.gs_pull_update(&mut cm, target, source_band, observed, source_initial, alpha);
             }
         }
     }
