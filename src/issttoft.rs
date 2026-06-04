@@ -1,7 +1,7 @@
 cat << 'EOF' > src/issttoft.rs
 /*
 issttoft.rs
-Foundational Protocol Mapping Structs with Explicit GS Combiner and Curvature Memory.
+Foundational Protocol Mapping Structs with Dual-Plane Directed Edge Memories.
 */
 
 #[derive(Debug, Clone)]
@@ -45,92 +45,113 @@ pub fn get_band_stiffness(band_index: usize) -> f64 {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum EdgeRole {
+    WalkerPush,   // Core/Walker driven activation energy wave
+    AmbientPull,  // Sub-critical field balancing and context pull
+}
+
 #[derive(Clone, Debug)]
-pub struct EdgeCurvature {
-    pub k: f64,      // Accumulated curvature memory history
-    pub count: u64,  // Total update cycles processed
-}
-
-#[derive(Clone)]
-pub struct GSCombiner {
-    pub curvature: Vec<Vec<EdgeCurvature>>, // [target][source]
-    pub alpha_min: f64,
-    pub alpha_max: f64,
-}
-
-impl GSCombiner {
-    pub fn new(n: usize) -> Self {
-        let curvature = vec![vec![EdgeCurvature { k: 0.0, count: 0 }; n]; n];
-        Self {
-            curvature,
-            alpha_min: 0.01,
-            alpha_max: 0.15,
-        }
-    }
-
-    /// Explicit non-associative GS operator step with tanh non-linear saturation limiting.
-    pub fn combine(
-        &mut self,
-        target: usize,
-        source: usize,
-        c_old: f64,
-        c_eff: f64,
-        stiffness_target: f64,
-    ) -> (f64, f64) {
-        let edge = &mut self.curvature[target][source];
-
-        // Capture local curvature increment (signed distance delta deviation)
-        let delta = c_eff - c_old;
-        edge.k += delta;
-        edge.count += 1;
-
-        // Governor: Softer learning rates for rigid stiff bands, wider learning paths for loose bands
-        let stiffness_gate = 1.0 - stiffness_target.clamp(0.0, 1.0);
-        let alpha = (self.alpha_min + stiffness_gate * (self.alpha_max - self.alpha_min))
-            .clamp(self.alpha_min, self.alpha_max);
-
-        // Non-associative convergence updates: bias step towards historical trajectory
-        let curvature_term = 0.5 * edge.k.tanh();
-        let c_new = c_old + alpha * (delta + curvature_term);
-
-        (c_new.clamp(0.0, 1.5), edge.k)
-    }
+pub struct EdgeMemory {
+    pub coeff: f64,
+    pub curvature: f64,
 }
 
 #[derive(Clone)]
 pub struct CouplingMatrix {
-    pub c: Vec<Vec<f64>>,
+    pub push: Vec<Vec<EdgeMemory>>, // Walker-driven propagation planes j -> i
+    pub pull: Vec<Vec<EdgeMemory>>, // Ambient-driven reprojection planes j -> i
 }
 
 impl CouplingMatrix {
     pub fn new() -> Self {
-        let mut c = vec![vec![0.10; 6]; 6];
+        let mut push = vec![vec![EdgeMemory { coeff: 0.10, curvature: 0.0 }; 6]; 6];
+        let mut pull = vec![vec![EdgeMemory { coeff: 0.10, curvature: 0.0 }; 6]; 6];
+
         for i in 0..6 {
-            c[i][i] = 1.0;
+            push[i][i].coeff = 1.0;
+            pull[i][i].coeff = 1.0;
         }
 
-        // Seed initial values from verified asymmetric role constraints
-        c[0][5] = 0.02;
-        c[0][1] = 0.01; c[0][2] = 0.01; c[0][3] = 0.01; c[0][4] = 0.01;
-        c[1][0] = 0.80; c[2][0] = 0.80;
-        c[1][2] = 0.30; c[2][1] = 0.30;
-        c[1][5] = 0.55; c[2][5] = 0.55;
-        c[3][1] = 0.40; c[3][2] = 0.40; c[4][1] = 0.40; c[4][2] = 0.40;
-        c[3][0] = 0.05; c[4][0] = 0.05;
-        c[3][5] = 0.50; c[4][5] = 0.50;
-        c[5][1] = 0.30; c[5][2] = 0.30;
-        c[5][3] = 0.20; c[5][4] = 0.20;
-        c[5][0] = 0.05;
+        // Seed initial asymmetric role constraints into PUSH side (Walker-driven)
+        push[0][5].coeff = 0.02;
+        push[0][1].coeff = 0.01; push[0][2].coeff = 0.01; push[0][3].coeff = 0.01; push[0][4].coeff = 0.01;
+        push[1][0].coeff = 0.80; push[2][0].coeff = 0.80;
+        push[1][2].coeff = 0.30; push[2][1].coeff = 0.30;
+        push[1][5].coeff = 0.55; push[2][5].coeff = 0.55;
+        push[3][1].coeff = 0.40; push[3][2].coeff = 0.40; push[4][1].coeff = 0.40; push[4][2].coeff = 0.40;
+        push[3][0].coeff = 0.05; push[4][0].coeff = 0.05;
+        push[3][5].coeff = 0.50; push[4][5].coeff = 0.50;
+        push[5][1].coeff = 0.30; push[5][2].coeff = 0.30;
+        push[5][3].coeff = 0.20; push[5][4].coeff = 0.20;
+        push[5][0].coeff = 0.05;
 
-        Self { c }
+        // Pull plane acts initially as a balanced mirror baseline configuration
+        for i in 0..6 {
+            for j in 0..6 {
+                if i != j {
+                    pull[i][j].coeff = push[i][j].coeff;
+                }
+            }
+        }
+
+        Self { push, pull }
     }
 
-    pub fn get(&self, target: usize, source: usize) -> f64 {
-        self.c[target][source]
+    pub fn get_push(&self, target: usize, source: usize) -> f64 {
+        self.push[target][source].coeff
     }
 
-    pub fn set(&mut self, target: usize, source: usize, value: f64) {
-        self.c[target][source] = value;
+    pub fn get_pull(&self, target: usize, source: usize) -> f64 {
+        self.pull[target][source].coeff
+    }
+
+    /// Computes the effective operational topology projection
+    pub fn effective(&self, target: usize, source: usize) -> f64 {
+        let cp = self.push[target][source].coeff;
+        let ca = self.pull[target][source].coeff;
+        0.8 * cp + 0.2 * ca
+    }
+
+    /// Core Non-Commutative GS Curvature Operator update rule with directional hysteresis cross-bleed
+    pub fn gs_update_edge(
+        &mut self,
+        target: usize,
+        source: usize,
+        observed: f64,
+        source_initial: f64,
+        alpha: f64,
+        role: EdgeRole,
+    ) {
+        if source_initial.abs() < 1e-6 { return; }
+
+        let c_eff = observed / source_initial;
+
+        let (edge, gamma, k_bleed) = match role {
+            EdgeRole::WalkerPush => {
+                let edge = &mut self.push[target][source];
+                (edge, 0.08, 0.01) // Decisive modification window, small feedback bleed
+            }
+            EdgeRole::AmbientPull => {
+                let edge = &mut self.pull[target][source];
+                (edge, 0.03, 0.00) // Highly tempered adaptation window, zero baseline leak
+            }
+        };
+
+        let delta = c_eff - edge.coeff;
+
+        // Accumulate signed curvature parameters over non-associative trajectories
+        edge.curvature += alpha * delta;
+
+        // Non-commutative governor step modifications
+        edge.coeff += gamma * edge.curvature;
+        edge.coeff = edge.coeff.clamp(0.0, 1.5);
+
+        // Hysteresis step injection: transfer structural alignment into opposite track memory
+        if let EdgeRole::WalkerPush = role {
+            let back = &mut self.pull[source][target];
+            back.curvature += k_bleed * delta;
+        }
     }
 }
 EOF
