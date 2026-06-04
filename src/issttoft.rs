@@ -1,7 +1,7 @@
 cat << 'EOF' > src/issttoft.rs
 /*
 issttoft.rs
-Formal Asymmetric Directed Connection Fields and Geometric Layer Projections.
+Formal Primitive Definitions for the Stateful Directed GS Operator Algebra.
 */
 
 #[derive(Debug, Clone)]
@@ -45,107 +45,123 @@ pub fn get_band_stiffness(band_index: usize) -> f64 {
     }
 }
 
-#[derive(Clone)]
-pub struct DirectedCoupling {
-    pub push: Vec<Vec<f64>>,
-    pub pull: Vec<Vec<f64>>,
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum GSMode {
+    WalkerPush,
+    AmbientPull,
 }
 
-#[derive(Clone)]
-pub struct DirectedCurvatureMemory {
+#[derive(Clone, Debug)]
+pub struct GSCurvatureMemory {
     pub push_mem: Vec<Vec<f64>>,
     pub pull_mem: Vec<Vec<f64>>,
 }
 
-impl DirectedCoupling {
-    pub fn new() -> Self {
-        let mut push = vec![vec![0.10; 6]; 6];
-        let mut pull = vec![vec![0.10; 6]; 6];
+#[derive(Clone, Debug)]
+pub struct GSCouplingPlanes {
+    pub push_c: Vec<Vec<f64>>,
+    pub pull_c: Vec<Vec<f64>>,
+}
 
-        for i in 0..6 {
-            push[i][i] = 1.0;
-            pull[i][i] = 1.0;
+#[derive(Clone, Debug)]
+pub struct GSOperator {
+    pub planes: GSCouplingPlanes,
+    pub memory: GSCurvatureMemory,
+}
+
+impl GSOperator {
+    pub fn new(n: usize) -> Self {
+        let mut push_c = vec![vec![0.10; n]; n];
+        let mut pull_c = vec![vec![0.10; n]; n];
+
+        for i in 0..n {
+            push_c[i][i] = 1.0;
+            pull_c[i][i] = 1.0;
         }
 
-        // Seed initial values from verified asymmetric role constraints
-        push[0][5] = 0.02;
-        push[0][1] = 0.01; push[0][2] = 0.01; push[0][3] = 0.01; push[0][4] = 0.01;
-        push[1][0] = 0.80; push[2][0] = 0.80;
-        push[1][2] = 0.30; push[2][1] = 0.30;
-        push[1][5] = 0.55; push[2][5] = 0.55;
-        push[3][1] = 0.40; push[3][2] = 0.40; push[4][1] = 0.40; push[4][2] = 0.40;
-        push[3][0] = 0.05; push[4][0] = 0.05;
-        push[3][5] = 0.50; push[4][5] = 0.50;
-        push[5][1] = 0.30; push[5][2] = 0.30;
-        push[5][3] = 0.20; push[5][4] = 0.20;
-        push[5][0] = 0.05;
+        // Seed initial asymmetric configurations into Walker push tracks
+        push_c[0][5] = 0.02;
+        push_c[0][1] = 0.01; push_c[0][2] = 0.01; push_c[0][3] = 0.01; push_c[0][4] = 0.01;
+        push_c[1][0] = 0.80; push_c[2][0] = 0.80;
+        push_c[1][2] = 0.30; push_c[2][1] = 0.30;
+        push_c[1][5] = 0.55; push_c[2][5] = 0.55;
+        push_c[3][1] = 0.40; push_c[3][2] = 0.40; push_c[4][1] = 0.40; push_c[4][2] = 0.40;
+        push_c[3][0] = 0.05; push_c[4][0] = 0.05;
+        push_c[3][5] = 0.50; push_c[4][5] = 0.50;
+        push_c[5][1] = 0.30; push_c[5][2] = 0.30;
+        push_c[5][3] = 0.20; push_c[5][4] = 0.20;
+        push_c[5][0] = 0.05;
 
-        // Sync baseline pull state to copy seeding properties
-        for i in 0..6 {
-            for j in 0..6 {
+        // Mirror baseline pull configuration to preserve metric symmetry at initialization
+        for i in 0..n {
+            for j in 0..n {
                 if i != j {
-                    pull[i][j] = push[i][j];
+                    pull_c[i][j] = push_c[i][j];
                 }
             }
         }
 
-        Self { push, pull }
-    }
-
-    pub fn effective(&self, i: usize, j: usize) -> f64 {
-        0.8 * self.push[i][j] + 0.2 * self.pull[i][j]
-    }
-
-    pub fn gs_push_update(
-        &mut self,
-        mem: &mut DirectedCurvatureMemory,
-        i: usize,
-        j: usize,
-        observed: f64,
-        source_initial: f64,
-        alpha: f64,
-    ) {
-        if source_initial.abs() < 1e-6 { return; }
-        let c_eff = observed / source_initial;
-        let old = self.push[i][j];
-        let delta = c_eff - old;
-
-        // Curvature memory accumulator for push actions
-        mem.push_mem[i][j] += delta;
-
-        // f_push Governor rule: Active, high-responsiveness transformation step size
-        let governed = old + alpha * (delta + 0.3 * mem.push_mem[i][j].tanh());
-        self.push[i][j] = governed.clamp(0.0, 1.5);
-    }
-
-    pub fn gs_pull_update(
-        &mut self,
-        mem: &mut DirectedCurvatureMemory,
-        i: usize,
-        j: usize,
-        observed: f64,
-        source_initial: f64,
-        alpha: f64,
-    ) {
-        if source_initial.abs() < 1e-6 { return; }
-        let c_eff = observed / source_initial;
-        let old = self.pull[i][j];
-        let delta = c_eff - old;
-
-        // Curvature memory accumulator for pull actions
-        mem.pull_mem[i][j] += delta;
-
-        // f_pull Governor rule: Heavy dampening, highly conservative recovery step size
-        let governed = old + (alpha * 0.4) * (delta + 0.1 * mem.pull_mem[i][j].tanh());
-        self.pull[i][j] = governed.clamp(0.0, 1.5);
-    }
-}
-
-impl DirectedCurvatureMemory {
-    pub fn new() -> Self {
         Self {
-            push_mem: vec![vec![0.0; 6]; 6],
-            pull_mem: vec![vec![0.0; 6]; 6],
+            planes: GSCouplingPlanes { push_c, pull_c },
+            memory: GSCurvatureMemory {
+                push_mem: vec![vec![0.0; n]; n],
+                pull_mem: vec![vec![0.0; n]; n],
+            },
+        }
+    }
+
+    pub fn get_push(&self, target: usize, source: usize) -> f64 {
+        self.planes.push_c[target][source]
+    }
+
+    pub fn get_pull(&self, target: usize, source: usize) -> f64 {
+        self.planes.pull_c[target][source]
+    }
+
+    pub fn effective(&self, target: usize, source: usize, mode: GSMode) -> f64 {
+        match mode {
+            GSMode::WalkerPush => self.get_push(target, source),
+            GSMode::AmbientPull => self.get_pull(target, source),
+        }
+    }
+
+    pub fn learn_push(&mut self, source: usize, source_initial: f64, first_step_values: &[f64], alpha: f64) {
+        if source_initial.abs() < 1e-6 { return; }
+
+        for target in 0..first_step_values.len() {
+            if target == source { continue; }
+
+            let observed = first_step_values[target];
+            let c_eff = observed / source_initial;
+            let old = self.planes.push_c[target][source];
+            let curv = c_eff - old;
+
+            // Save push field tensor updates to the active curvature tracks
+            self.memory.push_mem[target][source] += curv;
+
+            // Non-linear, memory-biased transport step integration
+            let new = (1.0 - alpha) * old + alpha * c_eff;
+            self.planes.push_c[target][source] = new.clamp(0.0, 1.5);
+        }
+    }
+
+    pub fn learn_pull(&mut self, source: usize, source_initial: f64, first_step_values: &[f64], alpha: f64) {
+        if source_initial.abs() < 1e-6 { return; }
+
+        for target in 0..first_step_values.len() {
+            if target == source { continue; }
+
+            let observed = first_step_values[target];
+            let c_eff = observed / source_initial;
+            let old = self.planes.pull_c[target][source];
+            let curv = c_eff - old;
+
+            // Save pull field tensor updates to the passive curvature tracks
+            self.memory.pull_mem[target][source] += curv;
+
+            // Tempered ambient recovery step integration
+            let new = (1.0 - (alpha * 0.4)) * old + (alpha * 0.4) * c_eff;
+            self.planes.pull_c[target][source] = new.clamp(0.0, 1.5);
         }
     }
 }
