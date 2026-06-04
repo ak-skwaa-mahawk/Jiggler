@@ -1,5 +1,5 @@
 cat << 'EOF' > src/intent_engine.rs
-//! IntentEngine — Calibrated, Explicitly Governed GS Geometry Substrate Core.
+//! IntentEngine — Asymmetric Dual-Plane Directed Geometry Core Substrate.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -7,25 +7,22 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 use tracing::info;
 
-use crate::issttoft::{IntentBand, IntentUpdate, get_band_stiffness, CouplingMatrix, GSCombiner};
+use crate::issttoft::{IntentBand, IntentUpdate, get_band_stiffness, CouplingMatrix, EdgeRole};
 
 #[derive(Clone)]
 pub struct IntentEngine {
     intent_tx: broadcast::Sender<IntentUpdate>,
     intent_bands: Arc<Mutex<HashMap<String, IntentBand>>>,
     pub coupling_matrix: Arc<Mutex<CouplingMatrix>>,
-    pub gs_combiner: Arc<Mutex<GSCombiner>>,
 }
 
 impl IntentEngine {
     pub fn new() -> Self {
         let (intent_tx, _) = broadcast::channel(128);
-        let n = 6;
         let engine = Self {
             intent_tx,
             intent_bands: Arc::new(Mutex::new(HashMap::new())),
             coupling_matrix: Arc::new(Mutex::new(CouplingMatrix::new())),
-            gs_combiner: Arc::new(Mutex::new(GSCombiner::new(n))),
         };
         engine.seed_default_bands();
         engine
@@ -55,25 +52,7 @@ impl IntentEngine {
                 });
             }
         }
-        info!(target: "isst_toft::intent", "Explicit GS Combiner core architecture online.");
-    }
-
-    fn get_stiffness_for_index(&self, idx: usize) -> f64 {
-        if let Ok(bands) = self.intent_bands.lock() {
-            let id = match idx {
-                0 => "cERNpiranchor",
-                1 => "warpcorestability",
-                2 => "sovereignintentprimary",
-                3 => "sovereignintentambient",
-                4 => "sensorium_feedback",
-                5 => "mutationplanedriver",
-                _ => return 0.25,
-            };
-            if let Some(b) = bands.get(id) {
-                return b.stiffness;
-            }
-        }
-        0.25
+        info!(target: "isst_toft::intent", "Directed dual-plane push/pull geometry matrix armed.");
     }
 
     pub fn broadcast_update(&self, update: IntentUpdate) {
@@ -86,35 +65,23 @@ impl IntentEngine {
         }
     }
 
-    /// Explicitly updates C-Matrix parameters using the self-contained non-associative combine algorithm
+    /// Iterates across the target layout channels and routes updates directly by their active EdgeRole
     pub fn update_c_from_strike(
         &self,
         source_band: usize,
         source_initial: f64,
         first_step_values: &[f64],
+        alpha: f64,
+        role: EdgeRole,
     ) {
         if source_initial.abs() < 1e-6 { return; }
 
-        if let (Ok(mut matrix), Ok(mut gs)) = (self.coupling_matrix.lock(), self.gs_combiner.lock()) {
+        if let Ok(mut matrix) = self.coupling_matrix.lock() {
             for target in 0..first_step_values.len() {
                 if target == source_band { continue; }
 
                 let observed = first_step_values[target];
-                let c_eff = observed / source_initial;
-                let c_old = matrix.get(target, source_band);
-
-                let stiffness = self.get_stiffness_for_index(target);
-                
-                // Invoke formal operator execution interface
-                let (c_new, k_edge) = gs.combine(target, source_band, c_old, c_eff, stiffness);
-
-                matrix.set(target, source_band, c_new);
-
-                tracing::info!(
-                    target: "isst_toft::intent",
-                    "GS edge update ({} -> {}): old={:.4}, eff={:.4}, new={:.4}, k={:.4}",
-                    source_band, target, c_old, c_eff, c_new, k_edge
-                );
+                matrix.gs_update_edge(target, source_band, observed, source_initial, alpha, role);
             }
         }
     }
