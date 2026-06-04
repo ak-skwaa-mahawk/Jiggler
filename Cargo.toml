@@ -1,4 +1,5 @@
-Cargo.toml
+async-stream = "0.3"
+futures = "0.3"
 [lib]
 name = "sovereign_engine"
 crate-type = ["cdylib", "staticlib"]   # ← Added staticlib for iOS
