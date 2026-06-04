@@ -6,9 +6,6 @@ import sqlite3
 import argparse
 from typing import List, Dict, Set
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation, FFMpegWriter
 from datetime import datetime
 
 # ====================== GS SWEEP ======================
@@ -86,15 +83,11 @@ class DualRingTordialMatrix:
 
         self.ledger = TordialSQLiteLedger(db_path)
         self.gs_sweep = GSSweep()
-
         self._seed_heterogeneous_nodes()
 
         self.quarantined_a: Set[int] = set()
         self.quarantined_b: Set[int] = set()
         self.consec_drift = {"A": {i: 0 for i in range(node_count)}, "B": {i: 0 for i in range(node_count)}}
-
-        self.fig = plt.figure(figsize=(14, 9))
-        self.ax = self.fig.add_subplot(111, projection='3d')
 
     def _seed_heterogeneous_nodes(self):
         df = self.gs_sweep.run_sweep()
@@ -135,8 +128,7 @@ class DualRingTordialMatrix:
 
         drifting = sum(1 for s in self.current_snapshots if s["telemetry"]["chase_lock_status"] == "DRIFTING")
         active = self.node_count - len(self.quarantined_a if self.active_ring == "RING_A" else self.quarantined_b)
-        avg_kappa = np.mean([s["telemetry"]["coupling_telemetry"].get("kappa_GS_T", 0) 
-                           for s in self.current_snapshots]) or 0.0
+        avg_kappa = np.mean([s["telemetry"]["coupling_telemetry"].get("kappa_GS_T", 0) for s in self.current_snapshots]) or 0.0
 
         strength = min(1.0, 0.52 + avg_kappa * 0.65)
         target = self.BASE_FREQUENCY_HZ if drifting == 0 else \
@@ -160,45 +152,14 @@ class DualRingTordialMatrix:
             else:
                 self.consec_drift[ring][idx] = max(0, self.consec_drift[ring][idx] - 1.4)
 
-    def update_visualization(self, frame):
-        self.ax.clear()
-        self.ax.set_xlim(-5.5, 5.5); self.ax.set_ylim(-5.5, 5.5); self.ax.set_zlim(-3, 3)
-        self.ax.set_title(f"Tordial–GS v8 | Tick {self.current_tick} | Freq {self.current_filtered_frequency_hz:.2f} Hz | {self.active_ring}")
-
-        color_map = {"GOLDILOCKS": "lime", "DEEP_GS": "cyan", "MARGINAL": "yellow", "SUBCRITICAL": "red"}
-
-        for i, snap in enumerate(self.current_snapshots):
-            phase = snap["telemetry"]["raw_phase_rads"]
-            coupling = snap["telemetry"]["coupling_telemetry"]
-            kappa = coupling.get("kappa_GS_T", 0.0)
-            band = self.node_bands[i]
-
-            x = (3.3 + 1.15 * math.cos(i * 0.78)) * math.cos(phase)
-            y = (3.3 + 1.15 * math.cos(i * 0.78)) * math.sin(phase)
-            z = 1.15 * math.sin(i * 0.78)
-
-            color = color_map.get(band, "gray")
-            size = 70 + kappa * 11
-            self.ax.scatter([x], [y], [z], c=color, s=size, alpha=0.92, edgecolors='k')
-
-            if kappa > 4.5:
-                self.ax.text(x*1.06, y*1.06, z+0.45, f"{band[0]}κ{kappa:.1f}", fontsize=9.5, color='white')
-
-    def run(self, cycles=150, video_path=None):
-        print(f"[+] Tordial-GS v8 starting with {self.node_count} nodes (GS bands seeded)...\n")
+    def run(self, cycles=150):
+        print(f"[+] Tordial-GS v8 starting with {self.node_count} nodes (Seeding Upgraded Ledger Matrix)...")
         for _ in range(cycles):
             self.execute_governance_cycle()
-            time.sleep(0.005)
+            time.sleep(0.001)
 
         self.ledger.log_run(self.get_summary())
-        print("[+] Run completed.")
-
-        if video_path:
-            print(f"[+] Saving video to {video_path}...")
-            ani = FuncAnimation(self.fig, self.update_visualization, frames=cycles//2, interval=80)
-            writer = FFMpegWriter(fps=15, bitrate=2200)
-            ani.save(video_path, writer=writer)
-            print("[+] Video saved successfully.")
+        print("[+] Run completed successfully.")
 
     def get_summary(self) -> Dict:
         avg_kappa = np.mean([s["telemetry"]["coupling_telemetry"].get("kappa_GS_T",0) for s in self.current_snapshots]) or 0.0
@@ -257,28 +218,4 @@ class TordialSQLiteLedger:
         )
         self.conn.execute(query, params)
         self.conn.commit()
-        print(f"✅ [LEDGER SYNC SUCCESS] Swarm trajectory variables written to extended tracking layout.")
-
-
-# ====================== POST-RUN ANALYSIS ======================
-def run_post_analysis(db_path="tordial_gs.db"):
-    df = pd.read_sql_query("SELECT id, timestamp, node_count, avg_kappa, stability_score, runtime_env FROM runs ORDER BY id DESC", sqlite3.connect(db_path))
-    print("\n=== Tordial-GS Post-Run Analysis ===")
-    print(df.head(5))
-
-
-# ====================== CLI ======================
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Tordial-GS Manifold v8 - Full Research Fabric")
-    parser.add_argument("--nodes", type=int, default=8, help="Number of nodes")
-    parser.add_argument("--cycles", type=int, default=150, help="Simulation cycles")
-    parser.add_argument("--video", type=str, default=None, help="Save animation (e.g. tordial_run.mp4)")
-    parser.add_argument("--analysis", action="store_true", help="Run post-analysis only")
-    args = parser.parse_args()
-
-    if args.analysis:
-        run_post_analysis()
-    else:
-        matrix = DualRingTordialMatrix(node_count=args.nodes, db_path="tordial_gs.db", record_video=bool(args.video))
-        matrix.run(cycles=args.cycles, video_path=args.video)
-EOF
+        print(f"✅
