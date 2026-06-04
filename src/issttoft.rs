@@ -1,8 +1,10 @@
 cat << 'EOF' > src/issttoft.rs
 /*
 issttoft.rs
-Foundational Protocol Mapping Structs with Live Mutable Coupling Matrices.
+Foundational Protocol Mapping Structs with Live GS Edge State Integrations.
 */
+
+use crate::gs::GsEdgeState;
 
 #[derive(Debug, Clone)]
 pub struct IntentBand {
@@ -48,6 +50,7 @@ pub fn get_band_stiffness(band_index: usize) -> f64 {
 #[derive(Clone)]
 pub struct CouplingMatrix {
     pub c: Vec<Vec<f64>>,
+    pub gs_state: Vec<Vec<GsEdgeState>>,
 }
 
 impl CouplingMatrix {
@@ -56,7 +59,7 @@ impl CouplingMatrix {
         for i in 0..6 {
             c[i][i] = 1.0;
         }
-        
+
         // Seed initial values from our verified asymmetric role constraints
         c[0][5] = 0.02;
         c[0][1] = 0.01; c[0][2] = 0.01; c[0][3] = 0.01; c[0][4] = 0.01;
@@ -70,7 +73,11 @@ impl CouplingMatrix {
         c[5][3] = 0.20; c[5][4] = 0.20;
         c[5][0] = 0.05;
 
-        Self { c }
+        let gs_state = (0..6)
+            .map(|| (0..6).map(|_| GsEdgeState::new()).collect())
+            .collect();
+
+        Self { c, gs_state }
     }
 
     pub fn get(&self, target: usize, source: usize) -> f64 {
@@ -79,6 +86,10 @@ impl CouplingMatrix {
 
     pub fn set(&mut self, target: usize, source: usize, value: f64) {
         self.c[target][source] = value;
+    }
+
+    pub fn edge_state_mut(&mut self, target: usize, source: usize) -> &mut GsEdgeState {
+        &mut self.gs_state[target][source]
     }
 }
 EOF
