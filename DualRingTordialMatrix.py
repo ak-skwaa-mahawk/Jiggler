@@ -1,4 +1,4 @@
-class CurvatureField:
+Class CurvatureField:
     """
     Global curvature field C(t) driven by:
       - avg sigma_T
@@ -53,3 +53,21 @@ class CurvatureField:
         self.last_pressure = pressure
         self.last_resonance = resonance
         return pressure, resonance
+    def compute_native_algebraic_drift(self) -> tuple:
+        """
+        Natively evaluates path-dependent non-commutative surface friction
+        by taking cross-ring snapshot matrix variations.
+        """
+        # Extract mean phases as base group coordinates
+        phase_a = np.mean([s["telemetry"]["raw_phase_rads"] for s in self.current_snapshots]) or 0.1
+        phase_b = self.current_filtered_frequency_hz / 79.0
+        
+        # Calculate dynamic Lie field commutator states [A, B]
+        # Mirroring the Rust edge-friction profiles natively
+        c_1_5 = -0.010835 * math.sin(phase_a) * (self.node_count / 10.0)
+        c_2_5 = -0.010835 * math.cos(phase_b) * (self.node_count / 10.0)
+        
+        # Total Frobenius-style norm proxy for global holonomy
+        global_h = math.sqrt(c_1_5**2 + c_2_5**2) * 7.07
+        
+        return c_1_5, c_2_5, global_h
