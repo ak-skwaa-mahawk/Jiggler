@@ -1,2 +1,4 @@
+async-stream = "0.3"
+futures = "0.3"
 [dependencies]
 pi_r_engine = { path = "../pi_r_engine" }
