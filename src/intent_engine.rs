@@ -1,5 +1,5 @@
 cat << 'EOF' > src/intent_engine.rs
-//! IntentEngine — Self-Calibrating Core with Learning Governor and Non-Associative GS Operator.
+//! IntentEngine — Calibrated, Explicitly Governed GS Geometry Substrate Core.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -7,23 +7,25 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 use tracing::info;
 
-use crate::issttoft::{IntentBand, IntentUpdate, HandshakeResponse, get_band_stiffness, CouplingMatrix};
-use crate::gs::GsCombiner;
+use crate::issttoft::{IntentBand, IntentUpdate, get_band_stiffness, CouplingMatrix, GSCombiner};
 
 #[derive(Clone)]
 pub struct IntentEngine {
     intent_tx: broadcast::Sender<IntentUpdate>,
     intent_bands: Arc<Mutex<HashMap<String, IntentBand>>>,
     pub coupling_matrix: Arc<Mutex<CouplingMatrix>>,
+    pub gs_combiner: Arc<Mutex<GSCombiner>>,
 }
 
 impl IntentEngine {
     pub fn new() -> Self {
         let (intent_tx, _) = broadcast::channel(128);
+        let n = 6;
         let engine = Self {
             intent_tx,
             intent_bands: Arc::new(Mutex::new(HashMap::new())),
             coupling_matrix: Arc::new(Mutex::new(CouplingMatrix::new())),
+            gs_combiner: Arc::new(Mutex::new(GSCombiner::new(n))),
         };
         engine.seed_default_bands();
         engine
@@ -53,12 +55,29 @@ impl IntentEngine {
                 });
             }
         }
-        info!(target: "isst_toft::intent", "GS Non-Associative Core and Learning Governor armed.");
+        info!(target: "isst_toft::intent", "Explicit GS Combiner core architecture online.");
+    }
+
+    fn get_stiffness_for_index(&self, idx: usize) -> f64 {
+        if let Ok(bands) = self.intent_bands.lock() {
+            let id = match idx {
+                0 => "cERNpiranchor",
+                1 => "warpcorestability",
+                2 => "sovereignintentprimary",
+                3 => "sovereignintentambient",
+                4 => "sensorium_feedback",
+                5 => "mutationplanedriver",
+                _ => return 0.25,
+            };
+            if let Some(b) = bands.get(id) {
+                return b.stiffness;
+            }
+        }
+        0.25
     }
 
     pub fn broadcast_update(&self, update: IntentUpdate) {
         let _ = self.intent_tx.send(update.clone());
-
         if let Ok(mut bands) = self.intent_bands.lock() {
             if let Some(band) = bands.get_mut(&update.band_id) {
                 band.intent_value = update.intent_value;
@@ -67,48 +86,35 @@ impl IntentEngine {
         }
     }
 
-    /// Dynamic GS Curvature Tuning Loop with Complete Learning Governor Infrastructure
+    /// Explicitly updates C-Matrix parameters using the self-contained non-associative combine algorithm
     pub fn update_c_from_strike(
         &self,
         source_band: usize,
         source_initial: f64,
         first_step_values: &[f64],
-        alpha: f64,
     ) {
         if source_initial.abs() < 1e-6 { return; }
 
-        if let Ok(mut matrix) = self.coupling_matrix.lock() {
+        if let (Ok(mut matrix), Ok(mut gs)) = (self.coupling_matrix.lock(), self.gs_combiner.lock()) {
             for target in 0..first_step_values.len() {
                 if target == source_band { continue; }
 
                 let observed = first_step_values[target];
                 let c_eff = observed / source_initial;
-                let old = matrix.get(target, source_band);
+                let c_old = matrix.get(target, source_band);
 
-                // 1. Governor: Magnitude Dead-band Gate
-                if (c_eff - old).abs() < 0.005 {
-                    continue;
-                }
+                let stiffness = self.get_stiffness_for_index(target);
+                
+                // Invoke formal operator execution interface
+                let (c_new, k_edge) = gs.combine(target, source_band, c_old, c_eff, stiffness);
 
-                let mut alpha_eff = alpha;
+                matrix.set(target, source_band, c_new);
 
-                // 2. Governor: Stability Gating (Dampen step sizes during high-energy saturation shocks)
-                let high_energy = source_initial > 0.95;
-                if high_energy {
-                    alpha_eff *= 0.25; 
-                }
-
-                // 3. Governor: Curvature-Aware Gating (Anchor isolation protection)
-                if target == 0 {
-                    alpha_eff *= 0.10;
-                }
-
-                // 4. GS Non-Associative Curvature Operator Step
-                let stiffness = get_band_stiffness(target);
-                let state = matrix.edge_state_mut(target, source_band);
-                let new = GsCombiner::update(old, c_eff, stiffness, alpha_eff, state);
-
-                matrix.set(target, source_band, new);
+                tracing::info!(
+                    target: "isst_toft::intent",
+                    "GS edge update ({} -> {}): old={:.4}, eff={:.4}, new={:.4}, k={:.4}",
+                    source_band, target, c_old, c_eff, c_new, k_edge
+                );
             }
         }
     }
