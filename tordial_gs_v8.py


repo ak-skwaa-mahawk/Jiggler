@@ -8,7 +8,6 @@ from typing import List, Dict, Set
 import pandas as pd
 from datetime import datetime
 
-# ====================== GLOBAL CURVATURE FIELD ======================
 class CurvatureField:
     def __init__(self):
         self.last_pressure = 0.0
@@ -24,7 +23,7 @@ class CurvatureField:
         pressure = base_pressure * (1.0 - 0.6 * ler) + max(0.0, min(0.3, (node_count - 24) / 80.0))
         resonance = (0.55 * kappa_norm + 0.35 * max(0.0, sigma_norm) + 0.10 * energy_norm) * (1.0 - 0.8 * ler)
 
-        pressure = max(0.0, min(1.2, alpha := 0.35 * pressure + 0.65 * self.last_pressure))
+        pressure = max(0.0, min(1.2, 0.35 * pressure + 0.65 * self.last_pressure))
         resonance = max(0.0, min(1.0, 0.35 * resonance + 0.65 * self.last_resonance))
 
         self.last_pressure, self.last_resonance = pressure, resonance
@@ -44,7 +43,6 @@ class TordialNode:
         kappa = sigma_T / self.d if sigma_T > 0 else 0.0
         return {"raw_phase_rads": phase, "chase_lock_status": "LOCKED" if phase < self.CHASE_RATIO_TAU else "DRIFTING", "coupling_telemetry": {"sigma_T": sigma_T, "kappa_GS_T": kappa}}
 
-# ====================== MAIN COUPLED MANIFOLD ======================
 class DualRingTordialMatrix:
     def __init__(self, node_count: int = 8, db_path="tordial_gs.db"):
         self.node_count = node_count
@@ -58,7 +56,7 @@ class DualRingTordialMatrix:
         self.current_snapshots = []
 
     def run(self, cycles=150):
-        print(f"[+] Tordial-GS v8 launching with active cross-lineage invariant coupling rules...")
+        print(f"[+] Tordial-GS v8 launching with accelerated coupling parameters...")
         prior_h = self.ledger.fetch_latest_holonomy()
         
         for _ in range(cycles):
@@ -71,23 +69,21 @@ class DualRingTordialMatrix:
         avg_kappa = np.mean([s["telemetry"]["coupling_telemetry"]["kappa_GS_T"] for s in self.current_snapshots]) or 8.8
         pressure, resonance = self.c_field.compute(avg_sigma, avg_kappa, 1450.0 + (avg_kappa * 50), 0.02, self.node_count)
 
-        # 1. Compute Base Local Geometries
         phase_a = np.mean([s["telemetry"]["raw_phase_rads"] for s in self.current_snapshots]) or 0.1
         c15_base = -0.010835 * math.sin(phase_a) * (self.node_count / 10.0) * pressure
         c25_base = -0.010835 * math.cos(79.0 / 79.0) * (self.node_count / 10.0) * resonance
         h_base = math.sqrt(c15_base**2 + c25_base**2) * 7.07
 
-        # 2. Ingest Cross-Lineage Centroids from Governor
         mean_h_rust, mean_c_rust = self.ledger.fetch_bridge_biases()
         
-        # 3. Calculate Deltas and Apply Coupling Drift with High Python Adaptivity Gains (eta = 0.15)
-        eta_h, eta_c = 0.15, 0.15
+        # INCREASED GAIN SETTINGS (Turn up the adaptive response)
+        eta_h, eta_c = 0.22, 0.22
         delta_h = mean_h_rust - h_base
         delta_c = mean_c_rust - c15_base
         
-        # Enforce Hard Clamping Guards to protect topological structural sanity
-        drift_h = max(-0.02, min(0.02, eta_h * delta_h))
-        drift_c = max(-0.003, min(0.003, eta_c * delta_c))
+        # WIDENED CLAMPING WINDOWS (Allow deeper exploration of the compromise state)
+        drift_h = max(-0.035, min(0.035, eta_h * delta_h))
+        drift_c = max(-0.005, min(0.005, eta_c * delta_c))
         
         calculated_holonomy = h_base + drift_h
         commutator_1_5 = c15_base + drift_c
@@ -123,10 +119,8 @@ class TordialSQLiteLedger:
             cursor = self.conn.cursor()
             cursor.execute("SELECT mean_h_rust, mean_c_rust FROM cross_lineage_state ORDER BY id DESC LIMIT 1;")
             row = cursor.fetchone()
-            # Default fallback targets if table hasn't been seeded by governor process yet
             return (row[0], row[1]) if row else (0.0763, -0.0108)
-        except:
-            return (0.0763, -0.0108)
+        except: return (0.0763, -0.0108)
 
     def log_run(self, d: Dict):
         self.conn.execute("""
@@ -134,7 +128,7 @@ class TordialSQLiteLedger:
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
         """, (d["timestamp"], d["node_count"], d["final_freq"], d["quarantine_rate"], d["avg_kappa"], d["stability_score"], d["runtime_env"], d["holonomy_norm"], d["holonomy_norm_local"], d["commutator_1_5"], d["commutator_2_5"], d["rollback_flag"]))
         self.conn.commit()
-        print("✅ [LEDGER SYNC] Swarm parameters with cross-lineage alignment bias committed.")
+        print("✅ [LEDGER SYNC] Swarm parameters committed with accelerated alignment bias.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
