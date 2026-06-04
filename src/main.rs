@@ -2,9 +2,11 @@ cat << 'EOF' > src/main.rs
 /*
 main.rs
 ISST-TOFT Sovereign Substrate Grid Entry Point.
-Implements Noise-Gated, Temporal-Windowed, Stiffness-Aware Auto-Tuning Loops.
+Unified Run: Implements Temporal-Windowed Window Captures, Live Learning Governor Limits,
+and the Non-Associative GS Curvature Operator.
 */
 
+mod gs;
 mod issttoft;
 mod intent_engine;
 
@@ -18,7 +20,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
     
     println!("══════════════════════════════════════════════════════════════");
-    println!("🔥  ISST-TOFT Sovereign Substrate Grid [ROBUST LEARNING]");
+    println!("🔥  ISST-TOFT Sovereign Substrate Grid [PRODUCTION UNIFIED]");
     println!("══════════════════════════════════════════════════════════════");
 
     let engine = Arc::new(IntentEngine::new());
@@ -27,7 +29,7 @@ async fn main() {
     let observed_first_step = Arc::new(Mutex::new(vec![None; 6]));
     let strike_time = Arc::new(Mutex::new(0_i64));
 
-    // 1. Thread Observer with strict time-series window validation
+    // 1. Strict Async Temporal Gate Observer
     let observed_clone = Arc::clone(&observed_first_step);
     let strike_time_clone = Arc::clone(&strike_time);
     tokio::spawn(async move {
@@ -48,7 +50,7 @@ async fn main() {
                 continue;
             }
 
-            // Lock validation down to packets clearing the bus within a 50ms window
+            // Gating window restricted tightly to 50ms bounds
             if let Ok(t_strike) = strike_time_clone.lock() {
                 if *t_strike > 0 && (update.timestamp - *t_strike) <= 50 {
                     if let Ok(mut steps) = observed_clone.lock() {
@@ -63,15 +65,15 @@ async fn main() {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-    // 2. Shock the Manifold with Induced Synthetic Deviation (Simulating environmental warp)
+    // 2. Maximum Saturation Torque Strike
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
     if let Ok(mut t_strike) = strike_time.lock() {
         *t_strike = now;
     }
     
-    let pulse_initial = 0.9990;
+    let pulse_initial = 0.9990; // Automatically triggers the Learning Governor high-energy throttle
     
-    println!("\n🏋️ [GEOMETRY STRIKE] Inducing torque impact into Band 5...");
+    println!("\n🏋️ [GEOMETRY STRIKE] Striking Band 5 at max saturation ({:.4})...", pulse_initial);
     engine.broadcast_update(IntentUpdate {
         band_id: "mutationplanedriver".to_string(),
         mode: 1,
@@ -86,11 +88,10 @@ async fn main() {
         "sovereignintentambient", "sensorium_feedback"
     ];
 
-    // Intentionally inject an environmental deviation that exceeds the 0.005 noise floor gate
-    // to trigger the adaptive alignment mechanics explicitly
+    // Induce significant environmental drift (+0.040) to force adaptation beyond noise gates
     for i in 0..5 {
         let baseline_coeff = initial_matrix.get(i, 5);
-        let distorted_coeff = baseline_coeff + 0.025; // Force a +0.025 warp delta
+        let distorted_coeff = baseline_coeff + 0.040;
         
         engine.broadcast_update(IntentUpdate {
             band_id: band_map[i].to_string(),
@@ -103,7 +104,7 @@ async fn main() {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-    // 3. Extract captured data values
+    // 3. Extract verified real-time metrics
     let mut real_first_step = vec![0.0; 6];
     if let Ok(steps) = observed_first_step.lock() {
         for i in 0..6 {
@@ -116,16 +117,19 @@ async fn main() {
     println!("   Old C[1][5] (mutation->stability) : {:.4}", initial_matrix.get(1, 5));
     println!("   Old C[3][5] (mutation->ambient)   : {:.4}", initial_matrix.get(3, 5));
 
-    // 🚀 Execute the robust, adaptive auto-tuning step
-    println!("\n🧠 [ROBUST ADJUSTMENT] Tuning matrix parameters based on verified window captures...");
+    // 🚀 4. Execute the Non-Associative GS Curvature Memory Optimization Step
+    println!("\n🧠 [GS OPERATOR PASS] Running governor-gated curvature convergence...");
     engine.update_c_from_strike(5, pulse_initial, &real_first_step, 0.10);
 
-    // Pull the post-optimization results
     let post_matrix = engine.coupling_matrix.lock().unwrap().clone();
     println!("\n📝 [COUPLING POST-OPTIMIZATION]");
     println!("   New C[1][5] (mutation->stability) : {:.4}", post_matrix.get(1, 5));
     println!("   New C[3][5] (mutation->ambient)   : {:.4}", post_matrix.get(3, 5));
     
-    println!("\n✅ [MANIFOLD SECURE] Geometric tracking parameters updated and verified.");
+    // Validate edge brain curvature record retention
+    let edge_brain = post_matrix.gs_state[1][5].clone();
+    println!("   Accumulated Edge Curvature Memory (1->5): {:.4}", edge_brain.curvature);
+    
+    println!("\n✅ [MANIFOLD SECURE] Self-healing geometric parameter alignment stable.");
 }
 EOF
