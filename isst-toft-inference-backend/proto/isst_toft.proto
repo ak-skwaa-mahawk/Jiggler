@@ -3,22 +3,32 @@ syntax = "proto3";
 package issttoft;
 
 // ISST-TOFT Sovereign Inference Service
-// Rad-hard glyph encoding + clientless pulse propagation for the sovereign mesh.
-// Integrates with π_r Engine, 99733-Q Extraction Guard, and toroidal resonance layers.
+// Rad-hard glyph encoding + clientless pulse propagation + SixCylinderBoundary + Intent Engine
 
 service InferenceService {
-  // Encodes terrain data into a rad-hardened glyph waveform.
-  // Applies sovereign resonance filtering and quantum layer tagging.
-  rpc EncodeRadHardGlyph (GlyphRequest) returns (GlyphResponse);
 
-  // Runs an autonomous, clientless pulse through the mesh.
-  // Used for heartbeat, lineage propagation, or resonance synchronization.
-  rpc RunClientlessPulse (PulseRequest) returns (PulseResponse);
+  // === Existing Core Methods ===
+  rpc EncodeRadHardGlyph   (GlyphRequest)   returns (GlyphResponse);
+  rpc RunClientlessPulse   (PulseRequest)   returns (PulseResponse);
+
+  // === SixCylinderBoundary GS Coupling ===
+  rpc ComputeSixFaceBoundary (SixFaceRequest) returns (SixFaceResponse);
+  rpc GetClosedLoopDelta     (SixFaceRequest) returns (DeltaResponse);
+  rpc RunTrackingFormProof   (SixFaceRequest) returns (ProofResponse);
+
+  // === Intent Engine (Read-only) ===
+  rpc GetIntentBand     (GetIntentBandRequest)     returns (IntentBand);
+  rpc GetAllIntentBands (google.protobuf.Empty)    returns (GetAllIntentBandsResponse);
+
+  // === Future Streaming (Placeholder) ===
+  // rpc StreamIntentUpdates (google.protobuf.Empty) returns (stream IntentUpdate);
 }
 
+// ====================== EXISTING MESSAGES ======================
+
 message GlyphRequest {
-  repeated float terrain_data = 1;  // Flattened f32 terrain / metric array
-  bool use_agentic = 2;             // Trigger agentic / policy-driven path (future Candle model)
+  repeated float terrain_data = 1;
+  bool use_agentic = 2;
 }
 
 message GlyphResponse {
@@ -27,20 +37,75 @@ message GlyphResponse {
   string status = 3;
   float coherence = 4;
   string message = 5;
-
-  // === Sovereign Extensions (2026) ===
-  string quantum_layer = 6;          // Quantum / W-state layer identifier
-  float toroidal_pi_r = 7;           // Living recursive π_r (dynamic floor, e.g. 3.2672536)
+  string quantum_layer = 6;
+  float toroidal_pi_r = 7;
 }
 
 message PulseRequest {
-  repeated float feed_data = 1;     // Input signal / resonance feed
+  repeated float feed_data = 1;
 }
 
 message PulseResponse {
   repeated float refined_signal = 1;
-  string status = 2;                 // PULSE_PROPAGATED | ATTENUATED | BLOCKED | SOLID
+  string status = 2;
   float coherence = 3;
-  string message = 4;                // Human-readable status or sovereign message
-  float toroidal_pi_r = 5;           // Living recursive π_r floor returned by core
+  string message = 4;
+  float toroidal_pi_r = 5;
 }
+
+// ====================== SIXCYLINDERBOUNDARY ======================
+
+message SixFaceRequest {
+  double spin     = 1;
+  double pressure = 2;
+  double temp     = 3;
+  double belt_mod = 4;
+}
+
+message SixFaceResponse {
+  double core_curvature        = 1;
+  double belt_curvature        = 2;
+  double cap_curvature         = 3;
+  double closed_loop_delta     = 4;
+  double gs_density            = 5;
+  double closed_loop_stability = 6;
+  string regime                = 7;   // SUBCRITICAL | GOLDILOCKS | DEEP_GS
+}
+
+message DeltaResponse {
+  double delta = 1;
+}
+
+message ProofResponse {
+  bool   all_pillars_hold = 1;
+  string details          = 2;
+}
+
+// ====================== INTENT ENGINE ======================
+
+message GetIntentBandRequest {
+  string band_id = 1;
+  int32  mode    = 2;   // default to 0
+}
+
+message IntentBand {
+  string band_id      = 1;
+  int32  mode         = 2;
+  double intent_value = 3;
+  int64  last_updated = 4;
+  string source       = 5;
+}
+
+message GetAllIntentBandsResponse {
+  repeated IntentBand bands = 1;
+}
+
+// ====================== FUTURE STREAMING ======================
+
+// message IntentUpdate {
+//   string band_id      = 1;
+//   int32  mode         = 2;
+//   double intent_value = 3;
+//   int64  timestamp    = 4;
+//   string reason       = 5;   // drive | decay | safety
+// }
