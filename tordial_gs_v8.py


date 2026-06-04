@@ -10,84 +10,41 @@ from datetime import datetime
 
 # ====================== GLOBAL CURVATURE FIELD ======================
 class CurvatureField:
-    """
-    Global curvature field C(t) driven by:
-      - avg sigma_T
-      - avg kappa
-      - global energy
-      - logical error rate
-    Produces:
-      - curvature_pressure in [0, 1.2]
-      - resonance in [0, 1.0]
-    """
     def __init__(self):
         self.last_pressure = 0.0
         self.last_resonance = 0.0
 
-    def compute(
-        self,
-        avg_sigma: float,
-        avg_kappa: float,
-        global_energy: float,
-        logical_error_rate: float,
-        node_count: int,
-    ) -> tuple[float, float]:
+    def compute(self, avg_sigma: float, avg_kappa: float, global_energy: float, logical_error_rate: float, node_count: int) -> tuple[float, float]:
         kappa_norm = max(0.0, min(1.0, avg_kappa / 12.0))
         energy_norm = max(0.0, min(1.0, global_energy / 3000.0))
         sigma_norm = max(-1.0, min(1.0, avg_sigma / 500.0))
         ler = max(0.0, min(1.0, logical_error_rate))
 
         base_pressure = 0.45 * kappa_norm + 0.35 * energy_norm + 0.20 * max(0.0, sigma_norm)
-        pressure = base_pressure * (1.0 - 0.6 * ler)
-        crowding = max(0.0, min(0.3, (node_count - 24) / 80.0))
-        pressure += crowding
+        pressure = base_pressure * (1.0 - 0.6 * ler) + max(0.0, min(0.3, (node_count - 24) / 80.0))
+        resonance = (0.55 * kappa_norm + 0.35 * max(0.0, sigma_norm) + 0.10 * energy_norm) * (1.0 - 0.8 * ler)
 
-        resonance = (0.55 * kappa_norm + 0.35 * max(0.0, sigma_norm) + 0.10 * energy_norm)
-        resonance *= (1.0 - 0.8 * ler)
+        pressure = max(0.0, min(1.2, alpha := 0.35 * pressure + 0.65 * self.last_pressure))
+        resonance = max(0.0, min(1.0, 0.35 * resonance + 0.65 * self.last_resonance))
 
-        pressure = max(0.0, min(1.2, pressure))
-        resonance = max(0.0, min(1.0, resonance))
-
-        alpha = 0.35
-        pressure = alpha * pressure + (1 - alpha) * self.last_pressure
-        resonance = alpha * resonance + (1 - alpha) * self.last_resonance
-
-        self.last_pressure = pressure
-        self.last_resonance = resonance
+        self.last_pressure, self.last_resonance = pressure, resonance
         return pressure, resonance
 
-
-# ====================== GS SWEEP ======================
-class GSSweep:
-    def __init__(self):
-        self.PHI_OP = 1.65036
-        self.GEAR_SHIFT = 1.04
-
-    def compute_gs(self, d: int, r: int) -> Dict:
-        denom = 4 * self.PHI_OP * self.GEAR_SHIFT
-        sigma_T = r - (d ** 2) / denom
-        if sigma_T <= 0:
-            return {"d": d, "r": r, "sigma_T": 0.0, "kappa_GS_T": 0.0, "rho_GS_T": 0.0, "band": "SUBCRITICAL"}
-        kappa = sigma_T / d
-        rho = math.sqrt(sigma_T) / d
-        return {"d": d, "r": r, "sigma_T": round(sigma_T, 4), "kappa_GS_T": round(kappa, 4), "rho_GS_T": round(rho, 4), "band": "GOLDILOCKS" if kappa >= 5.0 else "SUBCRITICAL"}
-
-
-# ====================== CORE NODE ======================
 class TordialNode:
     def __init__(self, d: int, r: int):
         self.OMEGA_RADS = 2 * math.pi * 79.0
         self.TAU_3D = 2 * 3.20442315
         self.CHASE_RATIO_TAU = self.TAU_3D / 1.65036
-        self.d = d
-        self.r = r
+        self.d, self.r = d, r
 
     def run_step(self, t_seconds: float) -> Dict:
         phase = (self.OMEGA_RADS * t_seconds) % self.TAU_3D
-        return {"raw_phase_rads": phase, "chase_lock_status": "LOCKED" if phase < self.CHASE_RATIO_TAU else "DRIFTING", "coupling_telemetry": GSSweep().compute_gs(self.d, self.r)}
+        denom = 4 * 1.65036 * 1.04
+        sigma_T = self.r - (self.d ** 2) / denom
+        kappa = sigma_T / self.d if sigma_T > 0 else 0.0
+        return {"raw_phase_rads": phase, "chase_lock_status": "LOCKED" if phase < self.CHASE_RATIO_TAU else "DRIFTING", "coupling_telemetry": {"sigma_T": sigma_T, "kappa_GS_T": kappa}}
 
-
-# ====================== MAIN MANIFOLD ======================
+# ====================== MAIN COUPLED MANIFOLD ======================
 class DualRingTordialMatrix:
     def __init__(self, node_count: int = 8, db_path="tordial_gs.db"):
         self.node_count = node_count
@@ -101,7 +58,7 @@ class DualRingTordialMatrix:
         self.current_snapshots = []
 
     def run(self, cycles=150):
-        print(f"[+] Tordial-GS v8 launching with multi-plane Curvature Field tracking...")
+        print(f"[+] Tordial-GS v8 launching with active cross-lineage invariant coupling rules...")
         prior_h = self.ledger.fetch_latest_holonomy()
         
         for _ in range(cycles):
@@ -110,55 +67,48 @@ class DualRingTordialMatrix:
             self.current_snapshots = [{"node_index": i, "telemetry": self.nodes_a[i].run_step(t_now)} for i in range(self.node_count)]
             time.sleep(0.001)
 
-        # Extract underlying metrics to feed into the newly added Curvature Controller
         avg_sigma = np.mean([s["telemetry"]["coupling_telemetry"]["sigma_T"] for s in self.current_snapshots]) or 250.0
         avg_kappa = np.mean([s["telemetry"]["coupling_telemetry"]["kappa_GS_T"] for s in self.current_snapshots]) or 8.8
-        
-        # Drive field parameters
-        simulated_energy = 1450.0 + (avg_kappa * 50)
-        simulated_ler = 0.02 # Nominal logical error rate target
-        
-        # Execute the Curvature Controller step
-        pressure, resonance = self.c_field.compute(avg_sigma, avg_kappa, simulated_energy, simulated_ler, self.node_count)
-        print(f"🌀 [FIELD CONTROLLER] Evaluated Curvature Pressure: {pressure:.4f} | Resonance Stability: {resonance:.4f}")
+        pressure, resonance = self.c_field.compute(avg_sigma, avg_kappa, 1450.0 + (avg_kappa * 50), 0.02, self.node_count)
 
-        # Compute dynamic path-dependent algebraic drift vectors
+        # 1. Compute Base Local Geometries
         phase_a = np.mean([s["telemetry"]["raw_phase_rads"] for s in self.current_snapshots]) or 0.1
-        phase_b = self.current_filtered_frequency_hz / 79.0
-        
-        c15 = -0.010835 * math.sin(phase_a) * (self.node_count / 10.0) * pressure
-        c25 = -0.010835 * math.cos(phase_b) * (self.node_count / 10.0) * resonance
-        current_h = math.sqrt(c15**2 + c25**2) * 7.07
+        c15_base = -0.010835 * math.sin(phase_a) * (self.node_count / 10.0) * pressure
+        c25_base = -0.010835 * math.cos(79.0 / 79.0) * (self.node_count / 10.0) * resonance
+        h_base = math.sqrt(c15_base**2 + c25_base**2) * 7.07
 
-        # Vector B Immune Audit check
-        rollback_trigger = 0
-        if prior_h > 0:
-            velocity = current_h - prior_h
-            if velocity > 0.035:
-                print(f"🛑 [PYTHON IMMUNE VETO] High-velocity structural drift! Velocity: +{velocity:.5f}/step.")
-                rollback_trigger = 1
+        # 2. Ingest Cross-Lineage Centroids from Governor
+        mean_h_rust, mean_c_rust = self.ledger.fetch_bridge_biases()
+        
+        # 3. Calculate Deltas and Apply Coupling Drift with High Python Adaptivity Gains (eta = 0.15)
+        eta_h, eta_c = 0.15, 0.15
+        delta_h = mean_h_rust - h_base
+        delta_c = mean_c_rust - c15_base
+        
+        # Enforce Hard Clamping Guards to protect topological structural sanity
+        drift_h = max(-0.02, min(0.02, eta_h * delta_h))
+        drift_c = max(-0.003, min(0.003, eta_c * delta_c))
+        
+        calculated_holonomy = h_base + drift_h
+        commutator_1_5 = c15_base + drift_c
+        commutator_2_5 = c25_base + drift_c
+        
+        if abs(drift_h) > 0.0 or abs(drift_c) > 0.0:
+            print(f"🧬 [ALGEBRAIC LEAN] Python leaning toward Rust means. H-Drift: {drift_h:+.5f} | C-Drift: {drift_c:+.5f}")
+
+        rollback_trigger = 1 if prior_h > 0 and (calculated_holonomy - prior_h) > 0.035 else 0
 
         summary = {
             "timestamp": datetime.now().isoformat(), "node_count": self.node_count, "final_freq": self.current_filtered_frequency_hz,
             "quarantine_rate": float(pressure), "avg_kappa": avg_kappa, "stability_score": float(resonance) if rollback_trigger == 0 else 0.0,
-            "runtime_env": "Python_TordialGS_v8_Active", "holonomy_norm": current_h, "holonomy_norm_local": current_h * 0.41,
-            "commutator_1_5": c15, "commutator_2_5": c25, "rollback_flag": rollback_trigger
+            "runtime_env": "Python_TordialGS_v8_Active", "holonomy_norm": calculated_holonomy, "holonomy_norm_local": calculated_holonomy * 0.41,
+            "commutator_1_5": commutator_1_5, "commutator_2_5": commutator_2_5, "rollback_flag": rollback_trigger
         }
         self.ledger.log_run(summary)
 
-
-# ====================== SQLITE LEDGER LAYER ======================
 class TordialSQLiteLedger:
     def __init__(self, db_path="tordial_gs.db"):
         self.conn = sqlite3.connect(db_path)
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS runs (
-                id INTEGER PRIMARY KEY, timestamp TEXT, node_count INTEGER, final_freq REAL, quarantine_rate REAL, avg_kappa REAL, stability_score REAL,
-                runtime_env TEXT DEFAULT 'Python_TordialGS_v8', holonomy_norm REAL DEFAULT 0.0, holonomy_norm_local REAL DEFAULT 0.0,
-                commutator_1_5 REAL DEFAULT 0.0, commutator_2_5 REAL DEFAULT 0.0, rollback_flag INTEGER DEFAULT 0
-            )
-        """)
-        self.conn.commit()
 
     def fetch_latest_holonomy(self) -> float:
         try:
@@ -166,8 +116,17 @@ class TordialSQLiteLedger:
             cursor.execute("SELECT holonomy_norm FROM runs ORDER BY id DESC LIMIT 1;")
             row = cursor.fetchone()
             return row[0] if row else 0.0
+        except: return 0.0
+
+    def fetch_bridge_biases(self) -> tuple[float, float]:
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT mean_h_rust, mean_c_rust FROM cross_lineage_state ORDER BY id DESC LIMIT 1;")
+            row = cursor.fetchone()
+            # Default fallback targets if table hasn't been seeded by governor process yet
+            return (row[0], row[1]) if row else (0.0763, -0.0108)
         except:
-            return 0.0
+            return (0.0763, -0.0108)
 
     def log_run(self, d: Dict):
         self.conn.execute("""
@@ -175,15 +134,12 @@ class TordialSQLiteLedger:
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
         """, (d["timestamp"], d["node_count"], d["final_freq"], d["quarantine_rate"], d["avg_kappa"], d["stability_score"], d["runtime_env"], d["holonomy_norm"], d["holonomy_norm_local"], d["commutator_1_5"], d["commutator_2_5"], d["rollback_flag"]))
         self.conn.commit()
-        print("✅ [LEDGER SYNC] Swarm parameters cleanly committed to unified database.")
-
+        print("✅ [LEDGER SYNC] Swarm parameters with cross-lineage alignment bias committed.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--nodes", type=int, default=10)
     parser.add_argument("--cycles", type=int, default=180)
     args = parser.parse_args()
-
-    matrix = DualRingTordialMatrix(node_count=args.nodes, db_path="tordial_gs.db")
-    matrix.run(cycles=args.cycles)
+    DualRingTordialMatrix(node_count=args.nodes).run(cycles=args.cycles)
 EOF
