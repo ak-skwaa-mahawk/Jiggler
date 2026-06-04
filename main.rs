@@ -1,4 +1,3 @@
-cat << 'EOF' > src/main.rs
 /*
 main.rs
 ISST-TOFT Sovereign Substrate Grid Entry Point.
@@ -27,13 +26,12 @@ struct PeerAlgebraicScar {
 }
 
 fn read_peer_algebraic_scars(my_id: &str) -> PeerAlgebraicScar {
-    // Extract the exact edge-wise non-commutative friction values from our closest running peer
     let query = format!(
         "SELECT commutator_1_5, commutator_2_5 FROM runs WHERE runtime_env != '{}' AND runtime_env LIKE 'Rust_Node_%' ORDER BY id DESC LIMIT 1;",
         my_id
     );
     let output = Command::new("sqlite3").arg("tordial_gs.db").arg(&query).output();
-    
+
     if let Ok(out) = output {
         let text = String::from_utf8_lossy(&out.stdout);
         if let Some(line) = text.lines().next() {
@@ -52,7 +50,7 @@ fn read_peer_algebraic_scars(my_id: &str) -> PeerAlgebraicScar {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
-    
+
     let args: Vec<String> = env::args().collect();
     let node_id = if args.len() > 1 { format!("Rust_Node_{}", args[1]) } else { "Rust_Node_0".to_string() };
 
@@ -60,13 +58,13 @@ async fn main() {
     println!("🔥  ISST-TOFT SOVEREIGN CONSTELLATION [ALGEBRAIC ATTRACTOR]");
     println!("══════════════════════════════════════════════════════════════");
 
-    let envelope = ContractEnvelope::default_production_contract();
+    let mut envelope = ContractEnvelope::default_production_contract();
     let engine = Arc::new(IntentEngine::new());
     let mut rx = engine.subscribe();
 
     // ─── CRITICAL PHASE: CROSS-NODE LIE COUPLING ───
     let peer_scar = read_peer_algebraic_scars(&node_id);
-    
+
     let observed_first_step = Arc::new(Mutex::new(vec![None; 6]));
     let strike_time = Arc::new(Mutex::new(0_i64));
 
@@ -99,7 +97,7 @@ async fn main() {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
     if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now; }
     let pulse_initial = 0.9990;
-    
+
     // Drive Walker Push Lane
     println!("\n🏋️ Driving active WalkerPush excitation wave...");
     engine.broadcast_update(IntentUpdate {
@@ -124,15 +122,13 @@ async fn main() {
     if let Ok(mut steps) = observed_first_step.lock() { *steps = vec![None; 6]; }
     println!("🏋️ Driving passive AmbientPull context recovery wave...");
     for i in 0..5 {
-        // If our peer has a negative commutator friction scar, dynamically shift our pull wave offset 
-        // to co-lock and converge our operators onto a shared Lie-algebraic attractor
         let coupling_bias = if i == 1 { peer_scar.commutator_1_5 * 0.5 } else if i == 2 { peer_scar.commutator_2_5 * 0.5 } else { 0.0 };
         let pull_coeff = baseline_snapshot.pull_c[i][5] + 0.015 + coupling_bias;
-        
+
         if coupling_bias.abs() > 0.0 {
             println!("🌀 [ATTRACTOR LOCK] Edge [{}][5] injecting algebraic alignment bias delta: {:.6}", i, coupling_bias);
         }
-        
+
         engine.broadcast_update(IntentUpdate {
             band_id: band_map[i].to_string(), mode: 0, intent_value: pulse_initial * pull_coeff, timestamp: now, reason: "pull_wave".to_string(),
         });
@@ -148,16 +144,51 @@ async fn main() {
     // Critic Assessment
     let final_gs = engine.gs.lock().unwrap().clone();
     let proposed_h = final_gs.compute_holonomy_norm();
-    
     let c15 = final_gs.commutator_channel[1][5];
     let c25 = final_gs.commutator_channel[2][5];
+
     println!("\n📊 [STATE SURFACE RESOLVED BY {}]", node_id);
     println!("   Resulting Edge Lie Commutator [1][5]: {:.6}", c15);
     println!("   Resulting Edge Lie Commutator [2][5]: {:.6}", c25);
-    
+
+    // ─────────────────────────────────────────────────────────────────
+    // RUST MICRO-SUBSTRATE COUPLING LAW (MUTUAL LEAN ENFORCEMENT)
+    // ─────────────────────────────────────────────────────────────────
+    // Ingest the moving macro centroids calculated by the governor via a quick shell query
+    let bias_query = "SELECT mean_h_python, mean_c_python FROM cross_lineage_state ORDER BY id DESC LIMIT 1;";
+    let bias_output = Command::new("sqlite3").arg("tordial_gs.db").arg(bias_query).output();
+
+    if let Ok(out) = bias_output {
+        let text = String::from_utf8_lossy(&out.stdout);
+        if let Some(line) = text.lines().next() {
+            let parts: Vec<&str> = line.split('|').collect();
+            if parts.len() >= 2 {
+                let mean_h_python = parts[0].trim().parse::<f64>().unwrap_or(0.0930);
+                
+                // Compute exact structural distance delta (Python Swarm -> Local Rust Node)
+                let delta_h_rust = mean_h_python - proposed_h;
+                
+                // Apply highly conservative asymmetric gain (eta = 0.015)
+                let eta_h_rust = 0.015;
+                let target_drift = delta_h_rust * eta_h_rust;
+                
+                // Enforce tight safety clamp: Rust can never drift more than 0.0025 units per run step
+                let clamped_h_drift = target_drift.clamp(-0.0025, 0.0025);
+                
+                // Softly update the envelope expectation parameters
+                envelope.target_holonomy += clamped_h_drift;
+                
+                if clamped_h_drift.abs() > 0.00001 {
+                    println!("🧬 [ALGEBRAIC LEAN] Rust micro-node pulling toward Python smooth regime. Drift: {:+.5}", clamped_h_drift);
+                }
+            }
+        }
+    }
+
+    // Process audit under the newly warped envelope bounds
     let audit = ContractAuditor::audit_proposal(proposed_h, &envelope);
     let q_rate = if audit.directive == 2 { 1.0 } else { 0.0 };
-    
+
     if audit.directive == 2 {
         println!("🛑 [MESH VETO] Resetting local track.");
         let mut gs = engine.gs.lock().unwrap();
@@ -166,7 +197,6 @@ async fn main() {
         println!("✅ [MESH INTEGRATION SUCCESS] Node coordinates logged to cluster ledger.");
     }
 
-    // Commit parameters alongside raw edge commutator coordinates
     let query = format!(
         "INSERT INTO runs (timestamp, runtime_env, node_count, final_freq, quarantine_rate, avg_kappa, stability_score, holonomy_norm, holonomy_norm_local, commutator_1_5, commutator_2_5) VALUES (datetime('now'), '{}', 6, 84.5, {}, 3.12, 0.92, 0.0, {}, {}, {});", 
         node_id, q_rate, proposed_h, c15, c25
