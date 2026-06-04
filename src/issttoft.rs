@@ -1,7 +1,7 @@
 cat << 'EOF' > src/issttoft.rs
 /*
 issttoft.rs
-Foundational Protocol Mapping Structs with Calibrated Curve Invariants.
+Foundational Protocol Mapping Structs with Advanced Role-Driven Coupling Topology.
 */
 
 #[derive(Debug, Clone)]
@@ -43,23 +43,38 @@ pub fn get_band_stiffness(band_index: usize) -> f64 {
         3 => 0.32520, // Band 3: sovereignintentambient (tau = 3.0756s)
         4 => 0.34620, // Band 4: sensorium_feedback (tau = 2.8884s)
         5 => 0.24320, // Band 5: mutationplanedriver (tau = 4.1105s)
-        _ => 0.25000, // Balanced fallback default baseline
+        _ => 0.25000,
     }
 }
 
-/// Coupling Matrix Layout (Array C)
+/// Role-Driven Coupling Matrix Layout (Array C)
+/// Calibrated for asymmetric cross-band torque distribution.
 pub fn get_coupling_coefficient(target: usize, source: usize) -> f64 {
-    if target == source { return 1.0; }
+    if target == source {
+        return 1.0;
+    }
+
     match (target, source) {
-        (0, _) => 0.02,
-        (1, 0) => 0.85,
-        (2, 0) => 0.80,
-        (3, 1) => 0.70,
-        (4, 2) => 0.75,
-        (3, 4) => 0.30,
-        (4, 3) => 0.30,
-        (5, 1) => 0.55,
-        (5, 2) => 0.55,
+        // Anchor incoming isolation boundaries: small sink from everyone, almost no outgoing
+        (0, 5) => 0.02, 
+        (0, 1) | (0, 2) | (0, 3) | (0, 4) => 0.01,
+
+        // Active Walkers: strongly feel anchor and mutation, moderately cross-coupled
+        (1, 0) | (2, 0) => 0.80, 
+        (1, 2) | (2, 1) => 0.30, 
+        (1, 5) | (2, 5) => 0.55, 
+
+        // Ambient Context Layers: read information from active Walkers and Mutation drivers
+        (3, 1) | (3, 2) | (4, 1) | (4, 2) => 0.40,
+        (3, 0) | (4, 0) => 0.05,
+        (3, 5) | (4, 5) => 0.50,
+
+        // Mutation plane feedback tracks: localized dampening returns from walkers + ambient
+        (5, 1) | (5, 2) => 0.30,
+        (5, 3) | (5, 4) => 0.20,
+        (5, 0) => 0.05,
+
+        // Standard baseline interaction default fallback
         _ => 0.10,
     }
 }
