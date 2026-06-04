@@ -1,3 +1,4 @@
+cat << 'EOF' > tordial_gs_v8.py
 import math
 import numpy as np
 import time
@@ -187,7 +188,7 @@ class DualRingTordialMatrix:
         print(f"[+] Tordial-GS v8 starting with {self.node_count} nodes (GS bands seeded)...\n")
         for _ in range(cycles):
             self.execute_governance_cycle()
-            time.sleep(0.01)
+            time.sleep(0.005)
 
         self.ledger.log_run(self.get_summary())
         print("[+] Run completed.")
@@ -201,7 +202,6 @@ class DualRingTordialMatrix:
 
     def get_summary(self) -> Dict:
         avg_kappa = np.mean([s["telemetry"]["coupling_telemetry"].get("kappa_GS_T",0) for s in self.current_snapshots]) or 0.0
-        # Dynamic holonomy norm tracking based on global geometric contraction
         calculated_holonomy = 0.73446 * (avg_kappa / 8.85)
         
         return {
@@ -224,7 +224,6 @@ class DualRingTordialMatrix:
 class TordialSQLiteLedger:
     def __init__(self, db_path="tordial_gs.db"):
         self.conn = sqlite3.connect(db_path)
-        # Structural enforcement of the fully extended ecosystem schema
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS runs (
                 id INTEGER PRIMARY KEY,
@@ -280,5 +279,6 @@ if __name__ == "__main__":
     if args.analysis:
         run_post_analysis()
     else:
-        matrix = DualRingTordialMatrix(node_count=args.nodes, record_video=bool(args.video))
+        matrix = DualRingTordialMatrix(node_count=args.nodes, db_path="tordial_gs.db", record_video=bool(args.video))
         matrix.run(cycles=args.cycles, video_path=args.video)
+EOF
