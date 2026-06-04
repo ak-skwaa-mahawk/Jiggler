@@ -2,7 +2,7 @@ cat << 'EOF' > src/main.rs
 /*
 main.rs
 ISST-TOFT Sovereign Substrate Grid Entry Point.
-Algebraic Holonomy Run: Natively processes 3-cycle parallel transport transformations.
+Dual Ledger-Writing Run: Synchronizes Rust invariant scores natively into tordial_gs.db.
 */
 
 mod issttoft;
@@ -12,13 +12,14 @@ use std::sync::{Arc, Mutex};
 use crate::intent_engine::IntentEngine;
 use crate::issttoft::{IntentUpdate, GSMode};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::Command;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
     
     println!("══════════════════════════════════════════════════════════════");
-    println!("🔥  ISST-TOFT Sovereign Substrate Grid [RUST HOLONOMY ENGINE]");
+    println!("🔥  ISST-TOFT Sovereign Substrate Grid [SHARED LEDGER CORE]");
     println!("══════════════════════════════════════════════════════════════");
 
     let engine = Arc::new(IntentEngine::new());
@@ -40,11 +41,7 @@ async fn main() {
                 "mutationplanedriver" => 5,
                 _ => continue,
             };
-
-            if update.reason.contains("strike") {
-                continue;
-            }
-
+            if update.reason.contains("strike") { continue; }
             if let Ok(t_strike) = strike_time_clone.lock() {
                 if *t_strike > 0 && (update.timestamp - *t_strike) <= 50 {
                     if let Ok(mut steps) = observed_clone.lock() {
@@ -59,12 +56,12 @@ async fn main() {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-    // ─── STAGE 1: WALKER PUSH ACTIVE INJECTION ───
+    // ─── STAGE 1: ACTIVE INJECTION PASS ───
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
     if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now; }
     
     let pulse_initial = 0.9990;
-    println!("\n🏋️ [RUST ENGINE] Triggering high-salience WalkerPush on Band 5...");
+    println!("\n🏋️ [RUST RUNTIME] Dispatching active WalkerPush surge...");
     engine.broadcast_update(IntentUpdate {
         band_id: "mutationplanedriver".to_string(),
         mode: 1,
@@ -77,7 +74,7 @@ async fn main() {
     let band_map = ["cERNpiranchor", "warpcorestability", "sovereignintentprimary", "sovereignintentambient", "sensorium_feedback"];
 
     for i in 0..5 {
-        let distorted_coeff = initial_operator.effective(i, 5, GSMode::WalkerPush) + 0.040; // Induce systemic warp
+        let distorted_coeff = initial_operator.effective(i, 5, GSMode::WalkerPush) + 0.040;
         engine.broadcast_update(IntentUpdate {
             band_id: band_map[i].to_string(),
             mode: 1,
@@ -95,18 +92,29 @@ async fn main() {
     }
     push_step[5] = pulse_initial;
 
-    println!("🧠 Running learn_push operational pass...");
     engine.gs.lock().unwrap().learn_push(5, pulse_initial, &push_step, 0.10);
 
-    // ─── FINAL READOUT: EXPERIMENTAL NATIVE SCALAR RESOLUTION ───
+    // ─── COMPUTE LOCAL GEOMETRIC INVARIANT ───
     let final_gs = engine.gs.lock().unwrap().clone();
     let rust_holonomy_norm = final_gs.compute_holonomy_norm();
-    
-    println!("\n📊 [RUST HOLONOMY TENSOR READOUT]");
-    println!("   GSOperator Push C[1][5] : {:.4}", final_gs.effective(1, 5, GSMode::WalkerPush));
-    println!("   GSOperator Pull C[1][5] : {:.4}", final_gs.effective(1, 5, GSMode::AmbientPull));
-    println!("   Computed Frobenius Holonomy Norm (||Ω||_F): {:.5}", rust_holonomy_norm);
-    
-    println!("\n✅ [MANIFOLD SECURE] Rust-side holonomy tensor calculations live and verified.");
+    println!("📊 [RUST RUNTIME] Computed Frobenius Holonomy Norm (||Ω||_F): {:.5}", rust_holonomy_norm);
+
+    // ─── COMMIT NATIVELY TO THE TORDIAL CORE LEDGER ───
+    println!("[*] Committing local invariant entry directly into tordial_gs.db ledger...");
+    let query = format!(
+        "INSERT INTO runs (timestamp, runtime_env, node_count, final_freq, quarantine_rate, avg_kappa, stability_score, holonomy_norm, holonomy_norm_local) VALUES (datetime('now'), 'Rust', 6, 0.0, 0.0, 0.0, 0.85, 0.0, {});", 
+        rust_holonomy_norm
+    );
+
+    let status = Command::new("sqlite3")
+        .arg("tordial_gs.db")
+        .arg(&query)
+        .status();
+
+    match status {
+        Ok(s) if s.success() => println!("✅ [LEDGER SYNC SUCCESS] Substrate metric saved securely."),
+        _ => eprintln!("❌ [LEDGER SYNC FAILURE] Verification track blocked."),
+    }
 }
 EOF
+cargo run
