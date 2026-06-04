@@ -1,7 +1,7 @@
 cat << 'EOF' > src/issttoft.rs
 /*
 issttoft.rs
-Foundational Protocol Mapping Structs with Dual-Plane Directed Edge Memories.
+Formal Asymmetric Directed Connection Fields and Geometric Layer Projections.
 */
 
 #[derive(Debug, Clone)]
@@ -45,52 +45,46 @@ pub fn get_band_stiffness(band_index: usize) -> f64 {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum EdgeRole {
-    WalkerPush,   // Core/Walker driven activation energy wave
-    AmbientPull,  // Sub-critical field balancing and context pull
-}
-
-#[derive(Clone, Debug)]
-pub struct EdgeMemory {
-    pub coeff: f64,
-    pub curvature: f64,
+#[derive(Clone)]
+pub struct DirectedCoupling {
+    pub push: Vec<Vec<f64>>,
+    pub pull: Vec<Vec<f64>>,
 }
 
 #[derive(Clone)]
-pub struct CouplingMatrix {
-    pub push: Vec<Vec<EdgeMemory>>, // Walker-driven propagation planes j -> i
-    pub pull: Vec<Vec<EdgeMemory>>, // Ambient-driven reprojection planes j -> i
+pub struct DirectedCurvatureMemory {
+    pub push_mem: Vec<Vec<f64>>,
+    pub pull_mem: Vec<Vec<f64>>,
 }
 
-impl CouplingMatrix {
+impl DirectedCoupling {
     pub fn new() -> Self {
-        let mut push = vec![vec![EdgeMemory { coeff: 0.10, curvature: 0.0 }; 6]; 6];
-        let mut pull = vec![vec![EdgeMemory { coeff: 0.10, curvature: 0.0 }; 6]; 6];
+        let mut push = vec![vec![0.10; 6]; 6];
+        let mut pull = vec![vec![0.10; 6]; 6];
 
         for i in 0..6 {
-            push[i][i].coeff = 1.0;
-            pull[i][i].coeff = 1.0;
+            push[i][i] = 1.0;
+            pull[i][i] = 1.0;
         }
 
-        // Seed initial asymmetric role constraints into PUSH side (Walker-driven)
-        push[0][5].coeff = 0.02;
-        push[0][1].coeff = 0.01; push[0][2].coeff = 0.01; push[0][3].coeff = 0.01; push[0][4].coeff = 0.01;
-        push[1][0].coeff = 0.80; push[2][0].coeff = 0.80;
-        push[1][2].coeff = 0.30; push[2][1].coeff = 0.30;
-        push[1][5].coeff = 0.55; push[2][5].coeff = 0.55;
-        push[3][1].coeff = 0.40; push[3][2].coeff = 0.40; push[4][1].coeff = 0.40; push[4][2].coeff = 0.40;
-        push[3][0].coeff = 0.05; push[4][0].coeff = 0.05;
-        push[3][5].coeff = 0.50; push[4][5].coeff = 0.50;
-        push[5][1].coeff = 0.30; push[5][2].coeff = 0.30;
-        push[5][3].coeff = 0.20; push[5][4].coeff = 0.20;
-        push[5][0].coeff = 0.05;
+        // Seed initial values from verified asymmetric role constraints
+        push[0][5] = 0.02;
+        push[0][1] = 0.01; push[0][2] = 0.01; push[0][3] = 0.01; push[0][4] = 0.01;
+        push[1][0] = 0.80; push[2][0] = 0.80;
+        push[1][2] = 0.30; push[2][1] = 0.30;
+        push[1][5] = 0.55; push[2][5] = 0.55;
+        push[3][1] = 0.40; push[3][2] = 0.40; push[4][1] = 0.40; push[4][2] = 0.40;
+        push[3][0] = 0.05; push[4][0] = 0.05;
+        push[3][5] = 0.50; push[4][5] = 0.50;
+        push[5][1] = 0.30; push[5][2] = 0.30;
+        push[5][3] = 0.20; push[5][4] = 0.20;
+        push[5][0] = 0.05;
 
-        // Pull plane acts initially as a balanced mirror baseline configuration
+        // Sync baseline pull state to copy seeding properties
         for i in 0..6 {
             for j in 0..6 {
                 if i != j {
-                    pull[i][j].coeff = push[i][j].coeff;
+                    pull[i][j] = push[i][j];
                 }
             }
         }
@@ -98,59 +92,60 @@ impl CouplingMatrix {
         Self { push, pull }
     }
 
-    pub fn get_push(&self, target: usize, source: usize) -> f64 {
-        self.push[target][source].coeff
+    pub fn effective(&self, i: usize, j: usize) -> f64 {
+        0.8 * self.push[i][j] + 0.2 * self.pull[i][j]
     }
 
-    pub fn get_pull(&self, target: usize, source: usize) -> f64 {
-        self.pull[target][source].coeff
-    }
-
-    /// Computes the effective operational topology projection
-    pub fn effective(&self, target: usize, source: usize) -> f64 {
-        let cp = self.push[target][source].coeff;
-        let ca = self.pull[target][source].coeff;
-        0.8 * cp + 0.2 * ca
-    }
-
-    /// Core Non-Commutative GS Curvature Operator update rule with directional hysteresis cross-bleed
-    pub fn gs_update_edge(
+    pub fn gs_push_update(
         &mut self,
-        target: usize,
-        source: usize,
+        mem: &mut DirectedCurvatureMemory,
+        i: usize,
+        j: usize,
         observed: f64,
         source_initial: f64,
         alpha: f64,
-        role: EdgeRole,
     ) {
         if source_initial.abs() < 1e-6 { return; }
-
         let c_eff = observed / source_initial;
+        let old = self.push[i][j];
+        let delta = c_eff - old;
 
-        let (edge, gamma, k_bleed) = match role {
-            EdgeRole::WalkerPush => {
-                let edge = &mut self.push[target][source];
-                (edge, 0.08, 0.01) // Decisive modification window, small feedback bleed
-            }
-            EdgeRole::AmbientPull => {
-                let edge = &mut self.pull[target][source];
-                (edge, 0.03, 0.00) // Highly tempered adaptation window, zero baseline leak
-            }
-        };
+        // Curvature memory accumulator for push actions
+        mem.push_mem[i][j] += delta;
 
-        let delta = c_eff - edge.coeff;
+        // f_push Governor rule: Active, high-responsiveness transformation step size
+        let governed = old + alpha * (delta + 0.3 * mem.push_mem[i][j].tanh());
+        self.push[i][j] = governed.clamp(0.0, 1.5);
+    }
 
-        // Accumulate signed curvature parameters over non-associative trajectories
-        edge.curvature += alpha * delta;
+    pub fn gs_pull_update(
+        &mut self,
+        mem: &mut DirectedCurvatureMemory,
+        i: usize,
+        j: usize,
+        observed: f64,
+        source_initial: f64,
+        alpha: f64,
+    ) {
+        if source_initial.abs() < 1e-6 { return; }
+        let c_eff = observed / source_initial;
+        let old = self.pull[i][j];
+        let delta = c_eff - old;
 
-        // Non-commutative governor step modifications
-        edge.coeff += gamma * edge.curvature;
-        edge.coeff = edge.coeff.clamp(0.0, 1.5);
+        // Curvature memory accumulator for pull actions
+        mem.pull_mem[i][j] += delta;
 
-        // Hysteresis step injection: transfer structural alignment into opposite track memory
-        if let EdgeRole::WalkerPush = role {
-            let back = &mut self.pull[source][target];
-            back.curvature += k_bleed * delta;
+        // f_pull Governor rule: Heavy dampening, highly conservative recovery step size
+        let governed = old + (alpha * 0.4) * (delta + 0.1 * mem.pull_mem[i][j].tanh());
+        self.pull[i][j] = governed.clamp(0.0, 1.5);
+    }
+}
+
+impl DirectedCurvatureMemory {
+    pub fn new() -> Self {
+        Self {
+            push_mem: vec![vec![0.0; 6]; 6],
+            pull_mem: vec![vec![0.0; 6]; 6],
         }
     }
 }
