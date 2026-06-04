@@ -1,10 +1,8 @@
 cat << 'EOF' > src/issttoft.rs
 /*
 issttoft.rs
-Foundational Protocol Mapping Structs with Live GS Edge State Integrations.
+Foundational Protocol Mapping Structs with Explicit GS Combiner and Curvature Memory.
 */
-
-use crate::gs::GsEdgeState;
 
 #[derive(Debug, Clone)]
 pub struct IntentBand {
@@ -47,10 +45,61 @@ pub fn get_band_stiffness(band_index: usize) -> f64 {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct EdgeCurvature {
+    pub k: f64,      // Accumulated curvature memory history
+    pub count: u64,  // Total update cycles processed
+}
+
+#[derive(Clone)]
+pub struct GSCombiner {
+    pub curvature: Vec<Vec<EdgeCurvature>>, // [target][source]
+    pub alpha_min: f64,
+    pub alpha_max: f64,
+}
+
+impl GSCombiner {
+    pub fn new(n: usize) -> Self {
+        let curvature = vec![vec![EdgeCurvature { k: 0.0, count: 0 }; n]; n];
+        Self {
+            curvature,
+            alpha_min: 0.01,
+            alpha_max: 0.15,
+        }
+    }
+
+    /// Explicit non-associative GS operator step with tanh non-linear saturation limiting.
+    pub fn combine(
+        &mut self,
+        target: usize,
+        source: usize,
+        c_old: f64,
+        c_eff: f64,
+        stiffness_target: f64,
+    ) -> (f64, f64) {
+        let edge = &mut self.curvature[target][source];
+
+        // Capture local curvature increment (signed distance delta deviation)
+        let delta = c_eff - c_old;
+        edge.k += delta;
+        edge.count += 1;
+
+        // Governor: Softer learning rates for rigid stiff bands, wider learning paths for loose bands
+        let stiffness_gate = 1.0 - stiffness_target.clamp(0.0, 1.0);
+        let alpha = (self.alpha_min + stiffness_gate * (self.alpha_max - self.alpha_min))
+            .clamp(self.alpha_min, self.alpha_max);
+
+        // Non-associative convergence updates: bias step towards historical trajectory
+        let curvature_term = 0.5 * edge.k.tanh();
+        let c_new = c_old + alpha * (delta + curvature_term);
+
+        (c_new.clamp(0.0, 1.5), edge.k)
+    }
+}
+
 #[derive(Clone)]
 pub struct CouplingMatrix {
     pub c: Vec<Vec<f64>>,
-    pub gs_state: Vec<Vec<GsEdgeState>>,
 }
 
 impl CouplingMatrix {
@@ -60,7 +109,7 @@ impl CouplingMatrix {
             c[i][i] = 1.0;
         }
 
-        // Seed initial values from our verified asymmetric role constraints
+        // Seed initial values from verified asymmetric role constraints
         c[0][5] = 0.02;
         c[0][1] = 0.01; c[0][2] = 0.01; c[0][3] = 0.01; c[0][4] = 0.01;
         c[1][0] = 0.80; c[2][0] = 0.80;
@@ -73,11 +122,7 @@ impl CouplingMatrix {
         c[5][3] = 0.20; c[5][4] = 0.20;
         c[5][0] = 0.05;
 
-        let gs_state = (0..6)
-            .map(|| (0..6).map(|_| GsEdgeState::new()).collect())
-            .collect();
-
-        Self { c, gs_state }
+        Self { c }
     }
 
     pub fn get(&self, target: usize, source: usize) -> f64 {
@@ -86,10 +131,6 @@ impl CouplingMatrix {
 
     pub fn set(&mut self, target: usize, source: usize, value: f64) {
         self.c[target][source] = value;
-    }
-
-    pub fn edge_state_mut(&mut self, target: usize, source: usize) -> &mut GsEdgeState {
-        &mut self.gs_state[target][source]
     }
 }
 EOF
