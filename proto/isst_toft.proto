@@ -1,3 +1,4 @@
+cat > proto/isst_toft.proto << 'ENDPROTO'
 syntax = "proto3";
 
 package issttoft;
@@ -6,31 +7,27 @@ import "google/protobuf/empty.proto";
 
 // =====================================================
 // ISST-TOFT Sovereign Inference Service
+// Single clean service definition
 // =====================================================
 service InferenceService {
   // === Core Services ===
   rpc EncodeRadHardGlyph (GlyphRequest) returns (GlyphResponse);
   rpc RunClientlessPulse (PulseRequest) returns (PulseResponse);
 
-  // === SixCylinderBoundary GS Coupling ===
-  rpc ComputeSixFaceBoundary (SixFaceRequest) returns (SixFaceResponse);
-  rpc GetClosedLoopDelta     (SixFaceRequest) returns (DeltaResponse);
-  rpc RunTrackingFormProof   (SixFaceRequest) returns (ProofResponse);
-
-  // === Intent Engine Exposure ===
+  // === Intent Engine (Read) ===
   rpc GetIntentBand     (GetIntentBandRequest)     returns (IntentBand);
-  rpc GetAllIntentBands (google.protobuf.Empty)    returns (GetAllIntentBandsResponse);
+  rpc GetAllIntentBands (GetAllIntentBandsRequest) returns (GetAllIntentBandsResponse);
+
+  // === Real-time Streaming ===
+  rpc StreamIntentUpdates (StreamIntentUpdatesRequest) returns (stream IntentUpdate);
+
+  // === Handshake + CERN Sovereign Mesh ===
+  rpc Handshake (HandshakeRequest) returns (HandshakeResponse);
 }
 
-// =====================================================
-// Existing Messages (Core Services)
-// =====================================================
+// ====================== MESSAGES ======================
 
-message GlyphRequest {
-  repeated float terrain_data = 1;
-  bool use_agentic = 2;
-}
-
+message GlyphRequest { repeated float terrain_data = 1; bool use_agentic = 2; }
 message GlyphResponse {
   repeated float refined_waveform = 1;
   uint64 waveform_checksum = 2;
@@ -41,10 +38,7 @@ message GlyphResponse {
   float toroidal_pi_r = 7;
 }
 
-message PulseRequest {
-  repeated float feed_data = 1;
-}
-
+message PulseRequest { repeated float feed_data = 1; }
 message PulseResponse {
   repeated float refined_signal = 1;
   string status = 2;
@@ -53,53 +47,43 @@ message PulseResponse {
   float toroidal_pi_r = 5;
 }
 
-// =====================================================
-// SixCylinderBoundary Messages
-// =====================================================
-
-message SixFaceRequest {
-  double spin     = 1;
-  double pressure = 2;
-  double temp     = 3;
-  double belt_mod = 4;
-}
-
-message SixFaceResponse {
-  double core_curvature        = 1;
-  double belt_curvature        = 2;
-  double cap_curvature         = 3;
-  double closed_loop_delta     = 4;
-  double gs_density            = 5;
-  double closed_loop_stability = 6;
-  string regime                = 7;   // SUBCRITICAL | MARGINAL | GOLDILOCKS | DEEP_GS
-}
-
-message DeltaResponse {
-  double delta = 1;
-}
-
-message ProofResponse {
-  bool   all_pillars_hold = 1;
-  string details          = 2;
-}
-
-// =====================================================
-// Intent Engine Messages
-// =====================================================
-
-message GetIntentBandRequest {
-  string band_id = 1;
-  int32  mode    = 2;   // defaults to 0 if not provided
-}
+message GetIntentBandRequest { string band_id = 1; int32 mode = 2; }
+message GetAllIntentBandsRequest {}
 
 message IntentBand {
-  string band_id      = 1;
-  int32  mode         = 2;
+  string band_id = 1;
+  int32 mode = 2;
   double intent_value = 3;
-  int64  last_updated = 4;
-  string source       = 5;
+  int64 last_updated = 4;
+  string source = 5;
+}
+message GetAllIntentBandsResponse { repeated IntentBand bands = 1; }
+
+message StreamIntentUpdatesRequest {}
+message IntentUpdate {
+  string band_id = 1;
+  int32 mode = 2;
+  double intent_value = 3;
+  int64 timestamp = 4;
+  string reason = 5; // "drive" | "catapult" | "vhitzee" | "decay" | "safety"
 }
 
-message GetAllIntentBandsResponse {
-  repeated IntentBand bands = 1;
+message HandshakeRequest {
+  string client_id = 1;
+  string client_type = 2;
+  string sovereign_claim = 3;
 }
+message HandshakeResponse {
+  repeated IntentBand initial_bands = 1;
+  string server_version = 2;
+  int64 server_time = 3;
+  string mesh_status = 4;
+  string flamekeeper_note = 5;
+}
+
+message CernResonanceUpdate {
+  double resonance_energy = 1;
+  string event_type = 2;
+  int64 timestamp = 3;
+}
+ENDPROTO
