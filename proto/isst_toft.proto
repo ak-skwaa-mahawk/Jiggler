@@ -1,31 +1,21 @@
-cat > proto/isst_toft.proto << 'ENDPROTO'
+cd ~/isst_toft_mesh
+mkdir -p proto
+
+cat << 'EOF' > proto/isst_toft.proto
 syntax = "proto3";
 
 package issttoft;
 
 import "google/protobuf/empty.proto";
 
-// =====================================================
-// ISST-TOFT Sovereign Inference Service
-// Single clean service definition
-// =====================================================
 service InferenceService {
-  // === Core Services ===
   rpc EncodeRadHardGlyph (GlyphRequest) returns (GlyphResponse);
   rpc RunClientlessPulse (PulseRequest) returns (PulseResponse);
-
-  // === Intent Engine (Read) ===
   rpc GetIntentBand     (GetIntentBandRequest)     returns (IntentBand);
   rpc GetAllIntentBands (GetAllIntentBandsRequest) returns (GetAllIntentBandsResponse);
-
-  // === Real-time Streaming ===
   rpc StreamIntentUpdates (StreamIntentUpdatesRequest) returns (stream IntentUpdate);
-
-  // === Handshake + CERN Sovereign Mesh ===
   rpc Handshake (HandshakeRequest) returns (HandshakeResponse);
 }
-
-// ====================== MESSAGES ======================
 
 message GlyphRequest { repeated float terrain_data = 1; bool use_agentic = 2; }
 message GlyphResponse {
@@ -65,7 +55,7 @@ message IntentUpdate {
   int32 mode = 2;
   double intent_value = 3;
   int64 timestamp = 4;
-  string reason = 5; // "drive" | "catapult" | "vhitzee" | "decay" | "safety"
+  string reason = 5;
 }
 
 message HandshakeRequest {
@@ -86,4 +76,5 @@ message CernResonanceUpdate {
   string event_type = 2;
   int64 timestamp = 3;
 }
-ENDPROTO
+EOF
+echo "✅ Production Proto-Contract written cleanly to disk."
