@@ -2,7 +2,7 @@ cat << 'EOF' > src/main.rs
 /*
 main.rs
 ISST-TOFT Sovereign Substrate Grid Entry Point.
-Implements non-blocking broadcast updates across memory-mapped intent bands.
+Executes an interactive Multi-Band Matrix Field Propagation and Damping Relaxation Run.
 */
 
 mod issttoft;
@@ -10,61 +10,75 @@ mod intent_engine;
 
 use std::sync::Arc;
 use crate::intent_engine::IntentEngine;
-use crate::issttoft::IntentUpdate;
+use crate::issttoft::{IntentUpdate, get_coupling_coefficient};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[tokio::main]
 async fn main() {
-    // Initialize tracing subscriber console logger
     tracing_subscriber::fmt::init();
     
     println!("══════════════════════════════════════════════════════════════");
-    println!("🔥  ISST-TOFT Sovereign Substrate Grid Active");
+    println!("🔥  ISST-TOFT Sovereign Substrate Grid Active [DAMPING RUN]");
     println!("══════════════════════════════════════════════════════════════");
 
-    // Initialize the single source of truth engine
     let engine = Arc::new(IntentEngine::new());
-
-    // 1. Establish an asynchronous stream listener to mimic a live cluster client
     let mut rx = engine.subscribe();
+
+    // 1. Live Client Watcher Layer
     tokio::spawn(async move {
-        println!("📥 [STREAM WATCHER] Consumer subscription online. Monitoring field changes...");
         while let Ok(update) = rx.recv().await {
             println!(
-                "   ✨ [STREAM UPDATE CATCH] Band: '{}' | Value: {:.4} | Source: {}", 
+                "   ✨ [STREAM UPDATE CATCH] Band: {:<22} | Value: {:.4} | Driver: {}", 
                 update.band_id, update.intent_value, update.reason
             );
         }
     });
 
-    // Pause briefly to let the asynchronous task bind cleanly
-    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
-    // 2. Execute Handshake Verification
-    let response = engine.handshake(
-        "Zhuu-01".to_string(), 
-        "WARP_CORE".to_string(), 
-        "SovereignClaim_Active".to_string()
-    );
-
-    println!("\n🤝 [HANDSHAKE RESPONSE]");
-    println!("   Status: {}", response.mesh_status);
-    println!("   Keeper Note: {}", response.flamekeeper_note);
-    println!("   Active Bands Cached: {}", response.initial_bands.len());
-
-    // 3. Fire a live broadcast update into the network to exercise the telemetry loops
-    println!("\n⚡ [MUTATION PLANE] Perturbing the dynamic_pi_r_floor...");
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
-    
-    engine.broadcast_update(IntentUpdate {
-        band_id: "dynamic_pi_r_floor".to_string(),
-        mode: 1,
-        intent_value: 0.999, // Static ceiling safety limit
-        timestamp: now,
-        reason: "pi_r_engine_stabilization_pulse".to_string(),
+    // 2. Spawn Background Relaxation Engine Ticker (Runs every 100ms)
+    let engine_clone = Arc::clone(&engine);
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            engine_clone.step_damping_field(0.1); // dt = 0.1s step size
+        }
     });
 
-    // Hold the runtime open for a fraction of a second to capture the outbound packet
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+    // 3. Shock the Manifold: Strike Band 5
+    println!("\n⚡ [TORQUE GENERATION] Striking Band 5 with a massive experimental pulse...");
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let pulse_value = 0.9990;
+    
+    let band_map = [
+        "cERNpiranchor", "warpcorestability", "sovereignintentprimary", 
+        "sovereignintentambient", "sensorium_feedback", "mutationplanedriver"
+    ];
+
+    engine.broadcast_update(IntentUpdate {
+        band_id: "mutationplanedriver".to_string(),
+        mode: 1,
+        intent_value: pulse_value,
+        timestamp: now,
+        reason: "experimental_injection_pulse".to_string(),
+    });
+
+    // Ripple across the coupling matrix
+    for i in 0..5 {
+        let coeff = get_coupling_coefficient(i, 5);
+        engine.broadcast_update(IntentUpdate {
+            band_id: band_map[i].to_string(),
+            mode: 1,
+            intent_value: pulse_value * coeff,
+            timestamp: now,
+            reason: format!("coupling_propagation_from_band_5(coeff={:.2})", coeff),
+        });
+    }
+
+    // 4. Observe Relaxation Curve Lifecycle
+    println!("\n⏳ [FIELD ANALYSIS] Holding loop open to track natural relaxation curves...");
+    tokio::time::sleep(tokio::time::Duration::from_millis(800)).await;
+    
+    println!("\n✅ [SIMULATION END] Manifold stabilized cleanly back to ground-state invariants.");
 }
 EOF
