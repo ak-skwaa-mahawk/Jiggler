@@ -2,7 +2,7 @@ cat << 'EOF' > src/main.rs
 /*
 main.rs
 ISST-TOFT Sovereign Substrate Grid Entry Point.
-Fully Operational Rollback and Hysteresis Immune Layer Integration.
+Connection Commutator Validation Pass.
 */
 
 mod issttoft;
@@ -24,10 +24,9 @@ async fn main() {
     tracing_subscriber::fmt::init();
     
     println!("══════════════════════════════════════════════════════════════");
-    println!("🔥  ISST-TOFT SOVEREIGN SUBSTRATE [IMMUNE SYSTEM INTEGRATED]");
+    println!("🔥  ISST-TOFT SOVEREIGN SUBSTRATE [LIE BRACKET GENERATION]");
     println!("══════════════════════════════════════════════════════════════");
 
-    // Initialize our constitutional envelope rules
     let envelope = ContractEnvelope::default_production_contract();
     let engine = Arc::new(IntentEngine::new());
     let mut rx = engine.subscribe();
@@ -57,28 +56,26 @@ async fn main() {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-    // ─── STEP 1: CAPTURING THE KNOWN STABLE SNAPSHOT ───
-    let stable_snapshot = {
+    // Capture baseline configuration state
+    let baseline_snapshot = {
         let gs = engine.gs.lock().unwrap();
         RollbackEngine::capture_snapshot(&gs)
     };
-    println!("[+] Baseline stable matrix coordinates snapshotted and cached in memory.");
 
-    // ─── STEP 2: INJECTING A CRITICAL SYSTEMIC MUTATION WAVE ───
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
     if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now; }
     let pulse_initial = 0.9990;
     
-    println!("\n🏋️ [MUTATION WAVE] Triggering extreme hostile de-correlation on Band 5...");
+    println!("\n🏋️ [PERTURBATION PASS] Direct context injection onto Node 5...");
     engine.broadcast_update(IntentUpdate {
         band_id: "mutationplanedriver".to_string(), mode: 1, intent_value: pulse_initial, timestamp: now, reason: "walker_push_strike".to_string(),
     });
 
     let band_map = ["cERNpiranchor", "warpcorestability", "sovereignintentprimary", "sovereignintentambient", "sensorium_feedback"];
-    // Simulate a severe runaway network shock (+0.250 matrix distortion)
+    // Induce a controlled mutation wave (+0.040 adjustment delta)
     for i in 0..5 {
         engine.broadcast_update(IntentUpdate {
-            band_id: band_map[i].to_string(), mode: 1, intent_value: pulse_initial * 1.450, timestamp: now, reason: "hostile_warp_wave".to_string(),
+            band_id: band_map[i].to_string(), mode: 1, intent_value: pulse_initial * 1.040, timestamp: now, reason: "controlled_mutation".to_string(),
         });
     }
 
@@ -89,29 +86,25 @@ async fn main() {
     }
     push_step[5] = pulse_initial;
 
-    // Process parameter adjustments
-    engine.gs.lock().unwrap().learn_push(5, pulse_initial, &push_step, 0.50);
+    // Trigger learning transformation and automatic commutator evaluation
+    engine.gs.lock().unwrap().learn_push(5, pulse_initial, &push_step, 0.10);
 
-    // ─── STEP 3: THE READS-BEFORE-WRITES AUDIT AND RESTORATION GATE ───
-    let proposed_h = engine.gs.lock().unwrap().compute_holonomy_norm();
+    // Read and verify our new explicit commutator metric layers
+    let final_gs = engine.gs.lock().unwrap().clone();
+    let proposed_h = final_gs.compute_holonomy_norm();
+    
+    println!("\n📊 [LIE OPERATOR CHANNEL READOUT]");
+    println!("   GSOperator Explicit Commutator [Push, Pull][1][5] : {:.6}", final_gs.commutator_channel[1][5]);
+    println!("   GSOperator Explicit Commutator [Push, Pull][2][5] : {:.6}", final_gs.commutator_channel[2][5]);
+    
     let audit = ContractAuditor::audit_proposal(proposed_h, &envelope);
-
-    match audit.directive {
-        2 => {
-            println!("🛑 [CONTRACT VETO] Critical safety breach detected by Auditor! Invoking Rollback Core...");
-            {
-                let mut gs = engine.gs.lock().unwrap();
-                RollbackEngine::execute_restoration(&mut gs, &stable_snapshot);
-            }
-            let restored_h = engine.gs.lock().unwrap().compute_holonomy_norm();
-            println!("🛡️  [HEALED] Substrate returned to uncorrupted parallel transport baseline: {:.5}", restored_h);
-            
-            // Commit defensive transaction to the shared ledger
-            RollbackEngine::commit_rollback_log(proposed_h, restored_h, audit.computed_velocity);
-        },
-        _ => {
-            println!("✅ [CONFORMITY PASS] Updates within acceptable parameters. No immune response required.");
-        }
+    if audit.directive == 2 {
+        println!("🛑 [CONTRACT VETO] Resetting configuration track...");
+        let mut gs = engine.gs.lock().unwrap();
+        RollbackEngine::execute_restoration(&mut gs, &baseline_snapshot);
+    } else {
+        println!("✅ [CONFORMITY SUCCESS] Commutator channel initialized within safety limits.");
     }
 }
 EOF
+cargo run
