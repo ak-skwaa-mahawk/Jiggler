@@ -1,5 +1,5 @@
 cat << 'EOF' > src/intent_engine.rs
-//! IntentEngine — Asymmetric Dual-Plane Split Connection Infrastructure Kernel.
+//! IntentEngine — Stateful GSOperator Core Orchestrator Module.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -7,24 +7,23 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 use tracing::info;
 
-use crate::issttoft::{IntentBand, IntentUpdate, get_band_stiffness, DirectedCoupling, DirectedCurvatureMemory};
+use crate::issttoft::{IntentBand, IntentUpdate, get_band_stiffness, GSOperator, GSMode};
 
 #[derive(Clone)]
 pub struct IntentEngine {
     intent_tx: broadcast::Sender<IntentUpdate>,
     intent_bands: Arc<Mutex<HashMap<String, IntentBand>>>,
-    pub directed_coupling: Arc<Mutex<DirectedCoupling>>,
-    pub curvature_memory: Arc<Mutex<DirectedCurvatureMemory>>,
+    pub gs: Arc<Mutex<GSOperator>>,
 }
 
 impl IntentEngine {
     pub fn new() -> Self {
         let (intent_tx, _) = broadcast::channel(128);
+        let n = 6;
         let engine = Self {
             intent_tx,
             intent_bands: Arc::new(Mutex::new(HashMap::new())),
-            directed_coupling: Arc::new(Mutex::new(DirectedCoupling::new())),
-            curvature_memory: Arc::new(Mutex::new(DirectedCurvatureMemory::new())),
+            gs: Arc::new(Mutex::new(GSOperator::new(n))),
         };
         engine.seed_default_bands();
         engine
@@ -54,7 +53,7 @@ impl IntentEngine {
                 });
             }
         }
-        info!(target: "isst_toft::intent", "Directed coupling planes and memory tracks online.");
+        info!(target: "isst_toft::intent", "GSOperator algebraic core initialized.");
     }
 
     pub fn broadcast_update(&self, update: IntentUpdate) {
@@ -63,38 +62,6 @@ impl IntentEngine {
             if let Some(band) = bands.get_mut(&update.band_id) {
                 band.intent_value = update.intent_value;
                 band.last_updated = update.timestamp;
-            }
-        }
-    }
-
-    pub fn update_from_walker_push(
-        &self,
-        source_band: usize,
-        source_initial: f64,
-        first_step_values: &[f64],
-        alpha: f64,
-    ) {
-        if let (Ok(mut dc), Ok(mut cm)) = (self.directed_coupling.lock(), self.curvature_memory.lock()) {
-            for target in 0..first_step_values.len() {
-                if target == source_band { continue; }
-                let observed = first_step_values[target];
-                dc.gs_push_update(&mut cm, target, source_band, observed, source_initial, alpha);
-            }
-        }
-    }
-
-    pub fn update_from_ambient_pull(
-        &self,
-        source_band: usize,
-        source_initial: f64,
-        first_step_values: &[f64],
-        alpha: f64,
-    ) {
-        if let (Ok(mut dc), Ok(mut cm)) = (self.directed_coupling.lock(), self.curvature_memory.lock()) {
-            for target in 0..first_step_values.len() {
-                if target == source_band { continue; }
-                let observed = first_step_values[target];
-                dc.gs_pull_update(&mut cm, target, source_band, observed, source_initial, alpha);
             }
         }
     }
