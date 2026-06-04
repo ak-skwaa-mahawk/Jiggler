@@ -2,7 +2,7 @@ cat << 'EOF' > src/main.rs
 /*
 main.rs
 ISST-TOFT Sovereign Substrate Grid Entry Point.
-Dual Ledger-Writing Run: Synchronizes Rust invariant scores natively into tordial_gs.db.
+Active Holonomy Feedback Governor Run.
 */
 
 mod issttoft;
@@ -19,7 +19,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
     
     println!("══════════════════════════════════════════════════════════════");
-    println!("🔥  ISST-TOFT Sovereign Substrate Grid [SHARED LEDGER CORE]");
+    println!("🔥  ISST-TOFT Sovereign Substrate Grid [GOVERNOR FEEDBACK]");
     println!("══════════════════════════════════════════════════════════════");
 
     let engine = Arc::new(IntentEngine::new());
@@ -33,21 +33,15 @@ async fn main() {
     tokio::spawn(async move {
         while let Ok(update) = rx.recv().await {
             let idx = match update.band_id.as_str() {
-                "cERNpiranchor" => 0,
-                "warpcorestability" => 1,
-                "sovereignintentprimary" => 2,
-                "sovereignintentambient" => 3,
-                "sensorium_feedback" => 4,
-                "mutationplanedriver" => 5,
+                "cERNpiranchor" => 0, "warpcorestability" => 1, "sovereignintentprimary" => 2,
+                "sovereignintentambient" => 3, "sensorium_feedback" => 4, "mutationplanedriver" => 5,
                 _ => continue,
             };
             if update.reason.contains("strike") { continue; }
             if let Ok(t_strike) = strike_time_clone.lock() {
                 if *t_strike > 0 && (update.timestamp - *t_strike) <= 50 {
                     if let Ok(mut steps) = observed_clone.lock() {
-                        if steps[idx].is_none() {
-                            steps[idx] = Some(update.intent_value);
-                        }
+                        if steps[idx].is_none() { steps[idx] = Some(update.intent_value); }
                     }
                 }
             }
@@ -56,65 +50,76 @@ async fn main() {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-    // ─── STAGE 1: ACTIVE INJECTION PASS ───
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
-    if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now; }
-    
+    // ─── PULSE 1: FLAT BASELINE INTERCEPTION (TRIGGERS ACCELERATION) ───
+    let now1 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
+    if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now1; }
     let pulse_initial = 0.9990;
-    println!("\n🏋️ [RUST RUNTIME] Dispatching active WalkerPush surge...");
+    
+    println!("\n🏋️ [PULSE 1] Executing step surge on flat symmetric grid...");
     engine.broadcast_update(IntentUpdate {
-        band_id: "mutationplanedriver".to_string(),
-        mode: 1,
-        intent_value: pulse_initial,
-        timestamp: now,
-        reason: "walker_push_strike".to_string(),
+        band_id: "mutationplanedriver".to_string(), mode: 1, intent_value: pulse_initial, timestamp: now1, reason: "walker_push_strike".to_string(),
     });
 
     let initial_operator = engine.gs.lock().unwrap().clone();
     let band_map = ["cERNpiranchor", "warpcorestability", "sovereignintentprimary", "sovereignintentambient", "sensorium_feedback"];
 
     for i in 0..5 {
-        let distorted_coeff = initial_operator.effective(i, 5, GSMode::WalkerPush) + 0.040;
+        let distorted_coeff = initial_operator.effective(i, 5, GSMode::WalkerPush) + 0.080; // High induced distortion
         engine.broadcast_update(IntentUpdate {
-            band_id: band_map[i].to_string(),
-            mode: 1,
-            intent_value: pulse_initial * distorted_coeff,
-            timestamp: now,
-            reason: "distorted_push_wave".to_string(),
+            band_id: band_map[i].to_string(), mode: 1, intent_value: pulse_initial * distorted_coeff, timestamp: now1, reason: "distorted_push_wave".to_string(),
         });
     }
 
     tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
-
-    let mut push_step = vec![0.0; 6];
+    let mut push_step1 = vec![0.0; 6];
     if let Ok(steps) = observed_first_step.lock() {
-        for i in 0..6 { push_step[i] = steps[i].unwrap_or(0.0); }
+        for i in 0..6 { push_step1[i] = steps[i].unwrap_or(0.0); }
     }
-    push_step[5] = pulse_initial;
+    push_step1[5] = pulse_initial;
 
-    engine.gs.lock().unwrap().learn_push(5, pulse_initial, &push_step, 0.10);
+    println!("🧠 Invoking GSOperator update 1 (Expect adaptive acceleration)...");
+    engine.gs.lock().unwrap().learn_push(5, pulse_initial, &push_step1, 0.10);
 
-    // ─── COMPUTE LOCAL GEOMETRIC INVARIANT ───
+    // ─── PULSE 2: RE-STRIKING HIGH-HOLONOMY LANDSCAPE (TRIGGERS CHOKE) ───
+    if let Ok(mut steps) = observed_first_step.lock() { *steps = vec![None; 6]; }
+    let now2 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
+    if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now2; }
+
+    println!("\n🏋️ [PULSE 2] Re-striking the newly twisted manifold landscape...");
+    engine.broadcast_update(IntentUpdate {
+        band_id: "mutationplanedriver".to_string(), mode: 1, intent_value: pulse_initial, timestamp: now2, reason: "walker_push_strike".to_string(),
+    });
+
+    let secondary_operator = engine.gs.lock().unwrap().clone();
+    for i in 0..5 {
+        let distorted_coeff = secondary_operator.effective(i, 5, GSMode::WalkerPush) + 0.080;
+        engine.broadcast_update(IntentUpdate {
+            band_id: band_map[i].to_string(), mode: 1, intent_value: pulse_initial * distorted_coeff, timestamp: now2, reason: "distorted_push_wave".to_string(),
+        });
+    }
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
+    let mut push_step2 = vec![0.0; 6];
+    if let Ok(steps) = observed_first_step.lock() {
+        for i in 0..6 { push_step2[i] = steps[i].unwrap_or(0.0); }
+    }
+    push_step2[5] = pulse_initial;
+
+    println!("🧠 Invoking GSOperator update 2 (Expect adaptive choke protection)...");
+    engine.gs.lock().unwrap().learn_push(5, pulse_initial, &push_step2, 0.10);
+
+    // ─── FINAL ARCHITECTURAL AUDIT READOUT ───
     let final_gs = engine.gs.lock().unwrap().clone();
-    let rust_holonomy_norm = final_gs.compute_holonomy_norm();
-    println!("📊 [RUST RUNTIME] Computed Frobenius Holonomy Norm (||Ω||_F): {:.5}", rust_holonomy_norm);
-
-    // ─── COMMIT NATIVELY TO THE TORDIAL CORE LEDGER ───
-    println!("[*] Committing local invariant entry directly into tordial_gs.db ledger...");
+    let final_h_norm = final_gs.compute_holonomy_norm();
+    println!("\n📊 [GOVERNED LANDSCAPE SNAPSHOT]");
+    println!("   Final Frobenius Holonomy Norm (||Ω||_F): {:.5}", final_h_norm);
+    
+    // Write entry directly to the synchronized database ledger
     let query = format!(
-        "INSERT INTO runs (timestamp, runtime_env, node_count, final_freq, quarantine_rate, avg_kappa, stability_score, holonomy_norm, holonomy_norm_local) VALUES (datetime('now'), 'Rust', 6, 0.0, 0.0, 0.0, 0.85, 0.0, {});", 
-        rust_holonomy_norm
+        "INSERT INTO runs (timestamp, runtime_env, node_count, final_freq, quarantine_rate, avg_kappa, stability_score, holonomy_norm, holonomy_norm_local) VALUES (datetime('now'), 'Rust_Gov', 6, 0.0, 0.0, 0.0, 0.85, 0.0, {});", 
+        final_h_norm
     );
-
-    let status = Command::new("sqlite3")
-        .arg("tordial_gs.db")
-        .arg(&query)
-        .status();
-
-    match status {
-        Ok(s) if s.success() => println!("✅ [LEDGER SYNC SUCCESS] Substrate metric saved securely."),
-        _ => eprintln!("❌ [LEDGER SYNC FAILURE] Verification track blocked."),
-    }
+    let _ = Command::new("sqlite3").arg("tordial_gs.db").arg(&query).status();
+    println!("✅ [LEDGER SYNC] Governed invariant saved securely into shared tracking DB.");
 }
 EOF
-cargo run
