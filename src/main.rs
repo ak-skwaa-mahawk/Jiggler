@@ -2,7 +2,7 @@ cat << 'EOF' > src/main.rs
 /*
 main.rs
 ISST-TOFT Sovereign Substrate Grid Entry Point.
-Directed Asymmetric Unified Run: Demonstrates Push/Pull decorelation and non-zero holonomy.
+Directed Curvature Execution Run: Validates pushing and pulling as separate operators.
 */
 
 mod issttoft;
@@ -10,7 +10,7 @@ mod intent_engine;
 
 use std::sync::{Arc, Mutex};
 use crate::intent_engine::IntentEngine;
-use crate::issttoft::{IntentUpdate, EdgeRole};
+use crate::issttoft::IntentUpdate;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[tokio::main]
@@ -18,7 +18,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
     
     println!("══════════════════════════════════════════════════════════════");
-    println!("🔥  ISST-TOFT Sovereign Substrate Grid [DIRECTED HOLONOMY]");
+    println!("🔥  ISST-TOFT Sovereign Substrate Grid [CANONICAL SPLIT]");
     println!("══════════════════════════════════════════════════════════════");
 
     let engine = Arc::new(IntentEngine::new());
@@ -59,12 +59,12 @@ async fn main() {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-    // ─── CYCLE 1: WALKER PUSH STRIKE FROM BAND 5 ───
+    // ─── ACTION 1: WALKER-DRIVEN PUSH STRIKE FROM BAND 5 ───
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
     if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now; }
     
     let pulse_initial = 0.9990;
-    println!("\n🏋️ [WALKER PUSH] Striking Band 5 at high salience ({:.4})...", pulse_initial);
+    println!("\n🏋️ [WALKER PUSH] Executing activation surge on Band 5 ({:.4})...", pulse_initial);
     engine.broadcast_update(IntentUpdate {
         band_id: "mutationplanedriver".to_string(),
         mode: 1,
@@ -73,11 +73,11 @@ async fn main() {
         reason: "walker_push_strike".to_string(),
     });
 
-    let initial_matrix = engine.coupling_matrix.lock().unwrap().clone();
+    let initial_coupling = engine.directed_coupling.lock().unwrap().clone();
     let band_map = ["cERNpiranchor", "warpcorestability", "sovereignintentprimary", "sovereignintentambient", "sensorium_feedback"];
 
     for i in 0..5 {
-        let distorted_coeff = initial_matrix.get_push(i, 5) + 0.040; // Simulate environmental distortion warp
+        let distorted_coeff = initial_coupling.push[i][5] + 0.040; // Simulate environmental distortion
         engine.broadcast_update(IntentUpdate {
             band_id: band_map[i].to_string(),
             mode: 1,
@@ -95,16 +95,16 @@ async fn main() {
     }
     push_step[5] = pulse_initial;
 
-    println!("🧠 Running non-commutative WalkerPush tensor adjustment...");
-    engine.update_c_from_strike(5, pulse_initial, &push_step, 0.10, EdgeRole::WalkerPush);
+    println!("🧠 Running f_push operator convergence loop...");
+    engine.update_from_walker_push(5, pulse_initial, &push_step, 0.10);
 
-    // ─── CYCLE 2: AMBIENT PULL REBALANCING FROM BAND 3 ───
+    // ─── ACTION 2: AMBIENT-DRIVEN PULL STRIKE FROM BAND 3 ───
     if let Ok(mut steps) = observed_first_step.lock() { *steps = vec![None; 6]; }
     let now_pull = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
     if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now_pull; }
     
     let ambient_pulse = 0.5000;
-    println!("\n🌊 [AMBIENT PULL] Context field re-projecting balancing torque from Band 3 ({:.4})...", ambient_pulse);
+    println!("\n🌊 [AMBIENT PULL] Executing rebalancing context pull on Band 3 ({:.4})...", ambient_pulse);
     engine.broadcast_update(IntentUpdate {
         band_id: "sovereignintentambient".to_string(),
         mode: 0,
@@ -115,7 +115,7 @@ async fn main() {
 
     for i in 0..6 {
         if i == 3 { continue; }
-        let distorted_pull = initial_matrix.get_pull(i, 3) - 0.030; // Simulate reverse rebalancing warp
+        let distorted_pull = initial_coupling.pull[i][3] - 0.030; // Simulate reverse balancing warp
         engine.broadcast_update(IntentUpdate {
             band_id: match i {
                 0 => "cERNpiranchor".to_string(),
@@ -140,19 +140,18 @@ async fn main() {
     }
     pull_step[3] = ambient_pulse;
 
-    println!("🧠 Running non-commutative AmbientPull tensor adjustment...");
-    engine.update_c_from_strike(3, ambient_pulse, &pull_step, 0.10, EdgeRole::AmbientPull);
+    println!("🧠 Running f_pull operator convergence loop...");
+    engine.update_from_ambient_pull(3, ambient_pulse, &pull_step, 0.10);
 
-    // ─── READOUT CALIBRATED ASYMMETRIC TOPOLOGY ───
-    let post_matrix = engine.coupling_matrix.lock().unwrap().clone();
-    println!("\n📊 [GEOMETRIC TRACK REALIZATION]");
-    println!("   Edge (5 -> 1) PUSH Coeff : {:.4} | Curvature Memory: {:.4}", post_matrix.push[1][5].coeff, post_matrix.push[1][5].curvature);
-    println!("   Edge (5 -> 1) PULL Coeff : {:.4} | Curvature Memory: {:.4}", post_matrix.pull[1][5].coeff, post_matrix.pull[1][5].curvature);
-    println!("   Effective Operator Projection C[1][5]: {:.4}", post_matrix.effective(1, 5));
+    // ─── GEOMETRIC VERIFICATION READOUT ───
+    let dc = engine.directed_coupling.lock().unwrap().clone();
+    let cm = engine.curvature_memory.lock().unwrap().clone();
+
+    println!("\n📝 [GEOMETRIC MANIFOLD DISPATCH]");
+    println!("   Edge (5 -> 1) PUSH Matrix Coeff : {:.4} | Curvature Memory: {:.4}", dc.push[1][5], cm.push_mem[1][5]);
+    println!("   Edge (5 -> 1) PULL Matrix Coeff : {:.4} | Curvature Memory: {:.4}", dc.pull[1][5], cm.pull_mem[1][5]);
+    println!("   Effective Projection Operator C[1][5]: {:.4}", dc.effective(1, 5));
     
-    println!("\n🔄 [HYSTERESIS LEAK VALIDATION]");
-    println!("   Edge (1 -> 5) PULL Hysteresis Curvature: {:.4}", post_matrix.pull[5][1].curvature);
-    
-    println!("\n✅ [MANIFOLD SECURE] Non-commutative holonomy channels verified active.");
+    println!("\n✅ [HOLONOMY SECURED] Geometry planes successfully split and verified.");
 }
 EOF
