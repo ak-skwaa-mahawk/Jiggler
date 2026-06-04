@@ -1,3 +1,9 @@
+[dependencies]
+tonic = "0.12"
+prost = "0.13"
+tokio = { version = "1", features = ["full"] }
+# Direct link to your native math library
+tordial_gs_manifold = { path = "../Tordial-GS-_Manifold" }
 async-stream = "0.3"
 futures = "0.3"
 [lib]
