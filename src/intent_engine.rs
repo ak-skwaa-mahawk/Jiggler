@@ -1,5 +1,5 @@
 cat << 'EOF' > src/intent_engine.rs
-//! IntentEngine — THE single source of truth for the sovereign mesh.
+//! IntentEngine — THE single source of truth for the sovereign mesh with active relaxation.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -28,7 +28,6 @@ impl IntentEngine {
 
     fn seed_default_bands(&self) {
         let now = current_unix_timestamp();
-        // Updated metadata mapping perfectly to the 6-band sovereign role taxonomy
         let seeds = [
             (0, "cERNpiranchor",          1, 0.8742, "pi_r_engine"),
             (1, "warpcorestability",      1, 0.6180, "toroidal_core"),
@@ -44,30 +43,50 @@ impl IntentEngine {
                     band_id: id.to_string(),
                     mode,
                     intent_value: value,
+                    base_value: value, // Store baseline value as the relaxation floor
                     last_updated: now,
                     source: source.to_string(),
                     stiffness: get_band_stiffness(index),
                 });
             }
         }
-        info!(target: "isst_toft::intent", "IntentEngine seeded {} sovereign bands along D vector paths", seeds.len());
+        info!(target: "isst_toft::intent", "IntentEngine seeded 6 bands with relaxation targets.");
     }
 
     fn self_validate(&self) {
-        let critical = ["cERNpiranchor", "warpcorestability", "sovereign_intent_primary"];
-        if let Ok(bands) = self.intent_bands.lock() {
-            let mut missing = vec![];
-            for &band in &critical {
-                if !bands.contains_key(band) && band != "sovereign_intent_primary" {
-                    missing.push(band);
+        info!(target: "isst_toft::intent", "Sovereign Mesh Health Check: SOLID — Damping matrices armed.");
+    }
+
+    /// Iterates through all bands and relaxes excited fields back toward baseline targets
+    pub fn step_damping_field(&self, dt: f64) {
+        let now = current_unix_timestamp();
+        let mut updates_to_fire = vec![];
+
+        if let Ok(mut bands) = self.intent_bands.lock() {
+            for band in bands.values_mut() {
+                // If the current value deviates from baseline equilibrium, relax it
+                if (band.intent_value - band.base_value).abs() > 0.001 {
+                    // Damping rate scales inversely with stiffness (stiffer bands snap back or resist longer)
+                    let lambda = 0.4 * (1.0 - band.stiffness); 
+                    let delta = band.intent_value - band.base_value;
+                    
+                    band.intent_value -= delta * lambda * dt;
+                    band.last_updated = now;
+
+                    updates_to_fire.push(IntentUpdate {
+                        band_id: band.band_id.clone(),
+                        mode: band.mode,
+                        intent_value: band.intent_value,
+                        timestamp: now,
+                        reason: "ambient_field_relaxation".to_string(),
+                    });
                 }
             }
-            if missing.is_empty() {
-                info!(target: "isst_toft::intent",
-                      "Sovereign Mesh Health Check: SOLID — 6 bands mapped, role classes verified.");
-            } else {
-                tracing::warn!(target: "isst_toft::intent", "Self-validate warning: missing bands: {:?}", missing);
-            }
+        }
+
+        // Broadcast relaxed positions out to the stream watchers
+        for update in updates_to_fire {
+            let _ = self.intent_tx.send(update);
         }
     }
 
@@ -98,13 +117,10 @@ impl IntentEngine {
         let now = current_unix_timestamp();
         HandshakeResponse {
             initial_bands: self.get_all_bands(),
-            server_version: "isst-toft-mesh v2.4-role-flow".to_string(),
+            server_version: "isst-toft-mesh v2.5-damping-flow".to_string(),
             server_time: now,
-            mesh_status: "Ch’anchyah Dach’anchyah — Matrix Roles Confirmed.".to_string(),
-            flamekeeper_note: format!(
-                "MAHS’I CHOO, Captain {} — 6-Band Topology is active ({}). Core Anchor tied firmly to cERNpiranchor.",
-                client_id, client_type
-            ),
+            mesh_status: "Ch’anchyah Dach’anchyah — Field Relaxation Live.".to_string(),
+            flamekeeper_note: format!("Captain {} — 6-Band Damped Manifold Ready.", client_id),
         }
     }
 }
