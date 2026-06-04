@@ -223,3 +223,192 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 EOF
+cat > src/main.rs << 'ENDMAIN'
+//! ISST-TOFT Sovereign Inference Mesh
+//!
+//! Thin launcher. All sovereign logic lives in IntentEngine (single source of truth).
+//! Self-aware stack: IntentEngine validates its own health on startup.
+//!
+//! Flamekeeper Protocol — Dinjji Zhuu Kwaa • Two Mile Solutions LLC
+
+use std::net::SocketAddr;
+
+use tonic::{transport::Server, Request, Response, Status};
+use tracing::{info, warn};
+use tracing_subscriber;
+
+use async_stream::stream;
+use futures::Stream;
+
+pub mod issttoft {
+    tonic::include_proto!("issttoft");
+}
+
+mod intent_engine;
+use intent_engine::IntentEngine;
+
+use issttoft::{
+    inference_service_server::{InferenceService, InferenceServiceServer},
+    GetAllIntentBandsRequest, GetAllIntentBandsResponse, GetIntentBandRequest,
+    GlyphRequest, GlyphResponse, HandshakeRequest, HandshakeResponse,
+    IntentBand, IntentUpdate, PulseRequest, PulseResponse,
+    StreamIntentUpdatesRequest,
+};
+
+/// Thin gRPC service layer. Delegates everything to IntentEngine.
+#[derive(Clone)]
+pub struct SovereignInferenceService {
+    engine: IntentEngine,
+}
+
+impl SovereignInferenceService {
+    pub fn new() -> Self {
+        Self {
+            engine: IntentEngine::new(),
+        }
+    }
+
+    /// Single entry point for external sovereign components (pi_r_engine, lineage, safety, etc.)
+    pub fn broadcast_intent_update(&self, update: IntentUpdate) {
+        self.engine.broadcast_update(update);
+    }
+}
+
+#[tonic::async_trait]
+impl InferenceService for SovereignInferenceService {
+    async fn get_intent_band(
+        &self,
+        request: Request<GetIntentBandRequest>,
+    ) -> Result<Response<IntentBand>, Status> {
+        let req = request.into_inner();
+        let bands = self.engine.get_all_bands();
+        if let Some(band) = bands.into_iter().find(|b| b.band_id == req.band_id) {
+            Ok(Response::new(band))
+        } else {
+            Err(Status::not_found(format!("Band '{}' not found", req.band_id)))
+        }
+    }
+
+    async fn get_all_intent_bands(
+        &self,
+        _request: Request<GetAllIntentBandsRequest>,
+    ) -> Result<Response<GetAllIntentBandsResponse>, Status> {
+        let bands = self.engine.get_all_bands();
+        Ok(Response::new(GetAllIntentBandsResponse { bands }))
+    }
+
+    async fn stream_intent_updates(
+        &self,
+        _request: Request<StreamIntentUpdatesRequest>,
+    ) -> Result<Response<Self::StreamIntentUpdatesStream>, Status> {
+        info!(target: "isst_toft::intent", "New client subscribed to StreamIntentUpdates (via IntentEngine)");
+
+        let mut rx = self.engine.subscribe();
+
+        let output_stream = stream! {
+            loop {
+                match rx.recv().await {
+                    Ok(update) => yield Ok(update),
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                        warn!(target: "isst_toft::intent", "Client lagged — skipped {} updates", skipped);
+                        continue;
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        };
+
+        Ok(Response::new(Box::pin(output_stream)))
+    }
+
+    async fn handshake(
+        &self,
+        request: Request<HandshakeRequest>,
+    ) -> Result<Response<HandshakeResponse>, Status> {
+        let req = request.into_inner();
+        info!(
+            target: "isst_toft::intent",
+            "Handshake received | client_id={} | type={} | claim={}",
+            req.client_id, req.client_type, req.sovereign_claim
+        );
+
+        let response = self.engine.handshake(
+            req.client_id,
+            req.client_type,
+            req.sovereign_claim,
+        );
+
+        Ok(Response::new(response))
+    }
+
+    // Placeholder stubs for core methods (we wire them properly in later loops)
+    async fn encode_rad_hard_glyph(
+        &self,
+        _request: Request<GlyphRequest>,
+    ) -> Result<Response<GlyphResponse>, Status> {
+        Err(Status::unimplemented("EncodeRadHardGlyph not yet wired"))
+    }
+
+    async fn run_clientless_pulse(
+        &self,
+        _request: Request<PulseRequest>,
+    ) -> Result<Response<PulseResponse>, Status> {
+        Err(Status::unimplemented("RunClientlessPulse not yet wired"))
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
+
+    let service = SovereignInferenceService::new();
+
+    // === Demo Broadcaster Task (simulates pi_r_engine / toroidal recurrence) ===
+    let engine_for_demo = service.engine.clone();
+    tokio::spawn(async move {
+        let mut tick: f64 = 0.0;
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_millis(1400)).await;
+            tick = (tick + 0.085) % 1.0;
+
+            let value = 0.62 + tick * 0.38;
+            let reason = if value > 0.94 {
+                "vhitzee"
+            } else if value < 0.68 {
+                "catapult"
+            } else {
+                "drive"
+            };
+
+            let update = IntentUpdate {
+                band_id: "dynamic_pi_r_floor".to_string(),
+                mode: 1,
+                intent_value: value.min(0.999),
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64,
+                reason: reason.to_string(),
+            };
+
+            engine_for_demo.broadcast_update(update);
+        }
+    });
+
+    let addr: SocketAddr = "0.0.0.0:50051".parse()?;
+    info!("══════════════════════════════════════════════════════════════");
+    info!("🔥  ISST-TOFT Sovereign Inference Mesh v2.0-single-flow ONLINE");
+    info!("   Listening on {}  |  IntentEngine self-validated", addr);
+    info!("   CERN resonance anchor + dynamic π_r floor broadcasting");
+    info!("══════════════════════════════════════════════════════════════");
+
+    Server::builder()
+        .add_service(InferenceServiceServer::new(service))
+        .serve(addr)
+        .await?;
+
+    Ok(())
+}
+ENDMAIN
