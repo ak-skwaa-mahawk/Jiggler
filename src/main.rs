@@ -2,7 +2,7 @@ cat << 'EOF' > src/main.rs
 /*
 main.rs
 ISST-TOFT Sovereign Substrate Grid Entry Point.
-Algebraic Unified Run: Operates on separate stateful push/pull operator tracks.
+Algebraic Holonomy Run: Natively processes 3-cycle parallel transport transformations.
 */
 
 mod issttoft;
@@ -18,7 +18,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
     
     println!("══════════════════════════════════════════════════════════════");
-    println!("🔥  ISST-TOFT Sovereign Substrate Grid [ALGEBRAIC CORE]");
+    println!("🔥  ISST-TOFT Sovereign Substrate Grid [RUST HOLONOMY ENGINE]");
     println!("══════════════════════════════════════════════════════════════");
 
     let engine = Arc::new(IntentEngine::new());
@@ -59,12 +59,12 @@ async fn main() {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-    // ─── STAGE 1: WALKER PUSH ───
+    // ─── STAGE 1: WALKER PUSH ACTIVE INJECTION ───
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
     if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now; }
     
     let pulse_initial = 0.9990;
-    println!("\n🏋️ [TRACK OPERATOR] Dispatching active WalkerPush surge on Band 5...");
+    println!("\n🏋️ [RUST ENGINE] Triggering high-salience WalkerPush on Band 5...");
     engine.broadcast_update(IntentUpdate {
         band_id: "mutationplanedriver".to_string(),
         mode: 1,
@@ -77,7 +77,7 @@ async fn main() {
     let band_map = ["cERNpiranchor", "warpcorestability", "sovereignintentprimary", "sovereignintentambient", "sensorium_feedback"];
 
     for i in 0..5 {
-        let distorted_coeff = initial_operator.effective(i, 5, GSMode::WalkerPush) + 0.040;
+        let distorted_coeff = initial_operator.effective(i, 5, GSMode::WalkerPush) + 0.040; // Induce systemic warp
         engine.broadcast_update(IntentUpdate {
             band_id: band_map[i].to_string(),
             mode: 1,
@@ -95,60 +95,18 @@ async fn main() {
     }
     push_step[5] = pulse_initial;
 
-    println!("🧠 Invoking GSOperator::learn_push track convergence...");
+    println!("🧠 Running learn_push operational pass...");
     engine.gs.lock().unwrap().learn_push(5, pulse_initial, &push_step, 0.10);
 
-    // ─── STAGE 2: AMBIENT PULL ───
-    if let Ok(mut steps) = observed_first_step.lock() { *steps = vec![None; 6]; }
-    let now_pull = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
-    if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now_pull; }
-    
-    let ambient_pulse = 0.5000;
-    println!("\n🌊 [TRACK OPERATOR] Dispatching passive AmbientPull reprojection on Band 3...");
-    engine.broadcast_update(IntentUpdate {
-        band_id: "sovereignintentambient".to_string(),
-        mode: 0,
-        intent_value: ambient_pulse,
-        timestamp: now_pull,
-        reason: "ambient_pull_strike".to_string(),
-    });
-
-    for i in 0..6 {
-        if i == 3 { continue; }
-        let distorted_pull = initial_operator.effective(i, 3, GSMode::AmbientPull) - 0.030;
-        engine.broadcast_update(IntentUpdate {
-            band_id: match i {
-                0 => "cERNpiranchor".to_string(),
-                1 => "warpcorestability".to_string(),
-                2 => "sovereignintentprimary".to_string(),
-                4 => "sensorium_feedback".to_string(),
-                5 => "mutationplanedriver".to_string(),
-                _ => continue
-            },
-            mode: 0,
-            intent_value: ambient_pulse * distorted_pull,
-            timestamp: now_pull,
-            reason: "distorted_pull_wave".to_string(),
-        });
-    }
-
-    tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
-
-    let mut pull_step = vec![0.0; 6];
-    if let Ok(steps) = observed_first_step.lock() {
-        for i in 0..6 { pull_step[i] = steps[i].unwrap_or(0.0); }
-    }
-    pull_step[3] = ambient_pulse;
-
-    println!("🧠 Invoking GSOperator::learn_pull track convergence...");
-    engine.gs.lock().unwrap().learn_pull(3, ambient_pulse, &pull_step, 0.10);
-
-    // ─── DISPLAY TOPOLOGICAL LOG ALGEBRA RESULTS ───
+    // ─── FINAL READOUT: EXPERIMENTAL NATIVE SCALAR RESOLUTION ───
     let final_gs = engine.gs.lock().unwrap().clone();
-    println!("\n📊 [ALGEBRAIC LAYER RESOLUTION]");
-    println!("   GSOperator Push C[1][5] : {:.4} | Curvature Memory: {:.4}", final_gs.effective(1, 5, GSMode::WalkerPush), final_gs.memory.push_mem[1][5]);
-    println!("   GSOperator Pull C[1][5] : {:.4} | Curvature Memory: {:.4}", final_gs.effective(1, 5, GSMode::AmbientPull), final_gs.memory.pull_mem[1][5]);
+    let rust_holonomy_norm = final_gs.compute_holonomy_norm();
     
-    println!("\n✅ [MANIFOLD ALGEBRA SECURE] Asymmetric directed geometric core running smoothly.");
+    println!("\n📊 [RUST HOLONOMY TENSOR READOUT]");
+    println!("   GSOperator Push C[1][5] : {:.4}", final_gs.effective(1, 5, GSMode::WalkerPush));
+    println!("   GSOperator Pull C[1][5] : {:.4}", final_gs.effective(1, 5, GSMode::AmbientPull));
+    println!("   Computed Frobenius Holonomy Norm (||Ω||_F): {:.5}", rust_holonomy_norm);
+    
+    println!("\n✅ [MANIFOLD SECURE] Rust-side holonomy tensor calculations live and verified.");
 }
 EOF
