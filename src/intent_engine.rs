@@ -1,5 +1,5 @@
 cat << 'EOF' > src/intent_engine.rs
-//! IntentEngine — Self-Calibrating Source of Truth with Mutable Geometry Tuning.
+//! IntentEngine — Noise-Resistant, Stiffness-Weighted Self-Calibrating Core.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -51,7 +51,7 @@ impl IntentEngine {
                 });
             }
         }
-        info!(target: "isst_toft::intent", "Self-calibrating IntentEngine initialized.");
+        info!(target: "isst_toft::intent", "Stiffness-weighted, noise-resistant engine armed.");
     }
 
     pub fn step_damping_field(&self, dt: f64) {
@@ -94,6 +94,7 @@ impl IntentEngine {
         }
     }
 
+    /// Calibrates C using noise-gated boundaries and stiffness-weighted alpha multipliers
     pub fn update_c_from_strike(
         &self,
         source_band: usize,
@@ -106,13 +107,22 @@ impl IntentEngine {
         if let Ok(mut matrix) = self.coupling_matrix.lock() {
             for target in 0..first_step_values.len() {
                 if target == source_band { continue; }
-                
+
                 let observed = first_step_values[target];
                 let c_eff = observed / source_initial;
                 let old = matrix.get(target, source_band);
-                
-                // Live learning interpolation step
-                let new = (1.0 - alpha) * old + alpha * c_eff;
+
+                // 1. Noise Floor Gate: Filter out micro-adjustments
+                if (c_eff - old).abs() < 0.005 {
+                    continue;
+                }
+
+                // 2. GS Stiffness Adaptive Modulator: High-inertia bands learn slower
+                let stiffness = get_band_stiffness(target);
+                let alpha_eff = alpha * (1.0 - stiffness);
+
+                // 3. Extrapolate tracking trajectory
+                let new = (1.0 - alpha_eff) * old + alpha_eff * c_eff;
                 matrix.set(target, source_band, new);
             }
         }
