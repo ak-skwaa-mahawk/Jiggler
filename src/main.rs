@@ -2,8 +2,7 @@ cat << 'EOF' > src/main.rs
 /*
 main.rs
 ISST-TOFT Sovereign Substrate Grid Entry Point.
-Unified Run: Implements Temporal-Windowed Window Captures, Live Learning Governor Limits,
-and the Non-Associative GS Curvature Operator.
+Explicit Unified Run: Intercepts bus frames and exposes underlying operator records.
 */
 
 mod gs;
@@ -20,7 +19,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
     
     println!("══════════════════════════════════════════════════════════════");
-    println!("🔥  ISST-TOFT Sovereign Substrate Grid [PRODUCTION UNIFIED]");
+    println!("🔥  ISST-TOFT Sovereign Substrate Grid [EXPLICIT COMBINER]");
     println!("══════════════════════════════════════════════════════════════");
 
     let engine = Arc::new(IntentEngine::new());
@@ -29,13 +28,10 @@ async fn main() {
     let observed_first_step = Arc::new(Mutex::new(vec![None; 6]));
     let strike_time = Arc::new(Mutex::new(0_i64));
 
-    // 1. Strict Async Temporal Gate Observer
     let observed_clone = Arc::clone(&observed_first_step);
     let strike_time_clone = Arc::clone(&strike_time);
     tokio::spawn(async move {
         while let Ok(update) = rx.recv().await {
-            println!("   ✨ [LIVE BUS] Update -> {:<22} | Value: {:.4}", update.band_id, update.intent_value);
-
             let idx = match update.band_id.as_str() {
                 "cERNpiranchor" => 0,
                 "warpcorestability" => 1,
@@ -50,7 +46,6 @@ async fn main() {
                 continue;
             }
 
-            // Gating window restricted tightly to 50ms bounds
             if let Ok(t_strike) = strike_time_clone.lock() {
                 if *t_strike > 0 && (update.timestamp - *t_strike) <= 50 {
                     if let Ok(mut steps) = observed_clone.lock() {
@@ -65,15 +60,14 @@ async fn main() {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-    // 2. Maximum Saturation Torque Strike
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
     if let Ok(mut t_strike) = strike_time.lock() {
         *t_strike = now;
     }
     
-    let pulse_initial = 0.9990; // Automatically triggers the Learning Governor high-energy throttle
+    let pulse_initial = 0.9990;
     
-    println!("\n🏋️ [GEOMETRY STRIKE] Striking Band 5 at max saturation ({:.4})...", pulse_initial);
+    println!("\n🏋️ [GEOMETRY STRIKE] Striking Band 5 at explicit scale ({:.4})...", pulse_initial);
     engine.broadcast_update(IntentUpdate {
         band_id: "mutationplanedriver".to_string(),
         mode: 1,
@@ -88,10 +82,9 @@ async fn main() {
         "sovereignintentambient", "sensorium_feedback"
     ];
 
-    // Induce significant environmental drift (+0.040) to force adaptation beyond noise gates
     for i in 0..5 {
         let baseline_coeff = initial_matrix.get(i, 5);
-        let distorted_coeff = baseline_coeff + 0.040;
+        let distorted_coeff = baseline_coeff + 0.040; // Force an environmental distortion
         
         engine.broadcast_update(IntentUpdate {
             band_id: band_map[i].to_string(),
@@ -104,7 +97,6 @@ async fn main() {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-    // 3. Extract verified real-time metrics
     let mut real_first_step = vec![0.0; 6];
     if let Ok(steps) = observed_first_step.lock() {
         for i in 0..6 {
@@ -117,19 +109,19 @@ async fn main() {
     println!("   Old C[1][5] (mutation->stability) : {:.4}", initial_matrix.get(1, 5));
     println!("   Old C[3][5] (mutation->ambient)   : {:.4}", initial_matrix.get(3, 5));
 
-    // 🚀 4. Execute the Non-Associative GS Curvature Memory Optimization Step
-    println!("\n🧠 [GS OPERATOR PASS] Running governor-gated curvature convergence...");
-    engine.update_c_from_strike(5, pulse_initial, &real_first_step, 0.10);
+    println!("\n🧠 [EXPLICIT GS COMBINER PASS] Operator processing non-associative geometry convergence...");
+    engine.update_c_from_strike(5, pulse_initial, &real_first_step);
 
+    // Pull the post-optimization results from their authoritative, separate state layers
     let post_matrix = engine.coupling_matrix.lock().unwrap().clone();
+    let gs = engine.gs_combiner.lock().unwrap().clone();
+    let k15 = gs.curvature[1][5].k;
+
     println!("\n📝 [COUPLING POST-OPTIMIZATION]");
     println!("   New C[1][5] (mutation->stability) : {:.4}", post_matrix.get(1, 5));
     println!("   New C[3][5] (mutation->ambient)   : {:.4}", post_matrix.get(3, 5));
+    println!("   Accumulated Edge Curvature Memory (1->5): {:.4}", k15);
     
-    // Validate edge brain curvature record retention
-    let edge_brain = post_matrix.gs_state[1][5].clone();
-    println!("   Accumulated Edge Curvature Memory (1->5): {:.4}", edge_brain.curvature);
-    
-    println!("\n✅ [MANIFOLD SECURE] Self-healing geometric parameter alignment stable.");
+    println!("\n✅ [MANIFOLD STABLE] Curvature operator variables successfully surfaced.");
 }
 EOF
