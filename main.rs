@@ -1,4 +1,6 @@
-/*
+python -c '
+with open("src/main.rs", "w") as f:
+    f.write("""/*
 main.rs
 ISST-TOFT Sovereign Substrate Grid Entry Point.
 Vector A + C Convergence: Cross-Node Commutator Coupling & Algebraic Attractors.
@@ -27,7 +29,7 @@ struct PeerAlgebraicScar {
 
 fn read_peer_algebraic_scars(my_id: &str) -> PeerAlgebraicScar {
     let query = format!(
-        "SELECT commutator_1_5, commutator_2_5 FROM runs WHERE runtime_env != '{}' AND runtime_env LIKE 'Rust_Node_%' ORDER BY id DESC LIMIT 1;",
+        "SELECT commutator_1_5, commutator_2_5 FROM runs WHERE runtime_env != \"{}\" AND runtime_env LIKE \"Rust_Node_%\" ORDER BY id DESC LIMIT 1;",
         my_id
     );
     let output = Command::new("sqlite3").arg("tordial_gs.db").arg(&query).output();
@@ -35,11 +37,11 @@ fn read_peer_algebraic_scars(my_id: &str) -> PeerAlgebraicScar {
     if let Ok(out) = output {
         let text = String::from_utf8_lossy(&out.stdout);
         if let Some(line) = text.lines().next() {
-            let parts: Vec<&str> = line.split('|').collect();
+            let parts: Vec<&str> = line.split("|").collect();
             if parts.len() >= 2 {
                 let c15 = parts[0].trim().parse::<f64>().unwrap_or(0.0);
                 let c25 = parts[1].trim().parse::<f64>().unwrap_or(0.0);
-                println!("📖 [ALGEBRAIC DISCOVERY] Node '{}' located peer scars -> Edge[1][5]: {:.6}, Edge[2][5]: {:.6}", my_id, c15, c25);
+                println!("📖 [ALGEBRAIC DISCOVERY] Node \"{}\" located peer scars -> Edge[1][5]: {:.6}, Edge[2][5]: {:.6}", my_id, c15, c25);
                 return PeerAlgebraicScar { commutator_1_5: c15, commutator_2_5: c25 };
             }
         }
@@ -52,17 +54,16 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let args: Vec<String> = env::args().collect();
-    let node_id = if args.len() > 1 { format!("Rust_Node_{}", args[1]) } else { "Rust_Node_0".to_string() };
+    let node_id = if args.len() > 1 { format!(\"Rust_Node_{}\", args[1]) } else { \"Rust_Node_0\".to_string() };
 
-    println!("══════════════════════════════════════════════════════════════");
-    println!("🔥  ISST-TOFT SOVEREIGN CONSTELLATION [ALGEBRAIC ATTRACTOR]");
-    println!("══════════════════════════════════════════════════════════════");
+    println!(\"==============================================================\");
+    println!(\"🔥  ISST-TOFT SOVEREIGN CONSTELLATION [ALGEBRAIC ATTRACTOR]\");
+    println!(\"==============================================================\");
 
     let mut envelope = ContractEnvelope::default_production_contract();
     let engine = Arc::new(IntentEngine::new());
     let mut rx = engine.subscribe();
 
-    // ─── CRITICAL PHASE: CROSS-NODE LIE COUPLING ───
     let peer_scar = read_peer_algebraic_scars(&node_id);
 
     let observed_first_step = Arc::new(Mutex::new(vec![None; 6]));
@@ -73,11 +74,11 @@ async fn main() {
     tokio::spawn(async move {
         while let Ok(update) = rx.recv().await {
             let idx = match update.band_id.as_str() {
-                "cERNpiranchor" => 0, "warpcorestability" => 1, "sovereignintentprimary" => 2,
-                "sovereignintentambient" => 3, "sensorium_feedback" => 4, "mutationplanedriver" => 5,
+                \"cERNpiranchor\" => 0, \"warpcorestability\" => 1, \"sovereignintentprimary\" => 2,
+                \"sovereignintentambient\" => 3, \"sensorium_feedback\" => 4, \"mutationplanedriver\" => 5,
                 _ => continue,
             };
-            if update.reason.contains("strike") { continue; }
+            if update.reason.contains(\"strike\") { continue; }
             if let Ok(t_strike) = strike_time_clone.lock() {
                 if *t_strike > 0 && (update.timestamp - *t_strike) <= 50 {
                     if let Ok(mut steps) = observed_clone.lock() {
@@ -98,16 +99,15 @@ async fn main() {
     if let Ok(mut t_strike) = strike_time.lock() { *t_strike = now; }
     let pulse_initial = 0.9990;
 
-    // Drive Walker Push Lane
-    println!("\n🏋️ Driving active WalkerPush excitation wave...");
+    println!(\"\\n🏋️ Driving active WalkerPush excitation wave...\");
     engine.broadcast_update(IntentUpdate {
-        band_id: "mutationplanedriver".to_string(), mode: 1, intent_value: pulse_initial, timestamp: now, reason: "walker_push_strike".to_string(),
+        band_id: \"mutationplanedriver\".to_string(), mode: 1, intent_value: pulse_initial, timestamp: now, reason: \"walker_push_strike\".to_string(),
     });
-    let band_map = ["cERNpiranchor", "warpcorestability", "sovereignintentprimary", "sovereignintentambient", "sensorium_feedback"];
+    let band_map = [\"cERNpiranchor\", \"warpcorestability\", \"sovereignintentprimary\", \"sovereignintentambient\", \"sensorium_feedback\"];
     for i in 0..5 {
         let push_coeff = baseline_snapshot.push_c[i][5] + 0.050;
         engine.broadcast_update(IntentUpdate {
-            band_id: band_map[i].to_string(), mode: 1, intent_value: pulse_initial * push_coeff, timestamp: now, reason: "push_wave".to_string(),
+            band_id: band_map[i].to_string(), mode: 1, intent_value: pulse_initial * push_coeff, timestamp: now, reason: \"push_wave\".to_string(),
         });
     }
     tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
@@ -118,19 +118,18 @@ async fn main() {
     push_step[5] = pulse_initial;
     engine.gs.lock().unwrap().learn_push(5, pulse_initial, &push_step, 0.10);
 
-    // Drive Ambient Pull Lane with Cross-Node Inter-Operator Coupling Bias
     if let Ok(mut steps) = observed_first_step.lock() { *steps = vec![None; 6]; }
-    println!("🏋️ Driving passive AmbientPull context recovery wave...");
+    println!(\"🏋️ Driving passive AmbientPull context recovery wave...\");
     for i in 0..5 {
         let coupling_bias = if i == 1 { peer_scar.commutator_1_5 * 0.5 } else if i == 2 { peer_scar.commutator_2_5 * 0.5 } else { 0.0 };
         let pull_coeff = baseline_snapshot.pull_c[i][5] + 0.015 + coupling_bias;
 
         if coupling_bias.abs() > 0.0 {
-            println!("🌀 [ATTRACTOR LOCK] Edge [{}][5] injecting algebraic alignment bias delta: {:.6}", i, coupling_bias);
+            println!(\"🌀 [ATTRACTOR LOCK] Edge [{}][5] injecting algebraic alignment bias delta: {:.6}\", i, coupling_bias);
         }
 
         engine.broadcast_update(IntentUpdate {
-            band_id: band_map[i].to_string(), mode: 0, intent_value: pulse_initial * pull_coeff, timestamp: now, reason: "pull_wave".to_string(),
+            band_id: band_map[i].to_string(), mode: 0, intent_value: pulse_initial * pull_coeff, timestamp: now, reason: \"pull_wave\".to_string(),
         });
     }
     tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
@@ -141,66 +140,57 @@ async fn main() {
     pull_step[5] = pulse_initial;
     engine.gs.lock().unwrap().learn_pull(5, pulse_initial, &pull_step, 0.10);
 
-    // Critic Assessment
     let final_gs = engine.gs.lock().unwrap().clone();
     let proposed_h = final_gs.compute_holonomy_norm();
     let c15 = final_gs.commutator_channel[1][5];
     let c25 = final_gs.commutator_channel[2][5];
 
-    println!("\n📊 [STATE SURFACE RESOLVED BY {}]", node_id);
-    println!("   Resulting Edge Lie Commutator [1][5]: {:.6}", c15);
-    println!("   Resulting Edge Lie Commutator [2][5]: {:.6}", c25);
+    println!(\"\\n📊 [STATE SURFACE RESOLVED BY {}]\", node_id);
+    println!(\"   Resulting Edge Lie Commutator [1][5]: {:.6}\", c15);
+    println!(\"   Resulting Edge Lie Commutator [2][5]: {:.6}\", c25);
 
-    // ─────────────────────────────────────────────────────────────────
-    // RUST MICRO-SUBSTRATE COUPLING LAW (MUTUAL LEAN ENFORCEMENT)
-    // ─────────────────────────────────────────────────────────────────
-    // Ingest the moving macro centroids calculated by the governor via a quick shell query
-    let bias_query = "SELECT mean_h_python, mean_c_python FROM cross_lineage_state ORDER BY id DESC LIMIT 1;";
-    let bias_output = Command::new("sqlite3").arg("tordial_gs.db").arg(bias_query).output();
+    // ─── MICRO-SUBSTRATE COUPLING LAW (MUTUAL LEAN ENFORCEMENT) ───
+    let bias_query = \"SELECT mean_h_python, mean_c_python FROM cross_lineage_state ORDER BY id DESC LIMIT 1;\";
+    let bias_output = Command::new(\"sqlite3\").arg(\"tordial_gs.db\").arg(bias_query).output();
 
     if let Ok(out) = bias_output {
         let text = String::from_utf8_lossy(&out.stdout);
         if let Some(line) = text.lines().next() {
-            let parts: Vec<&str> = line.split('|').collect();
+            let parts: Vec<&str> = line.split(\"|\").collect();
             if parts.len() >= 2 {
-                let mean_h_python = parts[0].trim().parse::<f64>().unwrap_or(0.0930);
-                
-                // Compute exact structural distance delta (Python Swarm -> Local Rust Node)
+                let mean_h_python = parts[0].trim().parse::<f64>().unwrap_or(0.0860);
                 let delta_h_rust = mean_h_python - proposed_h;
                 
-                // Apply highly conservative asymmetric gain (eta = 0.015)
                 let eta_h_rust = 0.015;
                 let target_drift = delta_h_rust * eta_h_rust;
-                
-                // Enforce tight safety clamp: Rust can never drift more than 0.0025 units per run step
                 let clamped_h_drift = target_drift.clamp(-0.0025, 0.0025);
                 
-                // Softly update the envelope expectation parameters
                 envelope.target_holonomy += clamped_h_drift;
                 
                 if clamped_h_drift.abs() > 0.00001 {
-                    println!("🧬 [ALGEBRAIC LEAN] Rust micro-node pulling toward Python smooth regime. Drift: {:+.5}", clamped_h_drift);
+                    println!(\"🧬 [ALGEBRAIC LEAN] Rust micro-node pulling toward Python smooth regime. Drift: {:+.5}\", clamped_h_drift);
                 }
             }
         }
     }
 
-    // Process audit under the newly warped envelope bounds
     let audit = ContractAuditor::audit_proposal(proposed_h, &envelope);
     let q_rate = if audit.directive == 2 { 1.0 } else { 0.0 };
 
     if audit.directive == 2 {
-        println!("🛑 [MESH VETO] Resetting local track.");
+        println!(\"🛑 [MESH VETO] Resetting local track.\");
         let mut gs = engine.gs.lock().unwrap();
         RollbackEngine::execute_restoration(&mut gs, &baseline_snapshot);
     } else {
-        println!("✅ [MESH INTEGRATION SUCCESS] Node coordinates logged to cluster ledger.");
+        println!(\"✅ [MESH INTEGRATION SUCCESS] Node coordinates logged to cluster ledger.\");
     }
 
     let query = format!(
-        "INSERT INTO runs (timestamp, runtime_env, node_count, final_freq, quarantine_rate, avg_kappa, stability_score, holonomy_norm, holonomy_norm_local, commutator_1_5, commutator_2_5) VALUES (datetime('now'), '{}', 6, 84.5, {}, 3.12, 0.92, 0.0, {}, {}, {});", 
+        \"INSERT INTO runs (timestamp, runtime_env, node_count, final_freq, quarantine_rate, avg_kappa, stability_score, holonomy_norm, holonomy_norm_local, commutator_1_5, commutator_2_5) VALUES (datetime(\"now\"), \"{}\", 6, 84.5, {}, 3.12, 0.92, 0.0, {}, {}, {});\", 
         node_id, q_rate, proposed_h, c15, c25
     );
-    let _ = Command::new("sqlite3").arg("tordial_gs.db").arg(&query).status();
+    let _ = Command::new(\"sqlite3\").arg(\"tordial_gs.db\").arg(&query).status();
 }
-EOF
+\"\"\")
+print(\"✅ src/main.rs cleanly written via file descriptor to isolate paste issues.\")
+"
