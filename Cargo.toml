@@ -1,3 +1,4 @@
+Cargo.toml
 [lib]
 name = "sovereign_engine"
 crate-type = ["cdylib", "staticlib"]   # ← Added staticlib for iOS
