@@ -1,7 +1,7 @@
 cat << 'EOF' > src/issttoft.rs
 /*
 issttoft.rs
-Formal Primitive Definitions for the Stateful Directed GS Operator Algebra.
+Stateful Directed GS Operator Algebra with Native 3-Cycle Holonomy Evaluation.
 */
 
 #[derive(Debug, Clone)]
@@ -67,6 +67,7 @@ pub struct GSCouplingPlanes {
 pub struct GSOperator {
     pub planes: GSCouplingPlanes,
     pub memory: GSCurvatureMemory,
+    pub n: usize,
 }
 
 impl GSOperator {
@@ -92,7 +93,6 @@ impl GSOperator {
         push_c[5][3] = 0.20; push_c[5][4] = 0.20;
         push_c[5][0] = 0.05;
 
-        // Mirror baseline pull configuration to preserve metric symmetry at initialization
         for i in 0..n {
             for j in 0..n {
                 if i != j {
@@ -107,6 +107,7 @@ impl GSOperator {
                 push_mem: vec![vec![0.0; n]; n],
                 pull_mem: vec![vec![0.0; n]; n],
             },
+            n,
         }
     }
 
@@ -125,43 +126,46 @@ impl GSOperator {
         }
     }
 
+    /// Evaluates the complete global Frobenius Holonomy Norm over all closed 3-cycles
+    pub fn compute_holonomy_norm(&self) -> f64 {
+        let mut sum_sq = 0.0;
+        for i in 0..self.n {
+            for j in 0..self.n {
+                for k in 0..self.n {
+                    if i != j && j != k && k != i {
+                        // Omega[i,j,k] = (C_push[j,i] + C_push[k,j] + C_push[i,k]) - (C_pull[j,i] + C_pull[k,j] + C_pull[i,k])
+                        let push_loop = self.planes.push_c[j][i] + self.planes.push_c[k][j] + self.planes.push_c[i][k];
+                        let pull_loop = self.planes.pull_c[j][i] + self.planes.pull_c[k][j] + self.planes.pull_c[i][k];
+                        let omega_ijk = push_loop - pull_loop;
+                        sum_sq += omega_ijk * omega_ijk;
+                    }
+                }
+            }
+        }
+        sum_sq.sqrt()
+    }
+
     pub fn learn_push(&mut self, source: usize, source_initial: f64, first_step_values: &[f64], alpha: f64) {
         if source_initial.abs() < 1e-6 { return; }
-
         for target in 0..first_step_values.len() {
             if target == source { continue; }
-
             let observed = first_step_values[target];
             let c_eff = observed / source_initial;
             let old = self.planes.push_c[target][source];
-            let curv = c_eff - old;
-
-            // Save push field tensor updates to the active curvature tracks
-            self.memory.push_mem[target][source] += curv;
-
-            // Non-linear, memory-biased transport step integration
-            let new = (1.0 - alpha) * old + alpha * c_eff;
-            self.planes.push_c[target][source] = new.clamp(0.0, 1.5);
+            self.memory.push_mem[target][source] += c_eff - old;
+            self.planes.push_c[target][source] = ((1.0 - alpha) * old + alpha * c_eff).clamp(0.0, 1.5);
         }
     }
 
     pub fn learn_pull(&mut self, source: usize, source_initial: f64, first_step_values: &[f64], alpha: f64) {
         if source_initial.abs() < 1e-6 { return; }
-
         for target in 0..first_step_values.len() {
             if target == source { continue; }
-
             let observed = first_step_values[target];
             let c_eff = observed / source_initial;
             let old = self.planes.pull_c[target][source];
-            let curv = c_eff - old;
-
-            // Save pull field tensor updates to the passive curvature tracks
-            self.memory.pull_mem[target][source] += curv;
-
-            // Tempered ambient recovery step integration
-            let new = (1.0 - (alpha * 0.4)) * old + (alpha * 0.4) * c_eff;
-            self.planes.pull_c[target][source] = new.clamp(0.0, 1.5);
+            self.memory.pull_mem[target][source] += c_eff - old;
+            self.planes.pull_c[target][source] = ((1.0 - (alpha * 0.4)) * old + (alpha * 0.4) * c_eff).clamp(0.0, 1.5);
         }
     }
 }
