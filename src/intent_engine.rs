@@ -1,17 +1,18 @@
 cat << 'EOF' > src/intent_engine.rs
-//! IntentEngine — THE single source of truth for the sovereign mesh with active relaxation.
+//! IntentEngine — Self-Calibrating Source of Truth with Mutable Geometry Tuning.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 use tracing::info;
-use crate::issttoft::{IntentBand, IntentUpdate, HandshakeResponse, get_band_stiffness};
+use crate::issttoft::{IntentBand, IntentUpdate, HandshakeResponse, get_band_stiffness, CouplingMatrix};
 
 #[derive(Clone)]
 pub struct IntentEngine {
     intent_tx: broadcast::Sender<IntentUpdate>,
     intent_bands: Arc<Mutex<HashMap<String, IntentBand>>>,
+    pub coupling_matrix: Arc<Mutex<CouplingMatrix>>,
 }
 
 impl IntentEngine {
@@ -20,9 +21,9 @@ impl IntentEngine {
         let engine = Self {
             intent_tx,
             intent_bands: Arc::new(Mutex::new(HashMap::new())),
+            coupling_matrix: Arc::new(Mutex::new(CouplingMatrix::new())),
         };
         engine.seed_default_bands();
-        engine.self_validate();
         engine
     }
 
@@ -50,11 +51,7 @@ impl IntentEngine {
                 });
             }
         }
-        info!(target: "isst_toft::intent", "IntentEngine seeded 6 bands with relaxation targets.");
-    }
-
-    fn self_validate(&self) {
-        info!(target: "isst_toft::intent", "Sovereign Mesh Health Check: SOLID — Damping matrices armed.");
+        info!(target: "isst_toft::intent", "Self-calibrating IntentEngine initialized.");
     }
 
     pub fn step_damping_field(&self, dt: f64) {
@@ -64,7 +61,7 @@ impl IntentEngine {
         if let Ok(mut bands) = self.intent_bands.lock() {
             for band in bands.values_mut() {
                 if (band.intent_value - band.base_value).abs() > 0.001 {
-                    let lambda = 0.4 * (1.0 - band.stiffness); 
+                    let lambda = 0.4 * (1.0 - band.stiffness);
                     let delta = band.intent_value - band.base_value;
                     
                     band.intent_value -= delta * lambda * dt;
@@ -97,27 +94,32 @@ impl IntentEngine {
         }
     }
 
-    pub fn get_all_bands(&self) -> Vec<IntentBand> {
-        if let Ok(bands) = self.intent_bands.lock() {
-            bands.values().cloned().collect()
-        } else {
-            vec![]
+    pub fn update_c_from_strike(
+        &self,
+        source_band: usize,
+        source_initial: f64,
+        first_step_values: &[f64],
+        alpha: f64,
+    ) {
+        if source_initial.abs() < 1e-6 { return; }
+
+        if let Ok(mut matrix) = self.coupling_matrix.lock() {
+            for target in 0..first_step_values.len() {
+                if target == source_band { continue; }
+                
+                let observed = first_step_values[target];
+                let c_eff = observed / source_initial;
+                let old = matrix.get(target, source_band);
+                
+                // Live learning interpolation step
+                let new = (1.0 - alpha) * old + alpha * c_eff;
+                matrix.set(target, source_band, new);
+            }
         }
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<IntentUpdate> {
         self.intent_tx.subscribe()
-    }
-
-    pub fn handshake(&self, client_id: String, _client_type: String, _sovereign_claim: String) -> HandshakeResponse {
-        let now = current_unix_timestamp();
-        HandshakeResponse {
-            initial_bands: self.get_all_bands(),
-            server_version: "isst-toft-mesh v2.5-damping-flow".to_string(),
-            server_time: now,
-            mesh_status: "Ch’anchyah Dach’anchyah — Field Relaxation Live.".to_string(),
-            flamekeeper_note: format!("Captain {} — 6-Band Damped Manifold Ready.", client_id),
-        }
     }
 }
 
