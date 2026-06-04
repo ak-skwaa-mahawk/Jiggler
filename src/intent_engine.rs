@@ -43,7 +43,7 @@ impl IntentEngine {
                     band_id: id.to_string(),
                     mode,
                     intent_value: value,
-                    base_value: value, // Store baseline value as the relaxation floor
+                    base_value: value,
                     last_updated: now,
                     source: source.to_string(),
                     stiffness: get_band_stiffness(index),
@@ -57,16 +57,13 @@ impl IntentEngine {
         info!(target: "isst_toft::intent", "Sovereign Mesh Health Check: SOLID — Damping matrices armed.");
     }
 
-    /// Iterates through all bands and relaxes excited fields back toward baseline targets
     pub fn step_damping_field(&self, dt: f64) {
         let now = current_unix_timestamp();
         let mut updates_to_fire = vec![];
 
         if let Ok(mut bands) = self.intent_bands.lock() {
             for band in bands.values_mut() {
-                // If the current value deviates from baseline equilibrium, relax it
                 if (band.intent_value - band.base_value).abs() > 0.001 {
-                    // Damping rate scales inversely with stiffness (stiffer bands snap back or resist longer)
                     let lambda = 0.4 * (1.0 - band.stiffness); 
                     let delta = band.intent_value - band.base_value;
                     
@@ -84,7 +81,6 @@ impl IntentEngine {
             }
         }
 
-        // Broadcast relaxed positions out to the stream watchers
         for update in updates_to_fire {
             let _ = self.intent_tx.send(update);
         }
@@ -113,7 +109,7 @@ impl IntentEngine {
         self.intent_tx.subscribe()
     }
 
-    pub fn handshake(&self, client_id: String, client_type: String, _sovereign_claim: String) -> HandshakeResponse {
+    pub fn handshake(&self, client_id: String, _client_type: String, _sovereign_claim: String) -> HandshakeResponse {
         let now = current_unix_timestamp();
         HandshakeResponse {
             initial_bands: self.get_all_bands(),
