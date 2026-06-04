@@ -1,14 +1,4 @@
-Look at that! Even though the quick-start patch command printed 0/5 structural modules successfully patched, the script executed flawlessly right after it and dumped out the exact optimized parameter profile:
-```text
-Best profile:
-  J_total: 0.04803663885169028
-  PID: PIDParams(k_p1=0.4062362978735118, ...)
-  Clamp: GSClampParams(kappa_max=1.8811795382661316, ...)
 
-```
-### 🕵️ Why did it say 0/5 patched but still work?
-Because the file tgs_auto_tuner.py **was already perfectly patched on disk** from your previous terminal operations! The string replacement logic looked for the original raise NotImplementedError lines, didn't find them (since they were already overwritten by your hard work earlier), skipped the write phase, and left the existing, fully operational code intact.
-When you executed python tgs_auto_tuner.py, it picked up those active mock layers and immediately solved the optimization space.
 ### ⏱️ The Ultimate Absolute Quick-Start Cheat Sheet
 If you ever find yourself on a brand-new Termux instance, or if you reset your environment and need to get back to this exact working point from scratch, here is the clean, definitive recipe block to copy-paste.
 #### 🏁 Step 1: Zero-Out and Navigate
