@@ -1,7 +1,7 @@
 cat << 'EOF' > src/issttoft.rs
 /*
 issttoft.rs
-Foundational Protocol Mapping Structs with Formal Roles and Curvature Invariants.
+Foundational Protocol Mapping Structs with Calibrated Curve Invariants.
 */
 
 #[derive(Debug, Clone)]
@@ -9,7 +9,7 @@ pub struct IntentBand {
     pub band_id: String,
     pub mode: i32,
     pub intent_value: f64,
-    pub base_value: f64,   // ◄── Added to establish relaxation target limits
+    pub base_value: f64,
     pub last_updated: i64,
     pub source: String,
     pub stiffness: f64,    // D vector component
@@ -33,16 +33,17 @@ pub struct HandshakeResponse {
     pub flamekeeper_note: String,
 }
 
-/// Structural Stiffness Matrix Setup (Vector D)
+/// Calibrated Stiffness Matrix Setup (Vector D)
+/// Derived empirically from linearized log relaxation times: D_i = 1 / tau_i
 pub fn get_band_stiffness(band_index: usize) -> f64 {
     match band_index {
-        0 => 0.95, // Band 0: cERNpiranchor (Highest stiffness — unyielding baseline)
-        1 => 0.65, // Band 1: warpcorestability (Moderate stiffness)
-        2 => 0.60, // Band 2: sovereignintentprimary (Moderate stiffness)
-        3 => 0.20, // Band 3: sovereignintentambient (Low stiffness)
-        4 => 0.15, // Band 4: sensorium_feedback (Low stiffness)
-        5 => 0.40, // Band 5: mutationplanedriver (Experimental zone)
-        _ => 0.50,
+        0 => 0.01997, // Band 0: cERNpiranchor (tau = 50.0468s)
+        1 => 0.14090, // Band 1: warpcorestability (tau = 7.0950s)
+        2 => 0.16130, // Band 2: sovereignintentprimary (tau = 6.1970s)
+        3 => 0.32520, // Band 3: sovereignintentambient (tau = 3.0756s)
+        4 => 0.34620, // Band 4: sensorium_feedback (tau = 2.8884s)
+        5 => 0.24320, // Band 5: mutationplanedriver (tau = 4.1105s)
+        _ => 0.25000, // Balanced fallback default baseline
     }
 }
 
