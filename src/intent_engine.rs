@@ -1,11 +1,12 @@
 cat > src/intent_engine.rs << 'ENDENGINE'
-//! IntentEngine — THE single source of truth for the sovereign mesh.
-//! 
-//! - Owns broadcast + store + real SQLite ledger writes
-//! - Seeds all bands (dynamic_pi_r_floor, cern_resonance, etc.)
-//! - Self-validates on startup (self-aware health check)
-//! - One canonical method: broadcast_update() → now also commits to tordial_manifold.db
-//! - Used by pi_r_engine, lineage, safety, Handshake, StreamIntentUpdates
+//! IntentEngine — Merged Sovereign + GS Constellation Engine
+//!
+//! Combines:
+//! - Single canonical flow (ledger + sovereign bands + self-validation)
+//! - GSState for cross-node commutator coupling (Walker Push / Ambient Pull)
+//!
+//! This is the unified brain for both the clean IntentEngine and the
+//! distributed Rust_Node constellation.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -20,19 +21,55 @@ use crate::issttoft::{IntentBand, IntentUpdate};
 const DEFAULT_INTENT_SEED: f64 = 0.618_033_988_7;
 const LEDGER_PATH: &str = "tordial_manifold.db";
 
+/// GS mathematical state for cross-node Lie commutator coupling
+#[derive(Clone, Debug)]
+pub struct GSState {
+    pub commutator_channel: [[f64; 6]; 6],
+    pub push_c: [[f64; 6]; 6],
+    pub pull_c: [[f64; 6]; 6],
+}
+
+impl GSState {
+    pub fn new() -> Self {
+        Self {
+            commutator_channel: [[0.0; 6]; 6],
+            push_c: [[0.0; 6]; 6],
+            pull_c: [[0.0; 6]; 6],
+        }
+    }
+
+    pub fn learn_push(&mut self, _edge: usize, _value: f64, _step: &[f64], _rate: f64) {
+        // TODO: Implement real push learning / attractor dynamics
+    }
+
+    pub fn learn_pull(&mut self, _edge: usize, _value: f64, _step: &[f64], _rate: f64) {
+        // TODO: Implement real pull learning / context recovery
+    }
+
+    pub fn compute_holonomy_norm(&self) -> f64 {
+        // Placeholder — real implementation should derive from commutator_channel
+        0.0930
+    }
+}
+
 #[derive(Clone)]
 pub struct IntentEngine {
+    // === Sovereign single-flow layer ===
     intent_tx: broadcast::Sender<IntentUpdate>,
     intent_bands: Arc<Mutex<HashMap<String, IntentBand>>>,
     db: Arc<Mutex<Connection>>,
+
+    // === GS Constellation layer (for Walker/Pull + Critic) ===
+    pub gs: Arc<Mutex<GSState>>,
 }
 
 impl IntentEngine {
     pub fn new() -> Self {
-        let (intent_tx, _) = broadcast::channel(128);
-        
-        // Open (or create) the unified sovereign ledger
-        let conn = Connection::open(LEDGER_PATH).expect("Failed to open tordial_manifold.db");
+        let (intent_tx, _) = broadcast::channel(1024);
+
+        // Open / create unified ledger
+        let conn = Connection::open(LEDGER_PATH)
+            .expect("Failed to open tordial_manifold.db");
         conn.execute(
             "CREATE TABLE IF NOT EXISTS intent_bands (
                 band_id TEXT PRIMARY KEY,
@@ -48,8 +85,9 @@ impl IntentEngine {
             intent_tx,
             intent_bands: Arc::new(Mutex::new(HashMap::new())),
             db: Arc::new(Mutex::new(conn)),
+            gs: Arc::new(Mutex::new(GSState::new())),
         };
-        
+
         engine.seed_default_bands();
         engine.self_validate();
         engine
@@ -79,7 +117,7 @@ impl IntentEngine {
                 self.persist_to_ledger(&band);
             }
         }
-        info!(target: "isst_toft::intent", "IntentEngine seeded {} sovereign bands into ledger", seeds.len());
+        info!(target: "isst_toft::intent", "IntentEngine seeded {} sovereign bands", seeds.len());
     }
 
     fn persist_to_ledger(&self, band: &IntentBand) {
@@ -92,7 +130,6 @@ impl IntentEngine {
         }
     }
 
-    /// Self-aware validation — the stack checks its own health on startup
     fn self_validate(&self) {
         let critical = ["dynamic_pi_r_floor", "cern_resonance", "sovereign_floor"];
         if let Ok(bands) = self.intent_bands.lock() {
@@ -103,8 +140,8 @@ impl IntentEngine {
                 }
             }
             if missing.is_empty() {
-                info!(target: "isst_toft::intent", 
-                      "Sovereign Mesh Health Check: SOLID — {} bands active + persisted to tordial_manifold.db",
+                info!(target: "isst_toft::intent",
+                      "Sovereign Mesh Health Check: SOLID — {} bands active + ledger synced",
                       bands.len());
             } else {
                 tracing::warn!(target: "isst_toft::intent", "Self-validate warning: missing critical bands: {:?}", missing);
@@ -113,7 +150,7 @@ impl IntentEngine {
     }
 
     /// THE single canonical entry point.
-    /// Broadcasts + updates in-memory store + commits to the unified ledger.
+    /// Broadcasts + persists to ledger + updates in-memory bands.
     pub fn broadcast_update(&self, update: IntentUpdate) {
         let _ = self.intent_tx.send(update.clone());
 
@@ -129,11 +166,10 @@ impl IntentEngine {
             bands.insert(update.band_id.clone(), band.clone());
         }
 
-        // === Real ledger commit (this is the bridge to your full Tordial-GS manifold)
         self.persist_to_ledger(&band);
 
-        info!(target: "isst_toft::intent", 
-              "broadcast_update → {} = {:.4} ({}) [ledger committed]", 
+        info!(target: "isst_toft::intent",
+              "broadcast_update → {} = {:.4} ({}) [ledger committed]",
               update.band_id, update.intent_value, update.reason);
     }
 
@@ -147,13 +183,16 @@ impl IntentEngine {
         self.intent_tx.subscribe()
     }
 
-    pub fn handshake(&self, client_id: String, client_type: String, sovereign_claim: String) 
-        -> crate::issttoft::HandshakeResponse 
-    {
+    pub fn handshake(
+        &self,
+        client_id: String,
+        client_type: String,
+        sovereign_claim: String,
+    ) -> crate::issttoft::HandshakeResponse {
         let now = current_unix_timestamp();
         crate::issttoft::HandshakeResponse {
             initial_bands: self.get_all_bands(),
-            server_version: "isst-toft-mesh v2.1-ledger-synced".to_string(),
+            server_version: "isst-toft-mesh v2.2-merged".to_string(),
             server_time: now,
             mesh_status: "Ch’anchyah Dach’anchyah — The Floor is solid. Dinjji Zhuu Kwaa active.".to_string(),
             flamekeeper_note: format!(
@@ -165,6 +204,9 @@ impl IntentEngine {
 }
 
 fn current_unix_timestamp() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
 }
 ENDENGINE
