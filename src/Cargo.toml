@@ -1,16 +1,4 @@
-cargo add rusqlite --features bundled
-cat << 'EOF' > Cargo.toml
-[package]
-name = "isst_toft_mesh"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-tokio = { version = "1.0", features = ["full"] }
-tracing = "0.1"
-tracing-subscriber = "0.3"
-EOF
-cat << 'EOF' > ~/isst_toft_mesh/Cargo.toml
+cat > Cargo.toml << 'ENDTOML'
 [package]
 name = "isst_toft_mesh"
 version = "0.1.0"
@@ -26,8 +14,8 @@ tokio-stream = "0.1"
 rand = "0.8"
 tracing = "0.1.44"
 tracing-subscriber = "0.3.23"
+rusqlite = { version = "0.31", features = ["bundled"] }
 
 [build-dependencies]
-tonic-prost-build = "0.14.6"
-EOF
-echo "✅ Swapped workspace backend compiler to tonic-prost-build."
+tonic-build = "0.12"
+ENDTOML
