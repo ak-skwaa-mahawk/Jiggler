@@ -1,3 +1,4 @@
+cargo add rusqlite --features bundled
 cat << 'EOF' > Cargo.toml
 [package]
 name = "isst_toft_mesh"
