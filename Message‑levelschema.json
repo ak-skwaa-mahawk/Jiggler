@@ -1,0 +1,35 @@
+{
+  "sovereign_id": "john.tordial",
+  "manifold_id": "Tordial-GS",
+  "cue": {
+    "raw": "where was I again? https://github.com/ak-skwaa-mahawk/Tordial-GS-_Manifold",
+    "detected": true,
+    "confidence": 0.97
+  },
+  "anchor": {
+    "raw": "https://github.com/ak-skwaa-mahawk/Tordial-GS-_Manifold",
+    "resolved_manifold": "Tordial-GS"
+  },
+  "prior_context": {
+    "theory": {
+      "frame_name": "SixCylinderBoundary",
+      "notes": "Working on holonomy + GS coupling..."
+    },
+    "code": {
+      "language": "rust",
+      "file": "src/particle_flow_engine.rs",
+      "symbol": "ParticleFlowEngine6D::step"
+    },
+    "intent": {
+      "goal": "formalize SCRP",
+      "subgoal": "define traits"
+    }
+  },
+  "normalized_message": {
+    "intent": "continue_context",
+    "details": {
+      "mode": "spec_to_code",
+      "focus": "SCRP traits"
+    }
+  }
+}
