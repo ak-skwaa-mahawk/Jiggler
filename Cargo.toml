@@ -1,70 +1,18 @@
-cat << 'EOF' > ~/isst_toft_mesh/Cargo.toml
 [package]
-name = "isst_toft_mesh"
+name = "tordial_gs_manifold"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1.0", features = ["full"] }
-tonic = { version = "0.14.6", features = ["transport", "codegen"] }
-tonic-prost = "0.14.6"
-prost = "0.14.3"
+tokio = { version = "1", features = ["full"] }
+tonic = { version = "0.12", features = ["transport", "codegen"] }
+prost = "0.13"
+rusqlite = { version = "0.31", features = ["bundled"] }
 futures = "0.3"
 async-stream = "0.3"
 tokio-stream = "0.1"
-rand = "0.8"
-tracing = "0.1.44"
-tracing-subscriber = "0.3.23"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 [build-dependencies]
-tonic-prost-build = "0.14.6"
-EOF
-echo "✅ tonic-prost codec mapping injected successfully."
-
-[dependencies]
-tonic = "0.12"
-prost = "0.13"
-tokio = { version = "1", features = ["full"] }
-# Direct link to your native math library
-tordial_gs_manifold = { path = "../Tordial-GS-_Manifold" }
-async-stream = "0.3"
-futures = "0.3"
-[lib]
-name = "sovereign_engine"
-crate-type = ["cdylib", "staticlib"]   # ← Added staticlib for iOS
-[features]
-default = []
-# Enable Candle + candle-nn for agentic/ML policy path (CPU by default)
-candle = ["dep:candle-core", "dep:candle-nn"]
-# Enable CUDA support for Candle (implies candle feature)
-cuda = ["candle", "candle-core/cuda"]
-[package]
-name = "sovereign_engine"
-version = "1.0.0"
-edition = "2021"
-authors = ["Two Mile Solutions LLC <johnbcarrolljr@gmail.com>"]
-description = "Sovereign π_r Core Engine — Defense-in-depth FFI boundary for resonance metric propagation and 99733-Q Extraction Guard"
-license = "Apache-2.0"
-repository = "https://github.com/ak-skwaa-mahawk/sovereign_engine"
-keywords = ["ffi", "sovereign", "resonance", "neutrosophic", "indigenous-tech"]
-categories = ["api-bindings", "simulation"]
-
-[lib]
-name = "sovereign_engine"
-crate-type = ["cdylib"]
-
-[features]
-default = [] # Explicitly ensures no accidental corporate telemetry feature flags can creep in via updates
-
-[dependencies]
-# Zero external dependencies — maximum auditability, minimal attack surface, zero telemetry leaks
-
-[profile.release]
-opt-level = 3          # Highest optimization for resonance math paths
-lto = "fat"            # Full link-time optimization across crate boundaries
-codegen-units = 1      # Single unit to maximize deep compiler cross-inlining
-panic = "abort"        # Drops unwinding overhead, guarantees deterministic boundary crashes
-strip = true           # Drops all debug symbols, symbol maps, and build telemetry paths
-debug = false          # Confirms no debug info generation
-overflow-checks = true # RECOMMENDED CHANGE: Keep true for math loops to stop malicious value wraparound
-incremental = false    # Enforces complete, monolithic clean builds
+tonic-build = "0.12"
