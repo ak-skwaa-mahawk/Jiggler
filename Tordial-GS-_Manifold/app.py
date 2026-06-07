@@ -54,6 +54,71 @@ HTML_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sovereign Injin & Governance Dashboard v4.7</title>
     <style>
+        /* Admin UI Elements */
+.blur-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(13, 14, 21, 0.85);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0; pointer-events: none;
+    transition: all 0.3s ease;
+}
+.blur-overlay.visible {
+    opacity: 1; pointer-events: auto;
+}
+.passcode-box {
+    background: #161824;
+    border: 1px solid #ff007f;
+    border-radius: 12px;
+    padding: 30px;
+    width: 320px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(255, 0, 127, 0.2);
+}
+.secure-input {
+    width: 80%;
+    background: #0d0e15;
+    border: 1px solid #272a3d;
+    padding: 12px;
+    color: #fff;
+    font-family: monospace;
+    font-size: 1.2rem;
+    text-align: center;
+    border-radius: 6px;
+    margin: 15px 0;
+    letter-spacing: 4px;
+}
+.secure-input:focus {
+    border-color: #3b82f6;
+    outline: none;
+}
+.action-btn {
+    background: #ff007f;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+.action-btn:hover { background: #d6006b; }
+.action-btn.unlock-trigger {
+    background: transparent;
+    border: 1px dashed var(--text-dim);
+    color: var(--text-dim);
+    width: 100%;
+    margin-top: 15px;
+}
+.action-btn.unlock-trigger:hover {
+    border-color: #ff007f;
+    color: #ff007f;
+}
+
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=DM+Mono&display=swap');
         
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -213,6 +278,20 @@ HTML_TEMPLATE = """
     </style>
 </head>
 <body>
+    <button class="action-btn unlock-trigger" id="btn-trigger-lock" onclick="toggleModal(true)">🔐 Request Root Access Sequence</button>
+
+<div id="handshake-modal" class="blur-overlay">
+    <div class="passcode-box">
+        <h3 style="color: #ff007f; margin: 0 0 10px 0;">🛡️ AUTHENTICATION REQUIRED</h3>
+        <p style="color: var(--text-dim); font-size: 0.85rem; margin: 0;">Enter secure 4-digit matrix passcode</p>
+        <input type="password" id="passcode-input" class="secure-input" maxlength="4" placeholder="••••" onkeypress="handleEnter(event)">
+        <div style="display: flex; gap: 10px; justify-content: center;">
+            <button class="action-btn" onclick="submitHandshake()">Verify</button>
+            <button class="action-btn" style="background: #272a3d;" onclick="toggleModal(false)">Abort</button>
+        </div>
+        <p id="auth-error" style="color: #ef4444; font-size: 0.8rem; margin-top: 10px; display: none;">❌ INVALID SIGNATURE TOKEN</p>
+    </div>
+</div>
 
     <div class="dashboard-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; padding: 20px;">
     <div class="card" style="background: #0a1128; border: 1px solid #001f54; border-radius: 8px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
@@ -267,8 +346,8 @@ HTML_TEMPLATE = """
     <script>
         // Automatic address resolution fallback
         const socket = io(window.location.origin);
-        
-        const badge = document.getElementById('connection-badge');
+        const badge = document.getElementById('con
+        nection-badge');
         const chatbox = document.getElementById('chatbox');
         const userInput = document.getElementById('user-input');
         const canvas = document.getElementById('convergenceCanvas');
@@ -326,7 +405,8 @@ HTML_TEMPLATE = """
         setInterval(drawMatrix, 55);
 
         userInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') transmitTelemetry(); });
-    </script>
+         
+   </script>
             // Establish connection to your active local Flask-SocketIO engine
 const socket = io();
 
@@ -351,6 +431,51 @@ socket.on('codebook_telemetry', (data) => {
     } else {
         routeEl.style.color = '#ffb703'; // Amber orange for cloud fallback routes
     }
+function toggleModal(show) {
+    const modal = document.getElementById('handshake-modal');
+    const input = document.getElementById('passcode-input');
+    if (show) {
+        modal.classList.add('visible');
+        input.focus();
+    } else {
+        modal.classList.remove('visible');
+        input.value = '';
+        document.getElementById('auth-error').style.display = 'none';
+    }
+}
+
+function handleEnter(e) {
+    if (e.key === 'Enter') submitHandshake();
+}
+
+function submitHandshake() {
+    const code = document.getElementById('passcode-input').value;
+    console.log('[🔒] Packaging secure handshake token signature...');
+    // Stream passcode to Python backend listener
+    socket.emit('admin_handshake', { passcode: code });
+}
+
+// Listen for response from Python root gateway
+socket.on('handshake_response', (data) => {
+    if (data.success) {
+        console.log('[🔑] Root authorization confirmed. Transitioning terminal scope.');
+        toggleModal(false);
+        
+        // Dynamically elevate the dashboard layout presentation
+        document.getElementById('status').textContent = 'ROOT OPERATOR';
+        document.getElementById('status').style.backgroundColor = 'rgba(255, 0, 127, 0.2)';
+        document.getElementById('status').style.color = '#ff007f';
+        document.getElementById('btn-trigger-lock').style.display = 'none';
+        document.documentElement.style.setProperty('--accent-blue', '#ff007f');
+        alert('🌌 ROOT MODE UNLOCKED: System constants are now fully interactive.');
+    } else {
+        console.warn('[⚠️] Security validation failed.');
+        const err = document.getElementById('auth-error');
+        err.style.display = 'block';
+        document.getElementById('passcode-input').value = '';
+    }
+});
+
 });
 
 </body>
@@ -419,3 +544,20 @@ if __name__ == '__main__':
     print("[+] Ensure flask, flask-socketio, numpy, and cryptography packages are installed.")
     print("[+] Initializing Sovereign FPT Engine on http://127.0.0.1:5000")
     socketio.run(app, host='127.0.0.1', port=5000, debug=True)
+@socketio.on('admin_handshake')
+def verify_admin_passcode(data):
+    """
+    Validates incoming secure passcode matrix vectors.
+    """
+    submitted_code = data.get('passcode')
+    
+    # Secure Hardcoded Gatekeeper Token (Change this to any 4-digit matrix you want!)
+    MASTER_SIGNATURE = "1040" 
+    
+    if submitted_code == MASTER_SIGNATURE:
+        print("[🔑] SECURITY ALERT: Root Access Granted to client context.")
+        emit('handshake_response', {'success': True})
+    else:
+        print(f"[⚠️] SECURITY WARNING: Failed verification attempt with token: {submitted_code}")
+        emit('handshake_response', {'success': False})
+
