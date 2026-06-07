@@ -1,0 +1,34 @@
+cat > src/main.rs.damping_test << 'ENDTEST'
+fn run_damping_test() {
+    println!("\n🧪  REAL JED DAMPING TEST — using your actual cycle geometry");
+    println!("────────────────────────────────────────────────────────────────");
+
+    let engine = crate::intent_engine::IntentEngine::new();
+
+    // Exact values from your JED table (throat, belt, temp, task, cycle, label)
+    let jed_cycles: Vec<(f64, f64, f64, f64, u32, &str)> = vec![
+        (56.17, 56.30, 0.880, 0.350, 1,  "Cy 1  🔥 TRIBAL STRESS"),
+        (35.01, 69.16, 0.381, 0.343, 7,  "Cy 7  ↗️ TRANSITIONING"),
+        (24.85, 79.38, 0.218, 0.456, 11, "Cy 11 🔀 CORRESPONDENCE"),
+        (22.75, 82.13, 0.190, 0.521, 12, "Cy 12 🌌 COSMIC LOCK"),
+        (21.24, 88.01, 0.180, 0.683, 14, "Cy 14 🌌 DEEP LOCK + DRIFT"),
+        (21.86, 90.58, 0.180, 0.692, 18, "Cy 18 🌌 FULL COSMIC LOCK"),
+    ];
+
+    for (throat, belt, temp, task, cy, label) in jed_cycles {
+        let update = crate::issttoft::IntentUpdate {
+            band_id: format!("jed.cycle.{:02}", cy),
+            intent_value: task,
+            reason: label.to_string(),
+            timestamp: crate::intent_engine::current_unix_timestamp(),
+            ..Default::default()
+        };
+
+        // throat → d, belt → r, temp*200 → sigma_t (covers the basin)
+        engine.broadcast_update_with_damping(update, throat, belt, temp * 200.0, 0.33);
+    }
+
+    println!("\n✅ Real JED damping test complete.");
+    println!("   Watch for 'Damping applied | distance=...' lines in cycles 11–18");
+}
+ENDTEST

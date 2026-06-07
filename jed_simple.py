@@ -1,3 +1,4 @@
+cat > jed_simple.py << 'PYEOF'
 import plotext as plt
 
 cycles = list(range(1, 19))
@@ -11,3 +12,6 @@ plt.title("JED Run — ΔE (red) & Spin (cyan)")
 plt.xlabel("Cycle")
 plt.ylabel("Value")
 plt.show()
+PYEOF
+
+python jed_simple.py

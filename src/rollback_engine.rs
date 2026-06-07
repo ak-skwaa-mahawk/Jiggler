@@ -4,7 +4,6 @@ cat > src/rollback_engine.rs << 'ENDROLL'
  * The Executive Immune Executor with Commutator Tracking Capabilities.
  *
  * Works with the current GSState in intent_engine.rs.
- * Can be upgraded later to full GSOperator (planes + memory) if desired.
  */
 
 use std::process::Command;

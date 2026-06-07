@@ -1,4 +1,5 @@
 import plotext as plt
+import numpy as np
 
 cycles = list(range(1, 19))
 delta_e = [2.537, 2.066, 1.629, 1.214, 0.818, 0.435, 0.052, -0.332, -0.726, -1.136, -1.568, -2.033, -2.488, -2.534, -2.534, -2.534, -2.534, -2.534]
@@ -13,7 +14,7 @@ relax   = [0.62, 0.69, 0.76, 0.82, 0.88, 0.93, 0.99, 1.00, 1.00, 1.00, 1.00, 1.0
 plt.clf()
 plt.subplots(2, 2)
 
-# Top-left: ΔE + Spin
+# Panel 1: Energy & Spin
 plt.subplot(1, 1)
 plt.plot(cycles, delta_e, label="ΔE", color="red")
 plt.plot(cycles, spin, label="Spin", color="cyan")
@@ -21,20 +22,20 @@ plt.title("Semantic Arc — ΔE & Spin")
 plt.xlabel("Cycle")
 plt.ylabel("Value")
 
-# Top-right: Temperature
+# Panel 2: Temperature
 plt.subplot(1, 2)
 plt.plot(cycles, temp, label="Temp", color="orange")
 plt.title("Cooling Trajectory")
 plt.xlabel("Cycle")
 
-# Bottom-left: Throat / Belt
+# Panel 3: Throat / Belt duality
 plt.subplot(2, 1)
 plt.plot(cycles, throat, label="Throat", color="magenta")
 plt.plot(cycles, belt, label="Belt", color="green")
 plt.title("Physics Arc — Throat Contraction / Belt Expansion")
 plt.xlabel("Cycle")
 
-# Bottom-right: Coherence, Task, Relax
+# Panel 4: Coherence, Task, Relax
 plt.subplot(2, 2)
 plt.plot(cycles, coh, label="Coherence", color="blue")
 plt.plot(cycles, task, label="Task", color="yellow")
