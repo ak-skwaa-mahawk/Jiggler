@@ -1,4 +1,3 @@
-cat > src/intent_engine.rs << 'ENDENGINE'
 //! intent_engine.rs
 //! Damping + Broadcast IntentEngine (Send + Sync safe for tonic)
 //! Flamekeeper Protocol — Dinjji Zhuu Kwaa
@@ -168,4 +167,3 @@ impl BasinValidator {
         (intent_value * factor).clamp(0.0, 0.999)
     }
 }
-ENDENGINE
