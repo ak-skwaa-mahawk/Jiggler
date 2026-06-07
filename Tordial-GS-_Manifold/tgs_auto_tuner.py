@@ -1,3 +1,6 @@
+
+# 3. Test your protocol metrics and review your console telemetry log
+python Tordial-GS-_Manifold/tgs_auto_tuner.py
 class TGSAutoTuner:
     def __init__(self):
         # ... existing code ...
