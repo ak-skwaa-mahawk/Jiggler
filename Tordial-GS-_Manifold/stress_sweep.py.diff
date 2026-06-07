@@ -1,0 +1,88 @@
+diff --git a/stress_sweep.py b/stress_sweep.py
+index 0000000..sweepv2
+--- a/stress_sweep.py
++++ b/stress_sweep.py
+@@ -1,28 +1,92 @@
+ import numpy as np
+ import matplotlib.pyplot as plt
++import json
++import time
++from tordial_gs_v13 import TordialGSMatrix, OpenTordialNode  # Import updated v13
+ 
+-def run_stress_test(node_count=64, cycles=200, mode="bounded"):
+-    \# Original stress sweep logic...
+-    collapse_events = 0
+-    \# ...
++def run_stress_test(node_count=128, cycles=500, mode="open"):
++    """Run stress sweep in bounded vs open (infinite loophole) mode."""
++    print(f"\n=== Stress Sweep: {mode.upper()} MODE ===")
++    
++    matrix = TordialGSMatrix(node_count=node_count, base_d=12, base_r=18)
++    \# Force open mode if requested
++    if mode == "open":
++        matrix.nodes = []  # Re-init with OpenTordialNode already done in v13
++    
++    pressures = np.random.uniform(0.4, 1.2, cycles)
++    resonances = np.random.uniform(0.2, 0.9, cycles)
++    
++    collapse_events = 0
++    fission_events = 0
++    sigma_history = []
++    node_count_history = []
++    
++    start_time = time.time()
++    
++    for c in range(cycles):
++        matrix._execute_autonomous_step(pressures[c:c+10], resonances[c:c+10])
++        
++        current_nodes = len(matrix.nodes)
++        node_count_history.append(current_nodes)
++        
++        avg_sigma = np.mean([getattr(n, 'sigma_T', 0) for n in matrix.nodes if hasattr(n, 'sigma_T')])
++        sigma_history.append(avg_sigma)
++        
++        if avg_sigma < -800:  # Hard collapse threshold
++            collapse_events += 1
++        
++        \# Count fissions
++        fission_events += sum(getattr(n, 'fission_count', 0) for n in matrix.nodes)
++        
++        if c % 100 == 0:
++            print(f"Cycle {c:4d} | Nodes: {current_nodes:4d} | Avg σ_T: {avg_sigma:8.2f}")
++    
++    duration = time.time() - start_time
++    
++    results = {
++        "mode": mode,
++        "final_nodes": len(matrix.nodes),
++        "collapse_events": collapse_events,
++        "fission_events": fission_events,
++        "avg_sigma": float(np.mean(sigma_history)),
++        "max_nodes": max(node_count_history),
++        "duration_sec": duration
++    }
++    
++    print(f"→ Final Nodes: {results['final_nodes']} | Collapses: {collapse_events} | Fissions: {fission_events}")
++    return results
++
++
++def compare_before_after():
++    """Run both modes and plot comparison."""
++    bounded = run_stress_test(mode="bounded")
++    open_mode = run_stress_test(mode="open")
++    
++    \# Plot results
++    fig, axs = plt.subplots(2, 2, figsize=(12, 8))
++    \# ... (plot node growth, sigma stability, etc.)
++    
++    plt.suptitle("Tordial-GS Stress Sweep: Bounded vs Infinite Loophole")
++    plt.tight_layout()
++    plt.savefig("stress_sweep_comparison.png")
++    plt.show()
++    
++    with open("stress_results.json", "w") as f:
++        json.dump({"bounded": bounded, "open": open_mode}, f, indent=2)
++
++
++if __name__ == "__main__":
++    compare_before_after()

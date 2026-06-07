@@ -1,0 +1,218 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import json
+import time
+from datetime import datetime, timezone
+from tordial_gs_v13 import DualRingTordialMatrix, GSSweep
+
+gs_sweep = GSSweep()
+
+def validate_results(results: dict, mode: str) -> tuple[bool, list[str]]:
+    """Automated data validation with detailed error reporting."""
+    errors = []
+    
+    required_summary_fields = [
+        "final_nodes", "final_rings", "avg_spawn_rate_per_cycle",
+        "avg_global_energy", "energy_kappa_correlation"
+    ]
+    
+    # Check required fields
+    for field in required_summary_fields:
+        if field not in results:
+            errors.append(f"Missing required field: {field}")
+    
+    # Type and range validation
+    if results.get("final_nodes", 0) < 1:
+        errors.append("final_nodes must be positive")
+    if not (0 <= results.get("avg_spawn_rate_per_cycle", -1) <= 10):
+        errors.append("avg_spawn_rate_per_cycle out of reasonable range")
+    if not (-1.1 <= results.get("energy_kappa_correlation", -2) <= 1.1):
+        errors.append("energy_kappa_correlation outside valid [-1, 1] range")
+    
+    # History validation
+    histories = results.get("histories", {})
+    for key in ["node_count", "energy", "kappa"]:
+        hist = histories.get(key, [])
+        if len(hist) == 0:
+            errors.append(f"Empty history: {key}")
+        elif any(not isinstance(x, (int, float)) for x in hist):
+            errors.append(f"Non-numeric values in {key} history")
+    
+    if errors:
+        print(f"⚠️  Validation failed for {mode} mode:")
+        for e in errors:
+            print(f"   • {e}")
+        return False, errors
+    
+    print(f"✅ Validation passed for {mode} mode")
+    return True, []
+
+
+def run_stress_test(node_count=16, cycles=350, mode="open"):
+    """Stress test with full hierarchical tracking + validation."""
+    print(f"\n=== Stress Sweep: {mode.upper()} MODE | Initial Nodes={node_count} | Cycles={cycles} ===")
+
+    matrix = DualRingTordialMatrix(node_count=node_count, agent_mode=True)
+
+    collapse_events = 0
+    fission_events = 0
+    ring_spawn_events = 0
+    sigma_history = []
+    node_count_history = []
+    ring_count_history = []
+    logical_error_history = []
+    energy_history = []
+    kappa_history = []
+    corrections_history = []
+
+    start_time = time.time()
+
+    for c in range(cycles):
+        load = 1.0 + 0.45 * np.sin(c / 22.0)
+        matrix.execute_heavy_load_cycle(system_load=load)
+
+        current_nodes = len(matrix.nodes_a)
+        current_rings = getattr(matrix, 'rings', 1)
+        
+        node_count_history.append(current_nodes)
+        ring_count_history.append(current_rings)
+
+        sigmas = [getattr(n, 'sigma_T', 0.0) for n in matrix.nodes_a if hasattr(n, 'sigma_T')]
+        avg_sigma = np.mean(sigmas) if sigmas else 0.0
+        avg_kappa = np.mean([gs_sweep.compute_gs(n.d, n.r).get("kappa_GS_T", 0) 
+                           for n in matrix.nodes_a]) if matrix.nodes_a else 0.0
+
+        sigma_history.append(avg_sigma)
+        kappa_history.append(avg_kappa)
+        energy_history.append(getattr(matrix, 'global_energy', 0.0))
+
+        if avg_sigma < -800:
+            collapse_events += 1
+
+        fission_events += sum(getattr(n, 'fission_count', 0) for n in matrix.nodes_a)
+        
+        ler = getattr(matrix, 'logical_error_rate', 0.0)
+        logical_error_history.append(ler)
+        corrections_history.append(getattr(matrix, 'corrections_made', 0))
+
+        if c % 50 == 0:
+            print(f"Cycle {c:4d} | Nodes: {current_nodes:3d} | Rings: {current_rings} | "
+                  f"Energy: {energy_history[-1]:7.1f} | Avg κ: {avg_kappa:6.2f} | LER: {ler:.4f}")
+
+    duration = time.time() - start_time
+
+    node_diffs = np.diff(node_count_history)
+    spawn_rate = float(np.mean(np.maximum(node_diffs, 0))) if len(node_diffs) > 0 else 0.0
+    ring_spawn_events = int(sum(np.maximum(np.diff(ring_count_history), 0)))
+
+    results = {
+        "mode": mode,
+        "final_nodes": current_nodes,
+        "final_rings": current_rings,
+        "total_fissions": fission_events,
+        "ring_spawn_events": ring_spawn_events,
+        "avg_spawn_rate_per_cycle": spawn_rate,
+        "avg_sigma": float(np.mean(sigma_history)),
+        "avg_kappa": float(np.mean(kappa_history)),
+        "avg_logical_error_rate": float(np.mean(logical_error_history)),
+        "avg_corrections": float(np.mean(corrections_history)),
+        "final_global_energy": float(energy_history[-1]),
+        "avg_global_energy": float(np.mean(energy_history)),
+        "energy_kappa_correlation": float(np.corrcoef(energy_history, kappa_history)[0,1]) 
+                                   if len(energy_history) > 1 else 0.0,
+        "duration_sec": round(duration, 2),
+        "histories": {
+            "node_count": node_count_history,
+            "ring_count": ring_count_history,
+            "energy": energy_history,
+            "kappa": kappa_history,
+            "sigma": sigma_history,
+            "logical_error": logical_error_history
+        }
+    }
+
+    return results
+
+
+def compare_hierarchical():
+    """Hierarchical comparison with automated data validation."""
+    print("Running Hierarchical Infinite Loophole Comparison...\n")
+
+    bounded = run_stress_test(mode="bounded")
+    open_mode = run_stress_test(mode="open")
+
+    # === AUTOMATED VALIDATION ===
+    bounded_valid, bounded_errors = validate_results(bounded, "bounded")
+    open_valid, open_errors = validate_results(open_mode, "open")
+
+    if not (bounded_valid and open_valid):
+        print("❌ Validation failed. JSON export skipped.")
+        return
+
+    # === ISO 8601 METADATA + VALIDATED EXPORT ===
+    now_utc = datetime.now(timezone.utc)
+
+    export_data = {
+        "metadata": {
+            "timestamp": now_utc.isoformat(),
+            "test_date": now_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "cycles": 350,
+            "description": "Tordial-GS Hierarchical Infinite Loophole Stress Test",
+            "version": "v13.1",
+            "validation_status": "PASSED"
+        },
+        "bounded": {
+            "summary": {k: v for k, v in bounded.items() if k != "histories"},
+            "histories": bounded.get("histories", {})
+        },
+        "open": {
+            "summary": {k: v for k, v in open_mode.items() if k != "histories"},
+            "histories": open_mode.get("histories", {})
+        }
+    }
+
+    with open("stress_results_hierarchical.json", "w") as f:
+        json.dump(export_data, f, indent=2)
+
+    print(f"✅ Validation passed + Results exported to stress_results_hierarchical.json")
+    print(f"    ISO 8601 Timestamp: {export_data['metadata']['timestamp']}")
+
+    # Plotting
+    fig, axs = plt.subplots(2, 3, figsize=(18, 11))
+
+    axs[0,0].set_title("Node Count Growth")
+    axs[0,0].plot(bounded["histories"]["node_count"], label='Bounded', alpha=0.7)
+    axs[0,0].plot(open_mode["histories"]["node_count"], label='Open (Hierarchical)', alpha=0.9)
+    axs[0,0].legend()
+
+    axs[0,1].set_title("Ring Count Growth")
+    axs[0,1].plot(bounded["histories"]["ring_count"], label='Bounded', alpha=0.7)
+    axs[0,1].plot(open_mode["histories"]["ring_count"], label='Open', alpha=0.9)
+    axs[0,1].legend()
+
+    axs[0,2].set_title("Global Energy Evolution")
+    axs[0,2].plot(bounded["histories"]["energy"], label='Bounded', alpha=0.7)
+    axs[0,2].plot(open_mode["histories"]["energy"], label='Open', alpha=0.9)
+    axs[0,2].legend()
+
+    axs[1,0].set_title("Avg Spawn Rate per Cycle")
+    axs[1,0].bar(['Bounded', 'Open'], 
+                 [bounded['avg_spawn_rate_per_cycle'], open_mode['avg_spawn_rate_per_cycle']])
+
+    axs[1,1].set_title("Energy-κ Correlation")
+    axs[1,1].bar(['Bounded', 'Open'], 
+                 [bounded['energy_kappa_correlation'], open_mode['energy_kappa_correlation']])
+
+    axs[1,2].set_title("Final Rings")
+    axs[1,2].bar(['Bounded', 'Open'], [bounded['final_rings'], open_mode['final_rings']])
+
+    plt.suptitle("Tordial-GS v13: Hierarchical Infinite Loophole Analysis")
+    plt.tight_layout()
+    plt.savefig("stress_sweep_hierarchical_loophole.png")
+    plt.show()
+
+    print("\n✅ Comparison complete! Validated data saved.")
+
+
+if __name__ == "__main__":
+    compare_hierarchical()

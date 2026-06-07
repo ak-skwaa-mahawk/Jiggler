@@ -1,0 +1,19 @@
+# Inside DualRingTordialMatrix.__init__
+from gs_sweep import GSSweep
+
+# ... existing code ...
+
+self.gs_sweep = GSSweep()
+self.node_bands = []  # will store band per node
+
+# Heterogeneous seeding using sweep results
+sweep_df = self.gs_sweep.run_sweep(d_range=(28, 65, 5), r_range=(220, 520, 30))  # fast sweep
+goldilocks = sweep_df[sweep_df["band"] == "GOLDILOCKS"].sample(n=node_count, replace=True)
+
+self.nodes_a = []
+self.nodes_b = []
+for _, row in goldilocks.iterrows():
+    node = TordialNode(int(row["d"]), int(row["r"]))
+    self.nodes_a.append(node)
+    self.nodes_b.append(node)  # mirror or vary slightly
+    self.node_bands.append(row["band"])

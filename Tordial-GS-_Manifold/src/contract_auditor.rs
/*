@@ -1,0 +1,70 @@
+cat << 'EOF' > src/contract_auditor.rs
+/*
+contract_auditor.rs
+The Judicial Evaluator of the ISST-TOFT Sovereign Substrate.
+Parses historical ledger inputs, evaluates derivatives, and issues Veto/Modulation actions.
+*/
+
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
+use crate::contract_envelope::ContractEnvelope;
+
+#[derive(Debug, Clone)]
+pub struct AuditResult {
+    pub directive: i32,         // 0 = Pass, 1 = Governor Adjust, 2 = Veto & Rollback
+    pub historical_prior: f64,  // Last logged local holonomy norm
+    pub computed_velocity: f64, // dΩ/dt calculated across runtime windows
+}
+
+pub struct ContractAuditor;
+
+impl ContractAuditor {
+    /// Queries the shared database to retrieve the latest historical benchmark and timestamp
+    pub fn fetch_prior_state() -> (f64, i64) {
+        // Fetch both the local norm and an estimated Unix epoch timestamp snippet
+        let query = "SELECT holonomy_norm_local, STRFTIME('%s', timestamp) FROM runs WHERE holonomy_norm_local > 0 ORDER BY id DESC LIMIT 1;";
+        let output = Command::new("sqlite3")
+            .arg("tordial_gs.db")
+            .arg(query)
+            .output();
+
+        if let Ok(out) = output {
+            let text = String::from_utf8_lossy(&out.stdout);
+            if let Some(line) = text.lines().next() {
+                let parts: Vec<&str> = line.split('|').collect();
+                if parts.len() >= 2 {
+                    let norm = parts[0].trim().parse::<f64>().unwrap_or(0.05);
+                    let ts = parts[1].trim().parse::<i64>().unwrap_or(0);
+                    return (norm, ts);
+                } else if let Ok(norm) = parts[0].trim().parse::<f64>() {
+                    return (norm, 0);
+                }
+            }
+        }
+        (0.03098, 0) // Stable historical fallback prior if the table cannot be queried
+    }
+
+    /// Conducts a complete reads-before-writes audit against the constitutional envelope
+    pub fn audit_proposal(proposed_h: f64, envelope: &ContractEnvelope) -> AuditResult {
+        let (prior_h, prior_ts) = Self::fetch_prior_state();
+        
+        // Calculate the real-time delta and time differential
+        let current_ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+        let dt = (current_ts - prior_ts).abs().max(1); // Shield against divide-by-zero on immediate re-strikes
+        
+        let delta_h = proposed_h - prior_h;
+        let velocity_h = delta_h / (dt as f64);
+        
+        println!("🔍 [AUDITOR] Auditing Proposed ||Ω||_F: {:.5} (Prior: {:.5} | Delta: {:+.5} | dt: {}s | Velocity: {:.5}/s)", 
+                 proposed_h, prior_h, delta_h, dt, velocity_h);
+                 
+        let directive = envelope.evaluate_state_compliance(proposed_h, velocity_h);
+        
+        AuditResult {
+            directive,
+            historical_prior: prior_h,
+            computed_velocity: velocity_h,
+        }
+    }
+}
+EOF

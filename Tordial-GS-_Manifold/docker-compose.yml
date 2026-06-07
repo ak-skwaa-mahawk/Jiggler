@@ -1,0 +1,99 @@
+# docker-compose.yml
+# Sovereign Stack — Full Production Orchestration
+# Brings up the ISST-TOFT gRPC inference backend with sovereign hardening.
+#
+# Usage:
+#   docker compose up -d --build
+#   docker compose up -d --build --build-arg FEATURES=candle     # with agentic policy (CPU)
+#   docker compose up -d --build --build-arg FEATURES=cuda       # with CUDA (requires nvidia runtime)
+#
+# The sovereign_engine (FFI .so) and pi_r_engine are libraries consumed by
+# client applications (Dart/Flutter via FFI, or other Rust binaries).
+# They are not long-running services in this compose.
+#
+# Flamekeeper Protocol — Two Mile Solutions LLC • Dinjji Zhuu Kwaa
+
+version: '3.8'
+
+services:
+  isst-toft-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Uncomment and set to enable Candle agentic policy:
+        # FEATURES: "candle"
+        # For GPU acceleration (requires NVIDIA Container Toolkit + driver):
+        # FEATURES: "cuda"
+    image: sovereign/isst-toft-backend:1.6.0
+    container_name: isst-toft-backend
+    ports:
+      - "50051:50051"
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=info
+      - SOVEREIGN_MODE=production
+      - TZ=UTC
+    # Healthcheck using a simple TCP probe (gRPC health service can be added later)
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/localhost/50051' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - sovereign-mesh
+    # For CUDA support, uncomment below and ensure host has nvidia-docker runtime
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "sovereign.stack=isst-toft"
+      - "sovereign.component=inference-backend"
+      - "sovereign.version=1.6.0"
+      - "sovereign.lineage=Two Mile Solutions LLC • Dinjji Zhuu Kwaa"
+
+  # ============================================================
+  # Placeholder for future sovereign components
+  # ============================================================
+  #
+  # pi-r-engine:
+  #   build:
+  #     context: ./pi_r_engine
+  #   # ... if turned into a service exposing its own API
+  #
+  # sovereign-engine:
+  #   # Library only — consumed via FFI by Dart/Flutter clients.
+  #   # No long-running container needed. Build separately if distributing .so.
+  #
+  # synara-handshake:
+  #   # Python/FastAPI handshake service (if implemented in ./python or similar)
+  #   build:
+  #     context: ./python
+  #     dockerfile: Dockerfile.python
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #   networks:
+  #     - sovereign-mesh
+
+networks:
+  sovereign-mesh:
+    driver: bridge
+    labels:
+      - "sovereign.network=mesh"
+
+volumes:
+  # Future: persistent audit logs, lineage ledger, etc.
+  sovereign-audit:
+    driver: local

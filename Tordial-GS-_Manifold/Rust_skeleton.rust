@@ -1,0 +1,125 @@
+use num_complex::Complex64;
+
+pub struct Grid {
+    pub n_theta: usize,
+    pub n_phi: usize,
+    pub r_major: f64,
+    pub r_minor: f64,
+}
+
+pub struct PID {
+    pub kp: f64,
+    pub ki: f64,
+    pub kd: f64,
+    pub integral: f64,
+    pub prev_error: f64,
+}
+
+pub struct RealField {
+    pub data: Vec<f64>, // length = n_theta * n_phi
+}
+
+pub struct SpectralField {
+    pub data: Vec<Complex64>, // same length
+}
+
+pub struct LaplacianSpectrum {
+    pub eig: Vec<f64>, // same length
+}
+
+pub trait FFTBackend {
+    fn forward(&self, input: &RealField, output: &mut SpectralField);
+    fn inverse(&self, input: &SpectralField, output: &mut RealField);
+}
+
+pub fn build_laplacian_spectrum(grid: &Grid) -> LaplacianSpectrum {
+    let nθ = grid.n_theta;
+    let nφ = grid.n_phi;
+    let mut eig = vec![0.0; nθ * nφ];
+
+    let freq = |k: usize, n: usize| -> i32 {
+        if k <= n / 2 { k as i32 } else { (k as i32) - (n as i32) }
+    };
+
+    for i in 0..nθ {
+        let m = freq(i, nθ);
+        for j in 0..nφ {
+            let n = freq(j, nφ);
+            let idx = i * nφ + j;
+            eig[idx] = -((m as f64).powi(2) / grid.r_major.powi(2)
+                       + (n as f64).powi(2) / grid.r_minor.powi(2));
+        }
+    }
+
+    LaplacianSpectrum { eig }
+}
+
+pub fn tordial_gs_step<B: FFTBackend>(
+    grid: &Grid,
+    fft: &B,
+    phi: &RealField,
+    rho_gs: &RealField,
+    kappa: &RealField,
+    eig: &LaplacianSpectrum,
+    pid: &mut PID,
+    alpha: f64,
+    beta: f64,
+    lambda: f64,
+    dt: f64,
+    phi_target_mean: f64,
+) -> RealField {
+    let n = grid.n_theta * grid.n_phi;
+
+    // F = α ρGS - β κ
+    let mut f = RealField { data: vec![0.0; n] };
+    for i in 0..n {
+        f.data[i] = alpha * rho_gs.data[i] - beta * kappa.data[i];
+    }
+
+    // FFT
+    let mut phi_hat = SpectralField { data: vec![Complex64::new(0.0, 0.0); n] };
+    let mut f_hat   = SpectralField { data: vec![Complex64::new(0.0, 0.0); n] };
+    fft.forward(phi, &mut phi_hat);
+    fft.forward(&f, &mut f_hat);
+
+    // steady-state Φss
+    let mut phi_ss = SpectralField { data: vec![Complex64::new(0.0, 0.0); n] };
+    for i in 0..n {
+        if eig.eig[i] != 0.0 {
+            phi_ss.data[i] = f_hat.data[i] / eig.eig[i];
+        }
+    }
+
+    // deviation Ψ
+    let mut psi = SpectralField { data: vec![Complex64::new(0.0, 0.0); n] };
+    for i in 0..n {
+        psi.data[i] = phi_hat.data[i] - phi_ss.data[i];
+    }
+
+    // relax nonzero modes
+    for i in 0..n {
+        let e = eig.eig[i];
+        if e != 0.0 {
+            let decay = (-lambda * -e * dt).exp();
+            psi.data[i] *= decay;
+        }
+    }
+
+    // PID on zero mode (index 0)
+    let a00 = phi_hat.data[0].re;
+    let e = a00 - phi_target_mean;
+    pid.integral += e * dt;
+    let u = pid.kp * e + pid.ki * pid.integral + pid.kd * (e - pid.prev_error) / dt;
+    pid.prev_error = e;
+    phi_hat.data[0] += Complex64::new(u * dt, 0.0);
+
+    // reconstruct Φ̂
+    for i in 0..n {
+        phi_hat.data[i] = phi_ss.data[i] + psi.data[i];
+    }
+
+    // inverse FFT
+    let mut phi_new = RealField { data: vec![0.0; n] };
+    fft.inverse(&phi_hat, &mut phi_new);
+    phi_new
+}

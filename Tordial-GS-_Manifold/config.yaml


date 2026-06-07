@@ -1,0 +1,96 @@
+tordial:
+  safety_bounds:
+    max_d: 180
+    max_r: 600
+    min_sigma_t: -3500
+
+# Tordial–GS Manifold Formal Specification
+
+**Version**: 1.0  
+**Date**: May 2026
+
+## 1. Overview
+
+The **Tordial–Golod-Shafarevich Manifold (TGS)** is a bi-layered geometric-algebraic structure that provides **infinite-density drift geometry** without collapse.
+
+### 1.1 Core Layers
+
+- **Macro Layer (Tordial Drift)**: Toroidal geometry with continuous phase drift and resonance.
+- **Micro Layer (GS)**: Golod-Shafarevich infinite group presentation providing unbounded algebraic growth.
+- **Coupling Layer**: GS strength metrics (`σ_T`, `κ_GS_T`, `ρ_GS_T`) actively modulate macro behavior.
+
+## 2. Mathematical Definitions
+
+### 2.1 Tordial Constants
+
+$$
+\pi_{3D} = 3.20442315, \quad \tau_{3D} = 2\pi_{3D}
+$$
+
+$$
+\phi_{op} = 1.65036, \quad \text{Gear Shift Correction} = 1.04
+$$
+
+**Chase Window** (angle-space):
+
+$$
+\text{CHASE\_RATIO\_TAU} = \frac{\tau_{3D}}{\phi_{op}}
+$$
+
+A node is **LOCKED** if:
+
+$$
+\theta \mod \tau_{3D} < \text{CHASE\_RATIO\_TAU}
+$$
+
+### 2.2 Golod-Shafarevich Coupling (Patched)
+
+For a presentation with \(d\) generators and \(r\) relations:
+
+$$
+\sigma_T = r - \frac{d^2}{4 \cdot \phi_{op} \cdot 1.04}
+$$
+
+$$
+\kappa_{GS,T} = \frac{\sigma_T}{d}, \quad
+\lambda_{GS,T} = \sqrt{\sigma_T}, \quad
+\rho_{GS,T} = \frac{\lambda_{GS,T}}{d}
+$$
+
+**Regime Bands**:
+
+- **SUBCRITICAL**: \(\kappa < 3.2\) or \(\sigma_T < 45\)
+- **MARGINAL**: \(3.2 \leq \kappa < 5.0\)
+- **GOLDILOCKS**: \(5.0 \leq \kappa \leq 8.5\) **and** \(\sigma_T \geq 95\)
+- **DEEP_GS**: \(\kappa > 8.5\)
+
+## 3. Axioms
+
+**Axiom 1 (Infinite Supply)**: If \(\sigma_T > 0\), the node has access to infinite micro-coordinates without collapse.
+
+**Axiom 2 (Drift Absorption)**: Local drift budget scales with \(\rho_{GS,T}\):
+
+$$
+\text{local\_budget} = \text{base\_drift} \times (1 + \min(\rho_{GS,T}, 2.0) \times 0.8)
+$$
+
+**Axiom 3 (Strength Feedback)**: Frequency governance resists slowdown proportionally to average \(\kappa_{GS,T}\).
+
+**Axiom 4 (Preferential Seeding)**: Nodes are seeded preferentially from GOLDILOCKS zones.
+
+## 4. Emergent Properties
+
+- Self-healing via dual-ring + GS-weighted quarantine
+- Visible phase locking on toroidal surface
+- Macro stability emerges from micro-algebraic strength
+- Heterogeneous regimes create natural "anchor" nodes
+
+## 5. Implementation Notes
+
+See `tordial_gs_v8.py` and `config.yaml`.
+
+---
+
+**This specification is both machine-readable and human-formal.**
+
+---

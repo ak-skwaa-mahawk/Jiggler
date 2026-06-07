@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package issttoft;
+
+import "google/protobuf/empty.proto";
+
+// ISST-TOFT Sovereign Inference Service
+service InferenceService {
+
+  // === Core Methods ===
+  rpc EncodeRadHardGlyph   (GlyphRequest)   returns (GlyphResponse);
+  rpc RunClientlessPulse   (PulseRequest)   returns (PulseResponse);
+
+  // === SixCylinderBoundary GS Coupling ===
+  rpc ComputeSixFaceBoundary (SixFaceRequest) returns (SixFaceResponse);
+  rpc GetClosedLoopDelta     (SixFaceRequest) returns (DeltaResponse);
+  rpc RunTrackingFormProof   (SixFaceRequest) returns (ProofResponse);
+
+  // === Intent Engine (Read) ===
+  rpc GetIntentBand     (GetIntentBandRequest)     returns (IntentBand);
+  rpc GetAllIntentBands (google.protobuf.Empty)    returns (GetAllIntentBandsResponse);
+
+  // === Streaming Intent Updates ===
+  rpc StreamIntentUpdates (google.protobuf.Empty) returns (stream IntentUpdate);
+}
+
+// ====================== EXISTING MESSAGES ======================
+
+message GlyphRequest { ... }
+message GlyphResponse { ... }
+message PulseRequest { ... }
+message PulseResponse { ... }
+
+// ====================== SIXCYLINDERBOUNDARY ======================
+
+message SixFaceRequest { ... }
+message SixFaceResponse { ... }
+message DeltaResponse { ... }
+message ProofResponse { ... }
+
+// ====================== INTENT ENGINE ======================
+
+message GetIntentBandRequest {
+  string band_id = 1;
+  int32  mode    = 2;
+}
+
+message IntentBand {
+  string band_id      = 1;
+  int32  mode         = 2;
+  double intent_value = 3;
+  int64  last_updated = 4;
+  string source       = 5;
+}
+
+message GetAllIntentBandsResponse {
+  repeated IntentBand bands = 1;
+}
+
+// ====================== STREAMING ======================
+
+message IntentUpdate {
+  string band_id      = 1;
+  int32  mode         = 2;
+  double intent_value = 3;
+  int64  timestamp    = 4;
+  string reason       = 5;   // "drive" | "decay" | "safety"
+}
