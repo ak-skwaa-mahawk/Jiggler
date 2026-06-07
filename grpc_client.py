@@ -1,4 +1,3 @@
-cat << 'EOF' > grpc_client.py
 import sys
 import grpc
 import proto.issttoft_pb2 as issttoft_pb2
@@ -6,7 +5,7 @@ import proto.issttoft_pb2_grpc as issttoft_pb2_grpc
 
 def fire_core_handshake():
     print("[🔌] Spinning up HTTP/2 network channel to local Rust substrate...")
-    server_target = "127.0.0.1:50051"
+    server_target = "localhost:50051"
     channel = grpc.insecure_channel(server_target)
     stub = issttoft_pb2_grpc.InferenceServiceStub(channel)
     
@@ -32,4 +31,3 @@ def fire_core_handshake():
 
 if __name__ == "__main__":
     fire_core_handshake()
-EOF
