@@ -214,6 +214,26 @@ HTML_TEMPLATE = """
 </head>
 <body>
 
+    <div class="dashboard-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; padding: 20px;">
+    <div class="card" style="background: #0a1128; border: 1px solid #001f54; border-radius: 8px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+        <h3 style="color: #00b4d8; margin-bottom: 15px; font-family: system-ui;">🖥️ HARDWARE TELEMETRY</h3>
+        <p style="margin: 8px 0;">Platform: <span id="ui-platform" style="color: #e2e8f0; font-weight: bold;">Scanning...</span></p>
+        <p style="margin: 8px 0;">Architecture: <span id="ui-arch" style="color: #e2e8f0;">Scanning...</span></p>
+        <p style="margin: 8px 0;">Detected VRAM/RAM: <span id="ui-ram" style="color: #e2e8f0;">Scanning...</span></p>
+        <div style="margin-top: 15px; padding: 10px; border-radius: 4px; background: #001f54; text-align: center;">
+            <span style="font-size: 0.85em; color: #94a3b8;">PIPELINE ROUTE:</span>
+            <div id="ui-route" style="font-weight: bold; color: #00f5d4; font-size: 1.1em; margin-top: 4px;">INITIALIZING...</div>
+        </div>
+    </div>
+
+    <div class="card" style="background: #0a1128; border: 1px solid #001f54; border-radius: 8px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+        <h3 style="color: #ff007f; margin-bottom: 15px; font-family: system-ui;">🌌 MANIFOLD CONSTANTS</h3>
+        <p style="margin: 8px 0;">MATTER_SPEED_CONSTANT: <span style="color: #fff; font-weight: bold; background: rgba(255,0,127,0.15); padding: 2px 6px; border-radius: 4px;">1.04</span></p>
+        <p style="margin: 8px 0;">System Stability: <span style="color: #00f5d4;">1.00000000</span></p>
+        <p style="margin: 8px 0;">Substrate Status: <span style="color: #00f5d4; font-weight: bold;">Healthy</span></p>
+    </div>
+</div>
+
     <div class="master-container">
         <div class="panel-header">
             <div class="section-title">SOVEREIGN INJIN & GOVERNANCE CONTROL</div>
@@ -307,6 +327,32 @@ HTML_TEMPLATE = """
 
         userInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') transmitTelemetry(); });
     </script>
+            // Establish connection to your active local Flask-SocketIO engine
+const socket = io();
+
+// Trigger the topological hardware scan event on load
+socket.on('connect', () => {
+    console.log('[+] Connected to Sovereign Substrate Link. Requesting profile...');
+    socket.emit('connect_codebook', { client_handshake: true });
+});
+
+// Listen for incoming dynamic hardware telemetry arrays from codebook.py
+socket.on('codebook_telemetry', (data) => {
+    console.log('[📡] Telemetry stream received:', data);
+    document.getElementById('ui-platform').innerText = data.platform;
+    document.getElementById('ui-arch').innerText = data.architecture;
+    document.getElementById('ui-ram').innerText = data.detected_ram;
+    document.getElementById('ui-route').innerText = data.selected_route;
+    
+    // Color coding based on resource allocation route
+    const routeEl = document.getElementById('ui-route');
+    if (data.selected_route === 'LOCAL_EDGE') {
+        routeEl.style.color = '#00f5d4'; // Neo-mint green for powerful edge devices
+    } else {
+        routeEl.style.color = '#ffb703'; // Amber orange for cloud fallback routes
+    }
+});
+
 </body>
 </html>
 """
