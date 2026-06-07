@@ -2,21 +2,34 @@
 import os
 import json
 import time
-
 import hashlib
 import numpy as np
 from flask import Flask, render_template_string
 from flask_socketio import SocketIO, emit
 from codebook import SovereignCodebook
 
-from codebook import SovereignCodebook
+# === CRITICAL INITIALIZATION MOVE ===
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.urandom(24)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Inside your startup context or socket connection event:
+@socketio.on('connect_codebook')
+def handle_codebook_stream(data):
+    scanner = SovereignCodebook()
+    profile = scanner.get_topological_recommendation()
+    emit('codebook_telemetry', {
+        'status': 'ACTIVE',
+        'platform': profile['platform'],
+        'architecture': profile['architecture'],
+        'detected_ram': profile['ram'],
+        'selected_route': profile['route']
+    })
+    print(f"[📡] Streamed Hardware Matrix Target: {profile['route']}")
+
+# Inside your startup context or socket connection
 codebook = SovereignCodebook()
 hardware_profile = codebook.get_topological_recommendation()
 print(f"[+] Codebook Activated. Recommended Pipeline: {hardware_profile['route']}")
-
-
 # Core Cryptographic Imports
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives import hashes
@@ -26,14 +39,6 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
 socketio = SocketIO(app, cors_allowed_origins="*")
-app = Flask(__name__)
-app.config['SECRET_KEY'] = os.urandom(24)
-socketio = SocketIO(app, cors_allowed_origins="*")
-
-# === INITIALIZE SOVEREIGN CODEBOOK PARSER ===
-codebook = SovereignCodebook()
-sys_profile = codebook.get_topological_recommendation()
-print(f"[+] TOPOLOGICAL ROUTE LOCKED: {sys_profile['route']} ({sys_profile['ram']} RAM detected)")
 
 # === SOVEREIGN SYSTEM CONFIG ===
 MATTER_SPEED_CONSTANT = 1.04
