@@ -7,3 +7,4 @@ __pycache__/
 *.db
 *.log
 jed_unified_telemetry.log
+target/
