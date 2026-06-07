@@ -1,4 +1,3 @@
-cat << 'EOF' > simulate_stream.py
 import sys
 import time
 import grpc
@@ -51,4 +50,3 @@ def run_manifold_suite():
 
 if __name__ == "__main__":
     run_manifold_suite()
-EOF

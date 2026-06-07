@@ -1,4 +1,3 @@
-cat << 'EOF' > grpc_client.py
 import sys
 import grpc
 import proto.issttoft_pb2 as issttoft_pb2
@@ -43,4 +42,3 @@ def get_grpc_client() -> GrpcSubstrateClient:
     if client is None:
         client = GrpcSubstrateClient()
     return client
-EOF
