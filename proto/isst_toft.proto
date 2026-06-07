@@ -1,7 +1,4 @@
-cd ~/isst_toft_mesh
-mkdir -p proto
-
-cat << 'EOF' > proto/isst_toft.proto
+cat > proto/isst_toft.proto << 'EOF'
 syntax = "proto3";
 
 package issttoft;
@@ -77,4 +74,3 @@ message CernResonanceUpdate {
   int64 timestamp = 3;
 }
 EOF
-echo "✅ Production Proto-Contract written cleanly to disk."

@@ -1,16 +1,20 @@
 # pwc/types.py
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict
 from uuid import UUID, uuid4
 
-# Import substrate types (you’ll adapt these imports to your actual modules)
-from tordial_gs_v15 import GSState  # or your canonical GS state class
-from SystemicTordialMatrix import ManifoldState  # adapt to your actual type
-from global_PID import PIDState
-from Production_Lifecycle_Framework import LifecycleState
-from Asynchronous_Telemetry_Architecture import TelemetryRecord
-from Automated_Asynchronous_Safety_Trip_Matrix import SafetyFlags
+# Import the real substrate types from six_cylinder_boundary.py
+from six_cylinder_boundary import (
+    GSState,
+    ManifoldState,
+    PIDState,
+    SafetyFlags,
+    LifecycleState,
+)
 
+# ============================================================
+# Core Planning & Control Types
+# ============================================================
 
 @dataclass
 class DriftEnvelope:
@@ -21,14 +25,14 @@ class DriftEnvelope:
 
 @dataclass
 class CurvatureProfile:
-    target_curvature_field: list[float]  # flattened 2D
+    target_curvature_field: list[float]
     tolerance: float
 
 
 @dataclass
 class PressureBudget:
     global_budget: float
-    per_region_budget: list[float]  # flattened 2D
+    per_region_budget: list[float]
     time_horizon: float
 
 
@@ -47,6 +51,7 @@ class ManifoldPlan:
     pressure_budget: PressureBudget
     safety_posture: SafetyPosture
     horizon_steps: int
+    topological_guidance: Optional[Dict] = None
 
 
 @dataclass
@@ -70,6 +75,10 @@ class ControlSchedule:
     plan_id: UUID
     steps: List[ControlStep]
 
+
+# ============================================================
+# Trajectory & Scoring Types
+# ============================================================
 
 @dataclass
 class TrajectorySample:
@@ -105,13 +114,17 @@ class TrajectoryScore:
     violations: List[Violation]
 
 
+# ============================================================
+# Context & Objective Types
+# ============================================================
+
 @dataclass
 class PlannerContext:
     gs_state: GSState
     manifold_state: ManifoldState
     pid_state: PIDState
     lifecycle_state: LifecycleState
-    recent_telemetry: List[TelemetryRecord]
+    recent_telemetry: List[dict]
 
 
 @dataclass
