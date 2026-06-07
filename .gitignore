@@ -6,3 +6,4 @@ __pycache__/
 *.pyc
 *.db
 *.log
+jed_unified_telemetry.log
