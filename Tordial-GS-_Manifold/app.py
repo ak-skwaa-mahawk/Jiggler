@@ -7,6 +7,7 @@ import hashlib
 import numpy as np
 from flask import Flask, render_template_string
 from flask_socketio import SocketIO, emit
+from codebook import SovereignCodebook
 
 from codebook import SovereignCodebook
 
@@ -25,6 +26,14 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
 socketio = SocketIO(app, cors_allowed_origins="*")
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.urandom(24)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# === INITIALIZE SOVEREIGN CODEBOOK PARSER ===
+codebook = SovereignCodebook()
+sys_profile = codebook.get_topological_recommendation()
+print(f"[+] TOPOLOGICAL ROUTE LOCKED: {sys_profile['route']} ({sys_profile['ram']} RAM detected)")
 
 # === SOVEREIGN SYSTEM CONFIG ===
 MATTER_SPEED_CONSTANT = 1.04
