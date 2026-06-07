@@ -1,0 +1,27 @@
+mkdir -p proto
+cat << 'EOF' > proto/issttoft.proto
+syntax = "proto3";
+package issttoft;
+
+service InferenceService {
+  rpc GetIntentBand (GetIntentBandRequest) returns (IntentBand);
+  rpc GetAllIntentBands (GetAllIntentBandsRequest) returns (GetAllIntentBandsResponse);
+  rpc EncodeRadHardGlyph (GlyphRequest) returns (GlyphResponse);
+  rpc RunClientlessPulse (PulseRequest) returns (PulseResponse);
+  rpc StreamIntentUpdates (StreamIntentUpdatesRequest) returns (stream IntentUpdate);
+  rpc Handshake (HandshakeRequest) returns (HandshakeResponse);
+}
+
+message GetIntentBandRequest { string band_id = 1; }
+message GetAllIntentBandsRequest {}
+message GetAllIntentBandsResponse { repeated IntentBand bands = 1; }
+message IntentBand { string band_id = 1; int32 priority = 2; }
+message GlyphRequest { string input_data = 1; }
+message GlyphResponse { string encoded_glyph = 1; }
+message PulseRequest { string payload = 1; }
+message PulseResponse { bool success = 1; }
+message StreamIntentUpdatesRequest { string client_id = 1; }
+message IntentUpdate { string update_id = 1; string data = 2; }
+message HandshakeRequest { string client_id = 1; string client_type = 2; string sovereign_claim = 3; }
+message HandshakeResponse { string session_id = 1; bool authorized = 2; string error_message = 3; }
+EOF
