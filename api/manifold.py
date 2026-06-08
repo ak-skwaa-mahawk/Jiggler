@@ -1,11 +1,14 @@
+cat << 'EOF' > api/manifold.py
 import time
 import numpy as np
 import hashlib
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 # Core Security/Rate limiter attachments from your active setup
 from api.ratelimit import limiter
+# Pull in the async gRPC substrate connection manager dependency
+from grpc_client import get_grpc_client, GrpcSubstrateClient
 
 router = APIRouter()
 
@@ -24,12 +27,12 @@ class ManifoldStateMetrics(BaseModel):
     state_hash: str
     calibrated_density: float
     is_stable: bool
+    rust_substrate_handshake: dict  # Dynamic confirmation from the async Rust core
 
 def compute_tordial_drift(velocity: float, phase: float) -> float:
     """
     Computes infinite-density drift metrics matching the axiomatic specification.
     """
-    # Base dimensional correction formula matching your 1.04 * pi core baseline math
     base_scalar = velocity * np.pi * SHADOW_CONSTANT
     if phase != 0:
         base_scalar = base_scalar / np.cos(phase)
@@ -37,33 +40,44 @@ def compute_tordial_drift(velocity: float, phase: float) -> float:
 
 @router.post("/synchronize", response_model=ManifoldStateMetrics, tags=["Tordial-GS Manifold Interfacing"])
 @limiter.limit("5/minute")  # Heavily rate limit high-overhead geometric calculations
-def synchronize_manifold_matrix(payload: ManifoldPayload):
+async def synchronize_manifold_matrix(
+    request: Request, 
+    payload: ManifoldPayload,
+    grpc_core: GrpcSubstrateClient = Depends(get_grpc_client)
+):
     """
-    Ingests physical drift geometry from the Tordial-GS-_Manifold repository layers,
-    applies the Shadow Constant correction, and returns an authenticated state hash block.
+    Ingests physical drift geometry, applies the Shadow Constant correction,
+    dispatches an explicit verification handshake vector to the running Rust core binary,
+    and returns an authenticated telemetry matrix block.
     """
     try:
         ts = time.time()
-        
-        # 1. Execute Tordial Geometry Drift Scaling
+
+        # 1. Execute Local Tordial Geometry Drift Scaling
         drift_calculation = compute_tordial_drift(payload.drift_velocity, payload.phase_shift)
-        
-        # 2. Compile Immutable Crypto Cryptogram 
+
+        # 2. Compile Immutable Crypto Cryptogram
         state_string = f"{payload.vector_id}:{drift_calculation}:{ts}"
         computed_hash = hashlib.sha3_256(state_string.encode()).hexdigest()
-        
+
         # 3. Check stability thresholds against system boundaries
         is_stable = not np.isnan(drift_calculation) and not np.isinf(drift_calculation)
-        
+
+        # 4. Interlink Vector: Query the live Rust Substrate over HTTP/2
+        # This executes asynchronously without choking up the Python server thread limits
+        substrate_feedback = await grpc_core.verify_handshake()
+
         return ManifoldStateMetrics(
             timestamp=ts,
             state_hash=f"0x{computed_hash}",
             calibrated_density=drift_calculation if is_stable else 0.00,
-            is_stable=is_stable
+            is_stable=is_stable,
+            rust_substrate_handshake=substrate_feedback
         )
-        
+
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Tordial Engine Failure during calculation: {str(e)}"
         )
+EOF
