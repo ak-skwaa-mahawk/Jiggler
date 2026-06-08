@@ -19,6 +19,75 @@ impl BasinValidator {
     }
 }
 
+#[derive(Clone)]
+pub struct IntentBandInternal {
+    pub band_id: String,
+    pub energy_delta: f64,
+    pub spin: f64,
+    pub temp: f64,
+}
+
+#[derive(Clone)]
+pub struct HandshakeResponseInternal {
+    pub status: String,
+    pub version: String,
+    pub mesh_status: String,
+    pub flamekeeper_note: String,
+}
+
+#[derive(Clone)]
+pub struct IntentEngine {
+    bands: Vec<IntentBandInternal>,
+}
+
+impl IntentEngine {
+    pub fn new() -> Self {
+        Self {
+            bands: vec![
+                IntentBandInternal { band_id: "BAND-01".to_string(), energy_delta: -2.534, spin: 3.8, temp: 0.18 }
+            ]
+        }
+    }
+
+    pub fn get_all_bands(&self) -> Vec<IntentBandInternal> {
+        vec![
+            IntentBandInternal { band_id: "BAND-01".to_string(), energy_delta: -2.534, spin: 3.8, temp: 0.18 }
+        ]
+    }
+
+    pub fn handshake(&self, client_id: String, client_type: String, _sovereign_claim: String) -> HandshakeResponseInternal {
+        HandshakeResponseInternal {
+            status: "CONNECTED".to_string(),
+            version: "tordial-gs v2.3".to_string(),
+            mesh_status: "Ch’anchyah Dach’anchyah — The Floor is solid.".to_string(),
+            flamekeeper_note: format!("Welcome client {} ({})", client_id, client_type),
+        }
+    }
+}
+EOF
+
+
+cat << 'EOF' > src/intent_engine.rs
+//! Intent Engine Mock Core — Tracking Layer
+
+pub struct BasinValidator;
+
+#[derive(Debug, PartialEq)]
+pub enum RegimeClass {
+    Goldilocks,
+    Turbulent,
+    Suppressed,
+}
+
+impl BasinValidator {
+    pub fn distance_to_ridge(_a: f64, _b: f64, _c: f64, _d: f64) -> f64 {
+        0.00
+    }
+    pub fn classify_regime(_a: f64, _b: f64, _c: f64, _d: f64) -> RegimeClass {
+        RegimeClass::Goldilocks
+    }
+}
+
 pub struct IntentBandInternal {
     pub band_id: String,
     pub energy_delta: f64,
