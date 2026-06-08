@@ -1,4 +1,3 @@
-cat << 'EOF' > api/manifold.py
 import time
 import numpy as np
 import hashlib
@@ -164,4 +163,3 @@ async def synchronize_manifold_matrix(
             status_code=500,
             detail=f"Tordial Engine Failure during calculation: {str(e)}"
         )
-EOF
