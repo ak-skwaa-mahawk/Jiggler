@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package tordial_manifold;
 
-// Core service definitions required by your src/main.rs mapping architecture
 service InferenceService {
     rpc Handshake (HandshakeRequest) returns (HandshakeResponse);
     rpc StreamIntentUpdates (StreamIntentUpdatesRequest) returns (stream IntentUpdate);
