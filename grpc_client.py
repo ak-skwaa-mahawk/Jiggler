@@ -10,6 +10,73 @@ logger = logging.getLogger("uvicorn.error")
 
 class GrpcSubstrateClient:
     def __init__(self, target_address: str = "127.0.0.1:50051"):
+        # Target the underlying channel
+        self.channel = grpc.aio.insecure_channel(target_address)
+        self.stub = pb2_grpc.ManifoldControllerStub(self.channel)
+
+    async def dispatch_vector(
+        self, 
+        vector_id: str, 
+        x: float, 
+        y: float, 
+        z: float, 
+        throat_radius: float, 
+        magnetic_coupling: float
+    ) -> Dict[str, Any]:
+        try:
+            # Construct the structural vector parameters
+            payload = pb2.VectorPayload(
+                vector_id=vector_id,
+                velocity_vector=pb2.Vector3D(x=x, y=y, z=z),
+                throat_radius=throat_radius,
+                magnetic_coupling=magnetic_coupling
+            )
+            
+            # Hit the Master Manifold Controller core route
+            response = await self.stub.SynchronizeVector(payload)
+            
+            return {
+                "status": response.status,
+                "version": response.version,
+                "mesh_status": response.mesh_status,
+                "processing_stable": response.processing_stable,
+                "execution_ticks": response.execution_ticks
+            }
+        except Exception as e:
+            logger.error(f"[❌ gRPC Pipeline Failure]: {str(e)}")
+            return {
+                "status": "DISCONNECTED",
+                "version": "UNKNOWN",
+                "mesh_status": f"Channel Error: {str(e)}",
+                "processing_stable": False,
+                "execution_ticks": 0
+            }
+
+    async def close(self):
+        await self.channel.close()
+
+_client_instance = None
+
+async def get_grpc_client() -> GrpcSubstrateClient:
+    global _client_instance
+    if _client_instance is None:
+        _client_instance = GrpcSubstrateClient()
+    return _client_instance
+EOF
+
+
+cat << 'EOF' > grpc_client.py
+import grpc
+import logging
+from typing import Dict, Any
+
+import combined_manifold_pb2 as pb2
+import combined_manifold_pb2_grpc as pb2_grpc
+
+logger = logging.getLogger("uvicorn.error")
+
+class GrpcSubstrateClient:
+    def __init__(self, target_address: str = "127.0.0.1:50051"):
         self.channel = grpc.aio.insecure_channel(target_address)
         self.stub = pb2_grpc.ManifoldControllerStub(self.channel)
 
