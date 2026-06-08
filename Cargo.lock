@@ -1163,9 +1163,11 @@ name = "tordial_gs_manifold"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "futures-core",
  "numpy",
  "prost",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-build",
  "tracing",

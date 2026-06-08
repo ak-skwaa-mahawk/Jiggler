@@ -1,65 +1,33 @@
-mkdir -p proto
-cat << 'EOF' > proto/manifold.proto
 syntax = "proto3";
 
 package tordial_manifold;
 
-service ManifoldController {
-    rpc SynchronizeVector (VectorPayload) returns (SubstrateMetricsResponse);
+// Core service definitions required by your src/main.rs mapping architecture
+service InferenceService {
+    rpc Handshake (HandshakeRequest) returns (HandshakeResponse);
+    rpc StreamIntentUpdates (StreamIntentUpdatesRequest) returns (stream IntentUpdate);
+    rpc GetIntentBand (GetIntentBandRequest) returns (IntentBand);
+    rpc GetAllIntentBands (GetAllIntentBandsRequest) returns (GetAllIntentBandsResponse);
 }
 
-message Vector3D {
-    double x = 1;
-    double y = 2;
-    double z = 3;
+message HandshakeRequest {}
+message HandshakeResponse {}
+
+message StreamIntentUpdatesRequest {}
+message IntentUpdate {
+    string update_id = 1;
+    string status = 2;
 }
 
-message VectorPayload {
-    string vector_id = 1;
-    Vector3D velocity_vector = 2;
-    double throat_radius = 3;
-    double magnetic_coupling = 4;
+message GetIntentBandRequest {
+    int32 band_id = 1;
+}
+message IntentBand {
+    int32 band_id = 1;
+    double frequency = 2;
 }
 
-message SubstrateMetricsResponse {
-    string status = 1;
-    string version = 2;
-    string mesh_status = 3;
-    bool processing_stable = 4;
-    uint64 execution_ticks = 5;
-}
-EOF
-
-
-syntax = "proto3";
-
-package tordial_manifold;
-
-// The core synchronization service layout
-service ManifoldController {
-    rpc SynchronizeVector (VectorPayload) returns (SubstrateMetricsResponse);
-}
-
-// Nested spatial coordinates matching our Pydantic definitions
-message Vector3D {
-    double x = 1;
-    double y = 2;
-    double z = 3;
-}
-
-// The structural message packet sent from Python to Rust
-message VectorPayload {
-    string vector_id = 1;
-    Vector3D velocity_vector = 2;
-    double throat_radius = 3;
-    double magnetic_coupling = 4;
-}
-
-// The native execution parameters returned from Rust back to Python
-message SubstrateMetricsResponse {
-    string status = 1;
-    string version = 2;
-    string mesh_status = 3;
-    bool processing_stable = 4;
-    uint64 execution_ticks = 5;
+message GetAllIntentBandsRequest {}
+message GetAllIntentBandsResponse {
+    repeated IntentBand bands = 1;
 }
