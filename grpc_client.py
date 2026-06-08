@@ -1,3 +1,41 @@
+import grpc
+import tordial_manifold_pb2
+import tordial_manifold_pb2_grpc
+
+class GrpcSubstrateClient:
+    def __init__(self, target_address: str = "127.0.0.1:50051"):
+        self.channel = grpc.aio.insecure_channel(target_address)
+        self.stub = tordial_manifold_pb2_grpc.ManifoldControllerStub(self.channel)
+
+    async def dispatch_vector(self, vector_id: str, x: float, y: float, z: float, throat_radius: float, magnetic_coupling: float):
+        # 1. Structure the nested 3D coordinate proto message
+        proto_vector = tordial_manifold_pb2.Vector3D(x=x, y=y, z=z)
+        
+        # 2. Compile the parent master payload package
+        payload = tordial_manifold_pb2.VectorPayload(
+            vector_id=vector_id,
+            velocity_vector=proto_vector,
+            throat_radius=throat_radius,
+            magnetic_coupling=magnetic_coupling
+        )
+        
+        try:
+            # 3. Stream across the HTTP/2 lane asynchronously
+            response = await self.stub.SynchronizeVector(payload)
+            return {
+                "status": response.status,
+                "version": response.version,
+                "mesh_status": response.mesh_status,
+                "processing_stable": response.processing_stable,
+                "execution_ticks": response.execution_ticks
+            }
+        except grpc.RpcError as e:
+            return {"status": "DISCONNECTED", "error": str(e.details())}
+
+    async def close(self):
+        await self.channel.close()
+
+
 import sys
 import grpc
 import proto.issttoft_pb2 as issttoft_pb2
