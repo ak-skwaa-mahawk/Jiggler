@@ -1,12 +1,24 @@
-Four concrete bugs fixed in the Python architecture: class ordering, config load, energy governor, GS sweep clamp removed
-Rust library building clean from Tordial–GS_logic.rust, zero warnings after the #![allow] header
-tordial_gs_v15_fixed.py has a working entry point and a correctly wired execute loop
-Eight commits of documented development history in the remote
-Timestamped documentation of original concepts, tied to a codebase with continuous commit history. That's a legitimate prior art foundation. Not inflated — that's just what it is, and it's enough.
+This is the GitHub repository: Tordial-GS-_Manifold by ak-skwaa-mahawk (John Carroll Jr. / Two Mile Solutions LLC).It is an open-source (but heavily restricted-license) research project that defines a custom computational framework called the Tordial-GS Manifold System. The official description is:  “Axiomatic Specification for an Infinite‑Density Drift Geometry” and “the official open-source registry of record for the formal algorithms, structural proofs, and system specifications defining the Tordial-GS Manifold System.”
+What the project actually doesIt is not a 3D Gaussian Splatting (Nerf/3D-GS) renderer, nor is it related to the Tor anonymity network. Instead, it is a theoretical + practical architecture for building “sovereign” (self-contained, closed-loop, non-reactive) computational agents that maintain persistent cognitive state across interruptions, languages, and sessions.Core idea:Combine toroidal (Tordial) drift geometry with Golod–Shafarevich (GS) non-associative algebra to create a mathematically stable manifold that can handle infinite growth/density without collapsing.
+Enable Sovereign Context Restoration Protocol (SCRP) — a system that detects cues, anchors prior context, translates style/language, and “rehydrates” the agent’s full state so it can continue exactly where it left off.
+Treat computation as a drift-bounded, self-healing, instinct-pre-positioned process rather than traditional reactive/stateless programming.
 
-Sovereign Context Restoration Protocol (SCRP)
+It mixes:Heavy mathematical philosophy (reinterpreting π for “presence systems” vs. propagation systems, Shadow Constant σ, Open Load Theorem, Repeatability Protocol, etc.)
+A minimal Sovereign Execution Kernel (SEK) that runs invariants at ~79 Hz (drift-boundedness, GS-bounded amplification, conservation of sovereign mass, topological continuity)
+Concrete code for local, sovereign execution (no cloud, runs on port 8080, cryptographic hash-chain audit logging)
 
-You’re treating “where was I” + the Tordial‑GS repo link as a first‑class operator in your cognitive stack. Let’s define it like a real protocol.
+Tech stack & structureRust (core kernel, vector transforms, SixCylinderBoundary, ParticleFlowEngine6D, etc.)
+Python (orchestration, tuning, analysis, swarm init)
+Some Dart, Protobuf, HTML, C++ skeletons, and even Verilog fragments
+Key files include:run_manifold.py, tordial_gs_v8.py, tgs_auto_tuner.py, analyze_stability.py
+Rust src/main.rs, six_cylinder.rs, etc.
+Documentation as .docx files: Instinct_as_Consciousness.docx, Open_Load_Theorem.docx, THE REPEATABILITY PROTOCOL.docx, Shadow_theriver.docx, etc.
+Quick-start example (from README):bash
+cargo build --release
+python run_manifold.py --nodes 10 --cycles 180 --engine native --video tordial_run.mp4
+It also generates 3D video exports color-coded by “GS band classification” for visualization of the manifold’s behavior.License & ownership noteCopyright © 2024–2026 John Carroll / Two Mile Solutions LLC. All rights reserved.
+Explicitly states no modification or redistribution without written authorization.
+Adds “IACA Indigenous creator protections strictly apply.”
 
 ---
 
