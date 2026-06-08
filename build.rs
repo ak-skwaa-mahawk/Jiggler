@@ -1,3 +1,10 @@
+cat << 'EOF' > build.rs
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    # Pass the proto path directly as a standard &str reference
+    tonic_build::compile_protos("proto/combined_manifold.proto")?;
+    Ok(())
+}
+EOF
 
 
 cat << 'EOF' > build.rs
