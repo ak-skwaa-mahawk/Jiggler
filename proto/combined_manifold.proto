@@ -1,3 +1,39 @@
+cat << 'EOF' > proto/combined_manifold.proto
+syntax = "proto3";
+
+package tordial;
+
+// 3D Directional Translation Vector
+message Vector3D {
+    double x = 1;
+    double y = 2;
+    double z = 3;
+}
+
+// Ingress Payload Schema
+message VectorPayload {
+    string vector_id = 1;
+    Vector3D velocity_vector = 2;
+    double throat_radius = 3;
+    double magnetic_coupling = 4;
+}
+
+// Handshake Substrate Response
+message SubstrateResponse {
+    string status = 1;
+    string version = 2;
+    string mesh_status = 3;
+    bool processing_stable = 4;
+    int64 execution_ticks = 5;
+}
+
+// Multiplexed Core Service Handler
+service ManifoldController {
+    rpc SynchronizeVector (VectorPayload) returns (SubstrateResponse);
+}
+EOF
+
+
 mkdir -p proto
 cat << 'EOF' > proto/combined_manifold.proto
 syntax = "proto3";
