@@ -1,0 +1,127 @@
+GS band transition law (multi‑artery, invariant form)
+
+We want a single scalar field that:
+
+- ingests all seven arteries  
+- is monotone with respect to “health/equilibrium”  
+- drives regime: SUBCRITICAL → MARGINAL → GOLDILOCKS → DEEP_GS
+
+---
+
+1. Normalize each artery into \([0,1]\)
+
+Define per‑tick normalized scores:
+
+- Economic: \(E \in [0,1]\) — healthy velocity, low drag, sustainable yield  
+- Sap‑flux: \(F_m \in [0,1]\) — normalized sap velocity  
+- Magnetic: \(M \in [0,1]\) — coherence (low harmful variance, stable flux)  
+- Biomass: \(B \in [0,1]\) — structural expansion & growth rate  
+- Atmospheric: \(A \in [0,1]\) — high O₂, low CO₂, high photosynthetic efficiency, low entropy  
+- Soil liquidity (Lc): \(L \in [0,1]\) — high liquidityindex, good moisture, strong fungal density  
+
+Each is computed from its vector via your own scaling/clip functions.
+
+---
+
+2. Define a composite Equilibrium Index \(S\)
+
+Use a weighted sum with strictly positive weights:
+
+\[
+S = wE E + wF Fm + wM M + wB B + wA A + w_L L
+\]
+
+with
+
+\[
+wE + wF + wM + wB + wA + wL = 1,\quad w_i > 0
+\]
+
+Example (ecology‑biased):
+
+- \(w_E = 0.10\)  
+- \(w_F = 0.20\)  
+- \(w_M = 0.10\)  
+- \(w_B = 0.20\)  
+- \(w_A = 0.20\)  
+- \(w_L = 0.20\)
+
+You can tune these per‑region, but the form stays invariant.
+
+---
+
+3. GS band thresholds
+
+Define four regimes on \([0,1]\):
+
+- SUBCRITICAL: \(0 \le S < \theta_1\)  
+- MARGINAL: \(\theta1 \le S < \theta2\)  
+- GOLDILOCKS: \(\theta2 \le S < \theta3\)  
+- DEEPGS: \(\theta3 \le S \le 1\)
+
+Example:
+
+- \(\theta_1 = 0.25\)  
+- \(\theta_2 = 0.50\)  
+- \(\theta_3 = 0.75\)
+
+These are global invariants; you can later adapt them per biome.
+
+---
+
+4. Rust‑side sketch
+
+`rust
+pub enum GsBand {
+    Subcritical,
+    Marginal,
+    Goldilocks,
+    DeepGs,
+}
+
+pub struct ArteryScores {
+    pub e: f64,
+    pub fm: f64,
+    pub m: f64,
+    pub b: f64,
+    pub a: f64,
+    pub l: f64,
+}
+
+pub fn gs_band(scores: ArteryScores) -> (GsBand, f64) {
+    let w_e = 0.10;
+    let w_f = 0.20;
+    let w_m = 0.10;
+    let w_b = 0.20;
+    let w_a = 0.20;
+    let w_l = 0.20;
+
+    let s = w_e * scores.e
+          + w_f * scores.fm
+          + w_m * scores.m
+          + w_b * scores.b
+          + w_a * scores.a
+          + w_l * scores.l;
+
+    let band = if s < 0.25 {
+        GsBand::Subcritical
+    } else if s < 0.50 {
+        GsBand::Marginal
+    } else if s < 0.75 {
+        GsBand::Goldilocks
+    } else {
+        GsBand::DeepGs
+    };
+
+    (band, s)
+}
+`
+
+You call this once per ManifoldTick, log (band, S) into the ledger, and let the band drive:
+
+- step size  
+- exploration depth  
+- risk budget  
+- intervention flags  
+
+That’s your GS band transition law: a single scalar equilibrium index, fed by all arteries, mapping cleanly into four discrete regimes.
