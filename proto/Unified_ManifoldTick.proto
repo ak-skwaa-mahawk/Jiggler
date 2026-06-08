@@ -11,15 +11,3 @@ message ManifoldTick {
 
   int64 ts_utc = 8;
 }
-message ManifoldTick {
-  string vector_id = 1;
-
-  EconomicVector economic_vector = 2;
-  SapFluxVector sap_flux_vector = 3;
-  MagneticVector magnetic_vector = 4;
-
-  double vault_depth = 5;
-  double liquidity_coupling = 6;
-
-  int64 ts_utc = 7;
-}
