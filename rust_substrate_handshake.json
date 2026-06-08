@@ -1,0 +1,15 @@
+{
+  "timestamp": 1780897383.104298,
+  "state_hash": "0x4a83bdfd9a6c201d87e31502476b9de89ed5423676340443ae0cb0b9de72a15f",
+  "tensor_density_scalar": 912.4412093511428,
+  "lorentz_damping": 1.000501855313276,
+  "vector_stable": true,
+  "effective_throat_radius": 22.04138841029482,
+  "rust_substrate_handshake": {
+    "status": "CONNECTED",
+    "version": "2.3-Native",
+    "mesh_status": "Mesh synchronization active. Regime Class = Goldilocks",
+    "processing_stable": true,
+    "execution_ticks": 18
+  }
+}
