@@ -1,3 +1,4 @@
+cat << 'EOF' > api/app.py
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -91,3 +92,4 @@ async def health_check():
 app.include_router(arc_router, prefix="/arc", tags=["Arc Core Logic Layers"])
 app.include_router(tunnel_router, prefix="/tunnel", tags=["Dynamic Network Tunneling Channels"])
 app.include_router(manifold_router, prefix="/manifold", tags=["Tordial Infinite-Density Drift Controller"])
+EOF
