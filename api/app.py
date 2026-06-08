@@ -3,6 +3,72 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.middleware import SlowAPIMiddleware
+
+# Pipeline Route Modulators
+from api.arc import router as arc_router
+from api.tunnel import router as tunnel_router
+from api.manifold import router as manifold_router
+
+# Core Rate Limiting & Security Governance Substrates
+from api.ratelimit import limiter, rate_limit_handler, RateLimitExceeded
+
+# Import our new gRPC substrate toolchain
+from grpc_client import get_grpc_client
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    grpc_core = get_grpc_client()
+    print("[🔌] FastAPI Lifecycle: HTTP/2 lane opened to Rust substrate.")
+    status = await grpc_core.verify_handshake()
+    print(f"[🛰️] Substrate Verification Status: {status['status']}")
+    yield
+    await grpc_core.close()
+    print("[💤] FastAPI Lifecycle: HTTP/2 channel pool securely disconnected.")
+
+app = FastAPI(
+    title="Resonance Mesh API",
+    version="1.0.0",
+    description="Sovereign telemetry mesh coordinating localized hardware nodes.",
+    lifespan=lifespan
+)
+
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+
+PRODUCTION_ORIGINS = ["http://localhost:8000", "http://127.0.0.1:8000"]
+ALLOW_ALL = os.getenv("ENV_MODE", "development") == "development"
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"] if ALLOW_ALL else PRODUCTION_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+@app.get("/health", tags=["Telemetry Sensors"])
+async def health_check():
+    grpc_core = get_grpc_client()
+    substrate_check = await grpc_core.verify_handshake()
+    return {
+        "ok": True,
+        "service": "resonance-mesh",
+        "rust_substrate_link": substrate_check
+    }
+
+app.include_router(arc_router, prefix="/arc")
+app.include_router(tunnel_router, prefix="/tunnel")
+app.include_router(manifold_router, prefix="/manifold")
+EOF
+
+
+cat << 'EOF' > api/app.py
+import os
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # Pipeline Route Modulators & Geometric Infrastructure Ingress Ports
 from api.arc import router as arc_router
