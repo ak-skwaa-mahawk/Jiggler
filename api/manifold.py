@@ -48,6 +48,56 @@ async def synchronize_manifold_matrix(request: Request, payload: ManifoldPayload
 EOF
 
 
+cat << 'EOF' > api/manifold.py
+import time
+import numpy as np
+import hashlib
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from api.ratelimit import limiter
+from grpc_client import get_grpc_client
+
+router = APIRouter()
+SHADOW_CONSTANT = 1.04159265
+
+class ManifoldPayload(BaseModel):
+    vector_id: str = Field(..., example="VEC-4200-INIT")
+    drift_velocity: float
+    phase_shift: float
+
+class ManifoldStateMetrics(BaseModel):
+    timestamp: float
+    state_hash: str
+    calibrated_density: float
+    is_stable: bool
+    rust_substrate_handshake: dict
+
+@router.post("/synchronize", response_model=ManifoldStateMetrics, tags=["Tordial-GS Manifold Interfacing"])
+@limiter.limit("5/minute")
+async def synchronize_manifold_matrix(request: Request, payload: ManifoldPayload, grpc_core = Depends(get_grpc_client)):
+    try:
+        ts = time.time()
+        drift_calculation = payload.drift_velocity * np.pi * SHADOW_CONSTANT
+        if payload.phase_shift != 0:
+            drift_calculation /= np.cos(payload.phase_shift)
+        
+        state_string = f"{payload.vector_id}:{drift_calculation}:{ts}"
+        computed_hash = hashlib.sha3_256(state_string.encode()).hexdigest()
+        is_stable = not np.isnan(drift_calculation) and not np.isinf(drift_calculation)
+        substrate_feedback = await grpc_core.verify_handshake()
+
+        return ManifoldStateMetrics(
+            timestamp=ts,
+            state_hash=f"0x{computed_hash}",
+            calibrated_density=drift_calculation if is_stable else 0.00,
+            is_stable=is_stable,
+            rust_substrate_handshake=substrate_feedback
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+EOF
+
+
 import time
 import numpy as np
 import hashlib
