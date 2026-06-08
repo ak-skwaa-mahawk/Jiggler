@@ -5,6 +5,20 @@ message ManifoldTick {
   SapFluxVector sap_flux_vector = 3;
   MagneticVector magnetic_vector = 4;
   BiomassVector biomass_vector = 5;
+  AtmosphericVector atmospheric_vector = 6;
+
+  double vault_depth = 7;
+  double liquidity_coupling = 8;
+
+  int64 ts_utc = 9;
+}
+message ManifoldTick {
+  string vector_id = 1;
+
+  EconomicVector economic_vector = 2;
+  SapFluxVector sap_flux_vector = 3;
+  MagneticVector magnetic_vector = 4;
+  BiomassVector biomass_vector = 5;
 
   double vault_depth = 6;
   double liquidity_coupling = 7;
