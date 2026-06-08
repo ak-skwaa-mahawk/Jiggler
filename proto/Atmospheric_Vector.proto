@@ -1,0 +1,13 @@
+// -------------------------------
+// Atmospheric Vector
+// -------------------------------
+message AtmosphericVector {
+  double co2_ppm = 1;              // CO₂ concentration (ppm)
+  double o2_percent = 2;           // O₂ percentage (20.9% baseline)
+  double humidity_percent = 3;     // Relative humidity (%)
+  double temperature_c = 4;        // Ambient temperature (°C)
+  double pressure_hpa = 5;         // Atmospheric pressure (hPa)
+
+  double photosynthetic_efficiency = 6;  // Derived: O₂↑ + CO₂↓ coherence
+  double entropy_load = 7;               // Derived: thermal + chemical disorder
+}
