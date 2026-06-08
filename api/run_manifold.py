@@ -16,12 +16,12 @@ def main():
     if args.engine == "native":
         print("[🚀] Launching high-performance native Rust substrate...")
         try:
-            # Boot your compiled release binary as an independent background process
+            # Deploy your compiled release binary as a persistent background server process
             proc = subprocess.Popen(["./target/release/tordial_gs_manifold"])
-            print(f"[🔥] Substrate locked down on PID {proc.pid}. Burning iterations...")
-            time.sleep(1.5) # Give socket time to bind
+            print(f"[🔥] Substrate successfully locked down on PID {proc.pid}. Running background process.")
+            time.sleep(1.5)  # Let socket finish binding to port 50051
         except Exception as e:
-            print(f"❌ Failed to run native substrate binary: {e}")
+            print(f"❌ Failed to execute native substrate binary: {e}")
             sys.exit(1)
     else:
         print(f"[⚠️] Unknown engine runtime mode: {args.engine}")
