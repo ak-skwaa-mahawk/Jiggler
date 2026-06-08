@@ -1,3 +1,12 @@
+"rust_substrate_handshake": {
+  "status": "CONNECTED",
+  "version": "2.3-Native",
+  "mesh_status": "Mesh synchronization active. Regime Class = Goldilocks",
+  "processing_stable": true,
+  "execution_ticks": 18
+}
+
+
 {
   "timestamp": 1780897383.104298,
   "state_hash": "0x4a83bdfd9a6c201d87e31502476b9de89ed5423676340443ae0cb0b9de72a15f",
