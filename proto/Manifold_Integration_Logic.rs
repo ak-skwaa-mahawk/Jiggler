@@ -1,3 +1,28 @@
+impl ManifoldService {
+    pub async fn handle_soil_liquidity(
+        &self,
+        lc: SoilLiquidityVector,
+        ts: i64,
+    ) {
+        // 1. Update hydration model
+        self.soil_state.update_moisture(lc.soil_moisture_percent);
+
+        // 2. EC reflects fungal network throughput
+        self.soil_state.update_conductivity(lc.electrical_conductivity);
+
+        // 3. Nutrient load feeds metabolic potential
+        self.ecology_state.update_nutrients(lc.nutrient_ppm);
+
+        // 4. Fungal density = structural integrity of the underground mesh
+        self.ecology_state.update_fungal_density(lc.fungal_density);
+
+        // 5. Liquidity index influences long-term GS-band stability
+        self.regime.update_from_liquidity(lc.liquidity_index);
+
+        // 6. Ledger entry
+        self.ecology_state.record_soil_liquidity(lc, ts);
+    }
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ManifoldTick {
     #[prost(string, tag="1")]
