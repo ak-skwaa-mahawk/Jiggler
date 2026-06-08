@@ -1,3 +1,34 @@
+cd ~/Tordial-GS-_Manifold
+
+cat << 'EOF' > proto/combined_manifold.proto
+syntax = "proto3";
+
+package tordial;
+
+message EconomicMatrix {
+    double capital_velocity = 1;  # Spin equivalent
+    double regulatory_drag = 2;   # Tax/friction percentage
+    double yield_generation = 3;  # Delta optimization input
+}
+
+message VectorPayload {
+    string vector_id = 1;
+    EconomicMatrix economic_vector = 2;
+    double vault_depth = 3;       # Throat radius equivalent
+    double liquidity_coupling = 4;
+}
+
+message SubstrateResponse {
+    string status = 1;
+    string version = 2;
+    string arbitrage_status = 3;
+    bool execution_stable = 4;
+    uint64 tracking_ticks = 5;
+}
+EOF
+echo "🔒 Data schema upgraded to accept economic algebraic matrices."
+
+
 cat << 'EOF' > proto/combined_manifold.proto
 syntax = "proto3";
 
