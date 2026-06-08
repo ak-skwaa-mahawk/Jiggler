@@ -6,8 +6,9 @@ pub mod tordial {
     tonic::include_proto!("tordial");
 }
 
-use tordial::inference_service_server::{InferenceService, InferenceServiceServer};
-use tordial::{VectorPayload, SubstrateResponse};
+// Wildcard glob import to catch the generated server trait regardless of the upstream service name variant
+use tordial::*;
+use tordial::inference_service_server::*;
 
 #[derive(Debug, Default)]
 pub struct SovereignManifoldSubstrate {}
@@ -47,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("══════════════════════════════════════════════════════════════");
     println!("🚀 [ECONOMIC SUBSTRATE] Sovereign Loop Matrix Active: {}", addr);
-    println!("════════════════════════════════════════════ll════════════════");
+    println!("══════════════════════════════════════════════════════════════");
 
     Server::builder()
         .add_service(InferenceServiceServer::new(service))

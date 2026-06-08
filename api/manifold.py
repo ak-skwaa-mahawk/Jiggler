@@ -3,6 +3,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 logger = logging.getLogger("uvicorn.error")
+
+# Explicitly declare prefix to match the feeder: /manifold
 router = APIRouter(prefix="/manifold")
 
 class EconomicVector(BaseModel):
@@ -16,6 +18,7 @@ class SynchronizeRequest(BaseModel):
     vault_depth: float
     liquidity_coupling: float
 
+# Explicitly map the sub-route to match the feeder: /synchronize
 @router.post("/synchronize")
 async def synchronize_vector(payload: SynchronizeRequest):
     logger.info(f"📥 [GATEWAY] Intercepted Ingress Vector: {payload.vector_id}")
