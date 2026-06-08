@@ -1,0 +1,11 @@
+// -------------------------------
+// Magnetic Vector
+// -------------------------------
+message MagneticVector {
+  double bx_nT = 1;          // X-axis magnetic field (nanoTesla)
+  double by_nT = 2;          // Y-axis magnetic field (nanoTesla)
+  double bz_nT = 3;          // Z-axis magnetic field (nanoTesla)
+
+  double variance_nT = 4;    // Short-window magnetic variance
+  double flux_delta = 5;     // Rate-of-change (dB/dt) for canopy oscillation
+}
