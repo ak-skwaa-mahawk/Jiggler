@@ -1,10 +1,11 @@
 cat << 'EOF' > build.rs
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Compiles the new combined proto schema layout into the target OUT_DIR path
-    tonic_compile_io::compile_proto("proto/combined_manifold.proto")?;
+    // Uses the native tonic_build compiler engine to generate the combined stubs
+    tonic_build::compile_proto("proto/combined_manifold.proto")?;
     Ok(())
 }
 EOF
+
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
