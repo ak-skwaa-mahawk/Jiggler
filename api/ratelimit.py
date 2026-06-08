@@ -1,6 +1,15 @@
 cat << 'EOF' > api/ratelimit.py
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+
+# Standard framework rate limiting layer using remote network endpoints
+limiter = Limiter(key_func=get_remote_address)
+EOF
+
+
+cat << 'EOF' > api/ratelimit.py
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi import Request
 from fastapi.responses import JSONResponse
