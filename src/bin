@@ -1,0 +1,9 @@
+mkdir -p src/bin
+
+cat << 'EOF' > src/bin/isst_toft_mesh.rs
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Proxy execution straight into the library container's main runtime loop
+    isst_toft_mesh::main()
+}
+EOF
+echo "🚀 Binary target entry proxy deployed cleanly."
