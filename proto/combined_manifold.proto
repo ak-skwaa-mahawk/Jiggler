@@ -1,3 +1,27 @@
+syntax = "proto3";
+package tordial;
+
+message EconomicMatrix {
+    double capital_velocity = 1;  // Sap Flow / Magnetic Flux Velocity (F_m)
+    double regulatory_drag = 2;   // Environmental Friction / Encroachment (E_f)
+    double yield_generation = 3;  // Photosynthetic Mass Generation / Oxygen Output (M_o)
+}
+
+message VectorPayload {
+    string vector_id = 1;
+    EconomicMatrix economic_vector = 2;
+    double vault_depth = 3;       // Core Root Depth
+    double liquidity_coupling = 4; // Mycorrhizal Network Density
+}
+
+message SubstrateResponse {
+    string status = 1;
+    string version = 2;
+    string arbitrage_status = 3;  // Ecosystem Stability State
+    bool execution_stable = 4;
+    uint64 tracking_ticks = 5;
+}
+
 cd ~/Tordial-GS-_Manifold
 
 cat << 'EOF' > proto/combined_manifold.proto
