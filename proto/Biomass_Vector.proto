@@ -1,0 +1,10 @@
+// -------------------------------
+// Biomass Vector
+// -------------------------------
+message BiomassVector {
+  double canopy_volume_m3 = 1;       // 3D canopy volume (m³)
+  double trunk_mass_kg = 2;          // Estimated trunk + branch mass (kg)
+  double leaf_area_index = 3;        // LAI: leaf surface area per ground area
+  double growth_rate = 4;            // dM/dt (kg/day or normalized)
+  double lidar_confidence = 5;       // 0–1 confidence from LIDAR/point cloud
+}
