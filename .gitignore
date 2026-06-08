@@ -8,3 +8,5 @@ __pycache__/
 *.log
 jed_unified_telemetry.log
 target/
+__pycache__/
+*.pyc
