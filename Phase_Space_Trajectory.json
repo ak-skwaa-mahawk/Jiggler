@@ -1,0 +1,13 @@
+{
+  "state_hash": "0x1869da83dc17dc53...",
+  "tensor_density_scalar": 870.550268,
+  "vector_stable": true,
+  "effective_throat_radius": 20.439925,
+  "rust_substrate_handshake": {
+    "status": "CONNECTED",
+    "version": "2.3-Native",
+    "mesh_status": "Mesh synchronization active. Regime Class = Goldilocks",
+    "processing_stable": true,
+    "execution_ticks": 18
+  }
+}
