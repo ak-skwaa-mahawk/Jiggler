@@ -1,4 +1,17 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SoilLiquidityVector {
+    #[prost(double, tag="1")]
+    pub soil_moisture_percent: f64,
+    #[prost(double, tag="2")]
+    pub electrical_conductivity: f64,
+    #[prost(double, tag="3")]
+    pub nutrient_ppm: f64,
+    #[prost(double, tag="4")]
+    pub fungal_density: f64,
+    #[prost(double, tag="5")]
+    pub liquidity_index: f64,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AtmosphericVector {
     #[prost(double, tag="1")]
     pub co2_ppm: f64,
