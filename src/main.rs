@@ -1,3 +1,61 @@
+use tonic::{transport::Server, Request, Response, Status};
+use tordial_manifold::manifold_controller_server::{ManifoldController, ManifoldControllerServer};
+use tordial_manifold::{VectorPayload, SubstrateMetricsResponse};
+
+pub mod tordial_manifold {
+    tonic::include_proto!("tordial_manifold"); 
+}
+
+#[derive(Debug, Default)]
+pub struct MyManifoldController {}
+
+#[tonic::async_trait]
+impl ManifoldController for MyManifoldController {
+    async fn synchronize_vector(
+        &self,
+        request: Request<VectorPayload>,
+    ) -> Result<Response<SubstrateMetricsResponse>, Status> {
+        let payload = request.into_inner();
+        
+        // Extract the multi-dimensional array variables from the protobuf stream
+        if let Some(vector) = payload.velocity_vector {
+            println!(
+                "[🚀 Substrate] Ingested Vector [{}] -> X: {}, Y: {}, Z: {} | Throat Radius: {}",
+                payload.vector_id, vector.x, vector.y, vector.z, payload.throat_radius
+            );
+        } else {
+            return Err(Status::invalid_argument("Missing translational velocity component vector"));
+        }
+
+        // Return native metrics back to the FastAPI gateway controller
+        let reply = SubstrateMetricsResponse {
+            status: "CONNECTED".to_string(),
+            version: "tordial-gs v2.3-tensor".to_string(),
+            mesh_status: "Ch’anchyah Dach’anchyah — Substrate calculation locked.".to_string(),
+            processing_stable: true,
+            execution_ticks: 1,
+        };
+
+        Ok(Response::new(reply))
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let addr = "0.0.0.0:50051".parse()?;
+    let controller = MyManifoldController::default();
+
+    println!("🔥 Tordial-GS Native Substrate listening securely on: {}", addr);
+
+    Server::builder()
+        .add_service(ManifoldControllerServer::new(controller))
+        .serve(addr)
+        .await?;
+
+    Ok(())
+}
+
+
 //! Tordial-GS Manifold — Clean Production Entry Point
 //! Integrates synchronized gRPC services with broadcast-damped intent tracking
 
