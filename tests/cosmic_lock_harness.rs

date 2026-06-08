@@ -1,0 +1,68 @@
+// File: tests/cosmic_lock_harness.rs
+
+use tonic::Status;
+
+// Adjust these paths to match your crate layout
+use tordial_gs_manifold::combined_manifold::{Vector3D, VectorPayload};
+use tordial_gs_manifold::gs::RegimeClass;
+use tordial_gs_manifold::BasinValidator::InvariantEvaluator;
+
+#[test]
+fn cosmic_lock_invariant_and_regime_are_stable() -> Result<(), Box<dyn std::error::Error>> {
+    // Tolerance aligned with Unified Tordial-GS Manifold API Standard
+    let tolerance = 1.0e-12_f64;
+    let target_curvature = 1.4_f64;
+
+    let evaluator = InvariantEvaluator {
+        target_curvature,
+        tolerance,
+    };
+
+    // Approximate Cosmic Lock geometry from JED unified run:
+    // Throat ≈ 21.86, Belt ≈ 90.58, invariant error ≈ 0
+    let payload = VectorPayload {
+        vector_id: "COSMIC-LOCK-TEST".to_string(),
+        velocity_vector: Some(Vector3D {
+            // Any vector that reproduces a valid density; these values
+            // mirror your curl / bootstrap_lock.py ingress pattern.
+            x: 9500.0,
+            y: 120.0,
+            z: -40.0,
+        }),
+        throat_radius: 21.86,
+        magnetic_coupling: 4.0,
+    };
+
+    // Simulate current tick count
+    let current_ticks: u64 = 17;
+
+    let response = evaluator
+        .validate_evolution(&payload, current_ticks)
+        .map_err(|status: Status| {
+            panic!("Invariant validation failed unexpectedly: {:?}", status);
+        })?;
+
+    // 1. Substrate must report stable processing
+    assert!(
+        response.processing_stable,
+        "Substrate reported unstable processing at Cosmic Lock"
+    );
+
+    // 2. Execution ticks should advance
+    assert_eq!(
+        response.execution_ticks,
+        current_ticks + 1,
+        "Execution ticks did not advance as expected"
+    );
+
+    // 3. Regime classification must be Goldilocks for Cosmic Lock
+    // These values mirror the unified spec: ΔE = -2.534, coh = 0.041
+    let regime = RegimeClass::evaluate(-2.534, 0.041);
+    assert!(
+        matches!(regime, RegimeClass::Goldilocks),
+        "Expected Goldilocks regime, got: {:?}",
+        regime
+    );
+
+    Ok(())
+}
