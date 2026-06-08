@@ -1,3 +1,15 @@
+cat << 'EOF' > build.rs
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Compile the master proto layout into native Rust bindings
+    tonic_build::configure()
+        .compile(
+            &["proto/combined_manifold.proto"],
+            &["proto"],
+        )?;
+    Ok(())
+}
+EOF
+
 cat > src/main.rs << 'ENDMAIN'
 //! Tordial-GS Manifold — Minimal Working Entry Point
 //! Clean build with IntentEngine + BasinValidator
