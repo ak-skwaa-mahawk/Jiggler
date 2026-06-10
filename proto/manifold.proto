@@ -2,27 +2,50 @@ syntax = "proto3";
 
 package tordial;
 
-message EconomicMatrix {
-    double capital_velocity = 1;  // Sap Flow / Magnetic Flux Velocity (F_m)
-    double regulatory_drag = 2;   // Environmental Friction / Encroachment (E_f)
-    double yield_generation = 3;  // Photosynthetic Mass Generation / Oxygen Output (M_o)
+enum GsBand {
+    GS_BAND_UNKNOWN = 0;
+    GS_BAND_SUBCRITICAL = 1;
+    GS_BAND_MARGINAL = 2;
+    GS_BAND_GOLDILOCKS = 3;
+    GS_BAND_DEEP_GS = 4;
 }
 
-message VectorPayload {
-    string vector_id = 1;
-    EconomicMatrix economic_vector = 2;
-    double vault_depth = 3;       // Core Root Depth
-    double liquidity_coupling = 4; // Mycorrhizal Network Density
+message EconomicVector {
+    double capital_velocity = 1;
+    double regulatory_drag = 2;
+    double yield_generation = 3;
 }
 
-message SubstrateResponse {
+message SapFluxVector {
+    double fm_norm = 1;
+    double raw_velocity_mms = 2;
+    double temp_c = 3;
+    double pressure_kpa = 4;
+}
+
+message GsBandState {
+    GsBand band = 1;
+    double score = 2;
+    double live_curvature = 3;
+    double target_curvature = 4;
+    double belt_tension = 5;
+    double throat_radius = 6;
+}
+
+message SyncAck {
     string status = 1;
-    string version = 2;
-    string arbitrage_status = 3;  // Ecosystem Stability State
-    bool execution_stable = 4;
-    uint64 tracking_ticks = 5;
+    GsBandState gs_state = 2;
+}
+
+message ManifoldTick {
+    string vector_id = 1;
+    EconomicVector economic_vector = 2;
+    SapFluxVector sap_flux_vector = 3;
+    double vault_depth = 4;
+    double liquidity_coupling = 5;
+    int64 ts_utc = 6;
 }
 
 service InferenceService {
-    rpc ProcessVector (VectorPayload) returns (SubstrateResponse);
+    rpc Synchronize (ManifoldTick) returns (SyncAck);
 }

@@ -1,0 +1,5 @@
+cargo:rerun-if-changed=proto/combined_manifold.proto
+cargo:rerun-if-changed=proto/manifold.proto
+cargo:rerun-if-changed=proto/combined_manifold.proto
+cargo:rerun-if-changed=proto/manifold.proto
+cargo:rerun-if-changed=proto

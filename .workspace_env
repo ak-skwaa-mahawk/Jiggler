@@ -1,0 +1,6 @@
+# Tordial GS Manifold - Workspace Session State Restore
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+export RUSTFLAGS="-C link-arg=-Wl,--gc-sections -C link-arg=-Wl,-z,nocopyreloc"
+export MALLOC_PATTERN=1
+cd ~/Tordial-GS-_Manifold
+echo "🌌 SOVEREIGN WORKSPACE LOADED: Env flags armed. Ready to track the grid."

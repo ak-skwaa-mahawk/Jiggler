@@ -1,3 +1,7 @@
+// =============================================================================
+// 🌌 TORDIAL UNIFIED MANIFOLD MATRIX VECTOR SCHEMA (V3 COMPLETE)
+// =============================================================================
+
 message ManifoldTick {
   string vector_id = 1;
 
@@ -7,36 +11,10 @@ message ManifoldTick {
   BiomassVector biomass_vector = 5;
   AtmosphericVector atmospheric_vector = 6;
   SoilLiquidityVector soil_liquidity_vector = 7;
+  GibberlinkVector gibberlink_vector = 11; // Added acoustic data link
 
   double vault_depth = 8;
   double liquidity_coupling = 9;
 
   int64 ts_utc = 10;
-}
-message ManifoldTick {
-  string vector_id = 1;
-
-  EconomicVector economic_vector = 2;
-  SapFluxVector sap_flux_vector = 3;
-  MagneticVector magnetic_vector = 4;
-  BiomassVector biomass_vector = 5;
-  AtmosphericVector atmospheric_vector = 6;
-
-  double vault_depth = 7;
-  double liquidity_coupling = 8;
-
-  int64 ts_utc = 9;
-}
-message ManifoldTick {
-  string vector_id = 1;
-
-  EconomicVector economic_vector = 2;
-  SapFluxVector sap_flux_vector = 3;
-  MagneticVector magnetic_vector = 4;
-  BiomassVector biomass_vector = 5;
-
-  double vault_depth = 6;
-  double liquidity_coupling = 7;
-
-  int64 ts_utc = 8;
 }

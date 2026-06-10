@@ -1,0 +1,4 @@
+# Tordial Unified Manifold Matrix - SHA256 Manifest V3
+# Sealed Core Runtime Baseline File Hashes
+tools/highmark.js=f08f1fd0831ec3ff749d4f9ebddfda32f8ddbd54fd7528ec1c094ec6482e24c0
+Linguist_Handshake_v1.0.flame.json=1da7eae3a13cfc1e3887638f3811dca50e61709c420a0e754467c9255fdd61c4
