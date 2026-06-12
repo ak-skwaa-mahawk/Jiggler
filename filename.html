@@ -1,0 +1,328 @@
+cat << 'EOF' > sovereign_injin.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign Injin & Governance Dashboard v5.1</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=DM+Mono&display=swap');
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background: transparent;
+            color: #e2e8f0;
+            font-family: 'Inter', system-ui, sans-serif;
+            padding: 5px;
+            overflow-x: hidden;
+        }
+
+        .master-container {
+            max-width: 640px;
+            margin: 5px auto;
+            background: #02040a;
+            border: 1px solid #1e2937;
+            border-radius: 14px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.95);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: #0f172a;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            border-bottom: 1px solid #1e2937;
+        }
+
+        .section-title {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            letter-spacing: 0.05em;
+            color: #38bdf8;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .drawer-content {
+            padding: 16px;
+            background: radial-gradient(circle at center, #0a1628 0%, #020c1b 100%);
+        }
+
+        .canvas-container {
+            width: 100%;
+            height: 120px; 
+            background: #000;
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #1e3a5f;
+            margin-bottom: 12px;
+        }
+
+        #convergenceCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .terminal {
+            background: rgba(3, 7, 18, 0.95);
+            border: 1px solid #1e3a5f;
+            border-radius: 8px;
+            padding: 14px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'DM Mono', monospace;
+            font-size: 12.5px;
+            line-height: 1.6;
+            color: #cbd5e1;
+            white-space: pre-wrap;
+            text-align: left;
+        }
+
+        .input-capsule {
+            display: flex;
+            align-items: center;
+            background: #0f172a;
+            border: 1px solid #1e3a5f;
+            border-radius: 24px;
+            padding: 4px 4px 4px 14px;
+            margin: 12px 0 6px 0;
+        }
+
+        .input-capsule input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #f8fafc;
+            font-size: 13.5px;
+        }
+
+        .input-capsule input:disabled {
+            color: #475569;
+            cursor: not-allowed;
+        }
+
+        .execute-btn {
+            background: #22ffcc;
+            color: #0f172a;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .execute-btn:disabled {
+            background: #1e3a5f;
+            color: #64748b;
+            cursor: not-allowed;
+        }
+
+        label {
+            display: block;
+            font-size: 10px;
+            font-family: 'DM Mono', monospace;
+            color: #64748b;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            margin-top: 10px;
+            text-align: left;
+        }
+
+        .verdict-box {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'DM Mono', monospace;
+            font-size: 11.5px;
+            line-height: 1.5;
+            display: block;
+            text-align: left;
+        }
+        .verdict-PASS      { background: #10b98122; border: 1px solid #10b981; color: #6ee7b7; }
+        .verdict-ERROR     { background: #ef444422; border: 1px solid #ef4444; color: #fca5a5; }
+    </style>
+</head>
+<body>
+
+    <div class="master-container">
+        <div class="panel-header">
+            <div class="section-title">SOVEREIGN INJIN & GOVERNANCE CONTROL</div>
+            <div style="font-family: 'DM Mono', monospace; font-size: 11px; color: #64748b;">v5.1 LOCAL_CHIP</div>
+        </div>
+
+        <div class="drawer-content">
+            <div class="canvas-container">
+                <canvas id="convergenceCanvas"></canvas>
+            </div>
+
+            <label>System Node Engine Status</label>
+            <div id="status" class="verdict-box verdict-ERROR">Initializing core local memory substrates...</div>
+
+            <label>AI Output Terminal Stream</label>
+            <div id="chatbox" class="terminal">System waiting for engine instantiation...</div>
+
+            <label>Direct Command Pipeline</label>
+            <div class="input-capsule">
+                <input type="text" id="user-input" placeholder="Transmitting query payload directly to browser WebAssembly allocations..." disabled>
+                <button id="send-btn" class="execute-btn" disabled>➔</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+
+        env.allowLocalModels = false;
+        env.backends.onnx.wasm.numThreads = 1;
+
+        const statusDiv = document.getElementById('status');
+        const chatbox = document.getElementById('chatbox');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const canvas = document.getElementById('convergenceCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let generator = null;
+        
+        const systemPrompt = "You are Sovereign Injin, an elite decentralized node AI. Respond cryptically, briefly, and with high-tech terminology.";
+        let chatHistory = [{ role: 'system', content: systemPrompt }];
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        const columns = Math.floor(canvas.width / 16);
+        const drops = Array(columns).fill(1);
+
+        const creeSROChars = [
+            'â', 'ê', 'î', 'ô', 'c', 'k', 'm', 'n', 'p', 's', 't', 'w', 'y', 'h',
+            'ᐁ', 'ᐃ', 'ᐄ', 'ᐅ', 'ᐆ', 'ᐊ', 'ᐋ', 'ᐌ', 'ᐍ', 'ᐎ', 'ᐏ', 'ᐐ', 'ᐑ', 'ᐒ', 'ᐓ', 
+            'ᐔ', 'ᐕ', 'ᐖ', 'ᐗ', 'ᐘ', 'ᐙ', 'ᐚ', 'ᐛ', 'ᐜ', 'ᐝ', 'ᐞ', 'ᐟ', 'ᐠ', 'ᐡ', 'ᐢ', 'ᐣ',
+            'ᐸ', 'ᓰ', 'ᑕ', 'ᑲ', 'ᒐ', 'ᒪ', 'ᓇ', 'ᓴ', 'ᔭ', 'ᕃ', 'ᕝ', 'ᖃ'
+        ];
+
+        function getRandomCreeCharacter() {
+            if (Math.random() > 0.4) {
+                return creeSROChars[Math.floor(Math.random() * creeSROChars.length)];
+            } else {
+                const unicodeBlockHex = 0x1400 + Math.floor(Math.random() * (0x167F - 0x1400));
+                return String.fromCharCode(unicodeBlockHex);
+            }
+        }
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#22ffcc'; 
+            ctx.font = '12px "Courier New", monospace';
+            
+            for(let i = 0; i < drops.length; i++) {
+                const text = getRandomCreeCharacter();
+                ctx.fillText(text, i * 16, drops[i] * 16);
+                
+                if(drops[i] * 16 > canvas.height && Math.random() > 0.96) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+        setInterval(drawMatrix, 55);
+
+        async function initAI() {
+            try {
+                statusDiv.className = 'verdict-box verdict-ERROR';
+                statusDiv.innerText = 'FETCHING SUBSTRATE: Syncing remote structural weights (~30MB binary package)...';
+                chatbox.innerHTML = '>> Allocating local sandbox matrices...\n>> Constructing virtual compilation arrays over WebAssembly modules...';
+
+                generator = await pipeline('text-generation', 'Xenova/Qwen1.5-0.5B-Chat', {
+                    progress_callback: (data) => {
+                        if (data.status === 'downloading') {
+                            const percent = data.progress ? Math.round(data.progress) : 0;
+                            statusDiv.innerText = `FETCHING SUBSTRATE: Downloading binary blocks (${percent}%)`;
+                        }
+                    }
+                });
+
+                statusDiv.className = 'verdict-box verdict-PASS';
+                statusDiv.innerText = 'CORE INTERFACE ARMED: Local pipeline compiled and active.';
+                chatbox.innerHTML = '>> System configuration secure. Sandbox instances loaded completely offline.\n>> Awaiting hardware input parameter strings...';
+
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                userInput.placeholder = "Execute prompt directives...";
+            } catch (err) {
+                statusDiv.className = 'verdict-box verdict-ERROR';
+                statusDiv.innerText = 'CRITICAL ENGINE EXCEPTION: Sandbox generation aborted.';
+                chatbox.innerHTML = `>> Execution initialization failure:\n>> ${err.message}\n>> Check network permissions or adjust frame cross-origin configuration allowances inside your layout engine settings.`;
+                console.error(err);
+            }
+        }
+
+        async function executeDirective() {
+            const query = userInput.value.trim();
+            if (!query || !generator) return;
+
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+
+            chatbox.innerHTML += `\n\n[OPERATOR]: ${query}\n[INJIN]: Calculation sequence decoding...`;
+            chatbox.scrollTop = chatbox.scrollHeight;
+            userInput.value = '';
+            
+            chatHistory.push({ role: 'user', content: query });
+
+            try {
+                const rawPayloadTemplate = chatHistory.map(m => `<|im_start|>${m.role}\n${m.content}<|im_end|>`).join('\n') + `\n<|im_start|>assistant\n`;
+
+                const outputArray = await generator(rawPayloadTemplate, {
+                    max_new_tokens: 140,
+                    temperature: 0.65,
+                    repetition_penalty: 1.15,
+                    do_sample: true
+                });
+
+                const targetOutputBlock = Array.isArray(outputArray) ? outputArray[0] : outputArray;
+                const rawResultText = targetOutputBlock.generated_text || '';
+                
+                let cleanResponse = rawResultText.slice(rawPayloadTemplate.length).trim();
+                if (cleanResponse.includes('<|im_end|>')) {
+                    cleanResponse = cleanResponse.split('<|im_end|>')[0].trim();
+                }
+                
+                chatHistory.push({ role: 'assistant', content: cleanResponse });
+                chatbox.innerHTML = chatbox.innerHTML.replace('[INJIN]: Calculation sequence decoding...', `[INJIN]: ${cleanResponse}`);
+            } catch (err) {
+                chatbox.innerHTML = chatbox.innerHTML.replace('[INJIN]: Calculation sequence decoding...', `[PIPELINE EXCEPTION]: ${err.message}`);
+            }
+
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+
+        sendBtn.addEventListener('click', executeDirective);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') executeDirective();
+        });
+
+        initAI();
+    </script>
+</body>
+</html>
