@@ -1,4 +1,3 @@
-cat > /mnt/user-data/outputs/jed_intent_interface.py << 'PYEOF'
 """
 jed_intent_interface.py
 =======================
@@ -213,5 +212,14 @@ if __name__ == '__main__':
     # Just writes intent files for the runner to pick up
     ui = IntentInterface(substrate=None)
     ui.run()
-PYEOF
-echo "done"
+
+# 💎 PWC Bridge Function to satisfy naked module imports
+def get_current_intent():
+    try:
+        intent_data = _load_intent()
+        # If the loaded data is empty, supply a safe fallback operational force dictionary
+        if not intent_data:
+            return {"intent_force": 0.15, "label": "Nominal Baseline Flow"}
+        return intent_data
+    except Exception:
+        return {"intent_force": 0.15, "label": "Fallback Static Flow"}

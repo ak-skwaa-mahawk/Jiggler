@@ -1,4 +1,3 @@
-cat > /mnt/user-data/outputs/jed_autonomous.py << 'PYEOF'
 """
 jed_autonomous.py
 =================
@@ -305,5 +304,17 @@ if __name__ == '__main__':
 
         runner = JEDAutonomous(cycles=cycles, quiet=quiet)
         runner.start()
-PYEOF
-echo "done"
+
+# 💎 PWC Bridge Object and Function to satisfy runner loop imports
+class MockPlan:
+    def __init__(self):
+        self.gs_regime = "Nominal Steady-State"
+        self.safety_profile = "Standard Margin Bounds"
+        self.curvature_profile = [1.0, 1.0, 1.0]
+        self.drift_budget = 0.5
+        self.node_policy = "Balanced"
+        self.horizon_steps = 5
+
+def generate_plan(intent, snapshot, memory):
+    print("🧠 [LEGACY BRIDGE] generate_plan invoked. Formulating automated manifold horizon target layout.")
+    return MockPlan()

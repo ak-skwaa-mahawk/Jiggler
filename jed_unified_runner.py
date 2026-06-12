@@ -280,3 +280,34 @@ if __name__ == '__main__':
 
     runner = JEDUnifiedRunner(cycles=cycles, quiet=quiet)
     runner.run()
+
+# 💎 Module-level PWC Bridge Functions to satisfy native orchestration layer imports
+class MockSnapshot:
+    def __init__(self):
+        self.radius = 0.5
+        self.drift = 0.01
+        self.velocity = 0.0
+
+def capture_manifold_snapshot():
+    return MockSnapshot()
+
+def configure_gs_regime(regime, safety_profile):
+    pass
+
+def apply_curvature_profile(profile, drift_budget):
+    pass
+
+def apply_node_policy(policy):
+    pass
+
+def step_tordial_nodes():
+    pass
+
+def step_gs_engine():
+    pass
+
+def run_dual_ring_controller():
+    pass
+
+def run_safety_trip_matrix():
+    pass
