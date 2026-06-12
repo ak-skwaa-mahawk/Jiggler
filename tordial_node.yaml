@@ -1,23 +1,20 @@
 tordial_node:
   macro_clock:
     freq_hz: 79.0
-    omega_rad_s: 2 * pi * 79.0
-
+    omega_rad_s: 496.37166
   harmonic_chase:
-    curvature_budget_K: 0.8      # your chosen RMS curvature error limit
-    drift_budget_D: 0.2          # your chosen RMS drift per cycle
-
+    curvature_budget_K: 0.8
+    drift_budget_D: 0.2
   gs_engine:
     d_generators: 8
     r_relations: 20
     p_prime: 3
-
-  gs_operational_constants:      # derived
+  gs_operational_constants:
     sigma_excess: 4.0
     kappa_GS: 0.5
     lambda_GS: 2.0
     rho_GS: 0.25
-    chi_GS: 0.5 / 0.8      # = 0.625
-    theta_GS: 0.25 / 0.2   # = 1.25
-    omega_GS: 10.0 * 2.0   # if c = 10 → 20 Hz
-    alpha_GS: 20.0 / (2*pi*79.0)
+    chi_GS: 0.625
+    theta_GS: 1.25
+    omega_GS: 20.0
+    alpha_GS: 0.04029
