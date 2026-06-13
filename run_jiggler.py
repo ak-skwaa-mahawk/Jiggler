@@ -1,13 +1,14 @@
 import sys
 import os
 import ctypes
+import time
 
+# 1. Link Native Substrate
 lib_path = os.path.abspath("./jiggler_native.so")
 try:
     jiggler_lib = ctypes.CDLL(lib_path)
-    print("[🎛️] Sovereign Python Controller Online. Native C Substrate Linked.")
 except OSError as e:
-    print(f"[❌] Failed to load binary library directly: {e}")
+    print(f"[❌] Failed to load binary library: {e}")
     sys.exit(1)
 
 class SovereignMetric(ctypes.Structure):
@@ -32,40 +33,66 @@ class GuardedOutput(ctypes.Structure):
         ("derived_metric", ctypes.c_void_p)
     ]
 
-try:
-    jiggler_lib.check_extraction_guard.argtypes = [ctypes.POINTER(SovereignMetric)]
-    jiggler_lib.check_extraction_guard.restype = GuardedOutput
-    print("[✅] Complete 32-byte value-return bridges fully synchronized.")
-except AttributeError as e:
-    print(f"[❌] Base symbol binding failure: {e}")
-    sys.exit(1)
+jiggler_lib.check_extraction_guard.argtypes = [ctypes.POINTER(SovereignMetric)]
+jiggler_lib.check_extraction_guard.restype = GuardedOutput
 
-# Input real data parameters within your attractor basin limits
-test_metric = SovereignMetric()
-test_metric.pose = (ctypes.c_double * 3)(27.50, 155.0, 62.0) # d, r, sigma_t
-test_metric.stability_score = 0.325                         # rho (inside 0.31-0.34)
-test_metric.resonance_delta = 0.870                         # baseline intent input value
-test_metric.timestamp = 1686566400
+# 2. Benchmark Controller Setup
+ITERATIONS = 250000
+print(f"⚡ [TORDIAL MANIFOLD BENCHMARK] Initializing {ITERATIONS:,} execution iterations...")
 
-print("\n🚀 Executing value-return memory extraction guard check...")
-try:
-    output_data = jiggler_lib.check_extraction_guard(ctypes.byref(test_metric))
+# Prepare operational arrays to test varying drift scenarios
+# Phase A: Deep Goldilocks center
+# Phase B: Gentle Transitional drift
+# Phase C: Critical Out-of-Bounds threshold breach
+test_cases = [
+    ((27.5, 155.0, 62.0), 0.325, 0.87, "Goldilocks Basin Center"),
+    ((31.5, 155.0, 62.0), 0.325, 0.87, "Transitional Zone Drift"),
+    ((45.0, 155.0, 62.0), 0.325, 0.87, "Critical Out-of-Bounds Breach")
+]
+
+print("\n--- RUNNING HIGH-FIDELITY SPEED TESTS ---")
+
+for pose, rho, intent, label in test_cases:
+    metric = SovereignMetric()
+    metric.pose = (ctypes.c_double * 3)(*pose)
+    metric.stability_score = rho
+    metric.resonance_delta = intent
+    metric.timestamp = 1686566400
     
-    print("\n[🛰️ NATIVE ENGINE C-FFI TELEMETRY]")
-    print(f" ├── Execution Allowed : {output_data.allowed}")
-    print(f" ├── Resolution Fidelity: {output_data.fidelity:.6f}")
+    # Warm up compilation/cache lines
+    for _ in range(100):
+        res = jiggler_lib.check_extraction_guard(ctypes.byref(metric))
+        if res.derived_metric:
+            jiggler_lib.free_guarded_output(res)
+
+    # High-precision timing loop
+    start_time = time.perf_counter_ns()
     
-    if output_data.neutralized_reason:
-        reason = ctypes.string_at(output_data.neutralized_reason).decode('utf-8')
-    else:
-        reason = "None (Pass)"
-    print(f" └── Neutralized Reason : {reason}")
+    for i in range(ITERATIONS):
+        res = jiggler_lib.check_extraction_guard(ctypes.byref(metric))
+        # Safely release heap memory generated inside the Rust box to maintain 0.0% leak benchmarks
+        if res.derived_metric:
+            jiggler_lib.free_guarded_output(res)
+            
+    end_time = time.perf_counter_ns()
+    
+    # Calculate performance metrics
+    total_duration_ms = (end_time - start_time) / 1_000_000.0
+    avg_latency_ns = (end_time - start_time) / ITERATIONS
+    throughput = ITERATIONS / (total_duration_ms / 1000.0)
+    
+    # Final confirmation run for data checking
+    final_check = jiggler_lib.check_extraction_guard(ctypes.byref(metric))
+    drift = 0.0
+    if final_check.derived_metric:
+        derived = ctypes.cast(final_check.derived_metric, ctypes.POINTER(DerivedMetric)).contents
+        drift = derived.optimized_resonance
+        jiggler_lib.free_guarded_output(final_check)
 
-    if output_data.derived_metric:
-        derived = ctypes.cast(output_data.derived_metric, ctypes.POINTER(DerivedMetric)).contents
-        print(f"\n[📦 DERIVED METRIC SUBSTRATE]")
-        print(f" ├── Attractor Drift Offset: {derived.optimized_resonance:.6f}")
-        print(f" └── Lifecycle Epoch       : {derived.lifecycle_epoch}")
+    print(f"\n📊 TARGET LOG PROFILE: {label}")
+    print(f" ├── Total Time for Loop : {total_duration_ms:.2f} ms")
+    print(f" ├── Calculated Throughput: {throughput:,.2f} iterations/sec")
+    print(f" ├── Mean Execution Speed: {avg_latency_ns:.1f} nanoseconds per pass")
+    print(f" └── Computed Drift Space : {drift:.4f} units (Allowed: {final_check.allowed})")
 
-except Exception as parse_err:
-    print(f" [❌] Telemetry execution exception: {parse_err}")
+print("\n🏁 Benchmark Suite Execution Complete. Standard Baseline Established.")
