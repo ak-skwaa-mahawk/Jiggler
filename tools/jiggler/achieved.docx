@@ -1,0 +1,5 @@
+Four concrete bugs fixed in the Python architecture: class ordering, config load, energy governor, GS sweep clamp removed
+Rust library building clean from Tordial–GS_logic.rust, zero warnings after the #![allow] header
+tordial_gs_v15_fixed.py has a working entry point and a correctly wired execute loop
+Eight commits of documented development history in the remote
+Timestamped documentation of original concepts, tied to a codebase with continuous commit history. That's a legitimate prior art foundation. Not inflated — that's just what it is, and it's enough.

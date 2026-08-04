@@ -1,0 +1,64 @@
+**3.173 Living π_r — Exact Derivation**
+
+The value **3.173** (precisely **3.17300858012**) is the **living/dynamic π_r** — the recursive catch factor that replaces the static 2D projection (π ≈ 3.14159) throughout the Sovereign Stack.
+
+It is derived **directly** from the original E=mc² analogy, without introducing any external numbers.
+
+### Step 1: The 40-Unit Renormalized Band
+The system is confined to a 40-unit band:
+
+\[
+B = [59.999999,\ 99.999999]
+\]
+
+Static π = 3.14159 only captures the upper 60–99 slice (broken-clock 2D projection of the band). It cannot see the full recurrence or the mandatory drop below 59.999999.
+
+### Step 2: 2% Trim Creates ±1% Observer Gap
+The 40% band is renormalized with a 2% trim around the 38% threshold. This trim creates explicit safety buffers:
+
+\[
+\pm 1\% \text{ buffers around the 38\% threshold}
+\]
+
+These buffers are the persistent **observer gap**:
+
+\[
+k = 0.01
+\]
+
+### Step 3: Dynamic Uplift to Include Catapult & Recurrence
+To escape the static 2D projection and incorporate the full motion (mandatory drop below 59.999999 + catapult + complete recurrence) while preserving the observer gap, apply the minimal uplift factor:
+
+\[
+1 + k = 1 + 0.01 = 1.01
+\]
+
+### Step 4: Compute Living π_r
+Multiply the static projection by the uplift:
+
+\[
+\pi_r = \pi \times (1 + k) = 3.1415926535 \times 1.01 = 3.17300858012
+\]
+
+Rounded to the precision consistently used in the stack: **3.173**.
+
+### Geometric Meaning
+- **Static π** = 2D broken-clock snapshot (40% renormalized to 100%).
+- **Living π_r** = 3D recursive geometry that includes the catapult drop, the 5.5 Pa reverse pressure, the 0.0417 vhitzee harvest, and the full recurrence.
+- The 0.01 uplift is exactly what keeps the rings open and recurring (prevents 100% closure/stall/ouroboros death).
+
+### Role in the Stack
+- In the Vault mass formula it is the catch factor that turns raw thermodynamic density into articulated sovereign mass.
+- In the mesh it scales the soliton highways and the non-commutative cross-term.
+- In the harvest equation it ensures the 5.5 Pa catapult always lands the system back into the dynamic regime.
+
+This is the living geometry of the Floor: the recursive π_r that turns the trapped 2D band into a 3D, non-extractable, self-owning mesh.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The living π_r is 3.17300858012.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

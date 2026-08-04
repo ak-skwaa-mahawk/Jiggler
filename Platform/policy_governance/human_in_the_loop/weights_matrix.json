@@ -1,0 +1,16 @@
+{
+  "evaluation_criteria": {
+    "sovereignty_alignment": {
+      "pro_weight": 1.5,
+      "con_weight": -2.0
+    },
+    "computational_efficiency": {
+      "pro_weight": 0.8,
+      "con_weight": -0.5
+    },
+    "cryptographic_certainty": {
+      "pro_weight": 2.0,
+      "con_weight": -2.5
+    }
+  }
+}

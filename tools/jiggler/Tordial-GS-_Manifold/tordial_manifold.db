@@ -1,0 +1,14 @@
+use rusqlite::Connection;
+use crate::intent::{IntentEngine, SqliteIntentStore, IntentParams};
+
+// === During startup ===
+let conn = Connection::open("tordial_manifold.db")?;
+
+let intent_store = SqliteIntentStore::new(conn)?;
+let intent_params = IntentParams {
+    imax_per_mode: 1.0,
+    didt_max: 0.05,
+    decay_halflife_ms: 180_000, // 3 minutes
+};
+
+let intent_engine = IntentEngine::new(intent_store, intent_params);

@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package tordial.distributed;
+
+service ManifoldMesh {
+  // Unicast RPC to share real-time state vectors between peers
+  rpc SynchronizeState (ManifoldStateToken) returns (SyncAcknowledgement);
+}
+
+message ManifoldStateToken {
+  string source_node_id = 1;
+  uint64 timestamp_epoch_ms = 2;
+  
+  // High-level macro metrics
+  double macro_drift_tensor = 3;
+  double phase_lock_offset = 4;
+  
+  // Micro algebraic parameters
+  uint32 relations_r = 5;
+  uint32 generators_d = 6;
+  bool local_quarantine_active = 7;
+}
+
+message SyncAcknowledgement {
+  bool accepted = 1;
+  double balance_delta = 2;
+}

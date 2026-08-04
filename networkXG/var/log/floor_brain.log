@@ -1,0 +1,2 @@
+sudo touch /var/log/floor_brain.log
+sudo chmod 666 /var/log/floor_brain.log

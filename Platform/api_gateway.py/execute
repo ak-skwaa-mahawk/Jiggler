@@ -1,0 +1,22 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+from core.llm_bridge import run_agent
+from flame_swarm_orchestrator import route_directive
+
+app = FastAPI()
+
+class Directive(BaseModel):
+    text: str
+
+@app.post("/execute")
+def execute_directive(payload: Directive):
+    # 1. Governance check
+    verdict = route_directive(payload.text)
+
+    # 2. LLM / agent execution
+    response = run_agent(payload.text)
+
+    return {
+        "governance": verdict,
+        "response": response
+    }

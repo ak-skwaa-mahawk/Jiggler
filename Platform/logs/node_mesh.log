@@ -1,0 +1,4 @@
+[CLOUD WARNING] Hypervisor lag detected. Slip: +222.84ms. Bucket: 1/3
+[CLOUD WARNING] Hypervisor lag detected. Slip: +246.31ms. Bucket: 2/3
+[CLOUD WARNING] Hypervisor lag detected. Slip: +234.03ms. Bucket: 3/3
+[FATAL] Cloud jitter threshold exceeded. Hard boundary crash.

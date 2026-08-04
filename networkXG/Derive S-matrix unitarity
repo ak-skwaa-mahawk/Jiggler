@@ -1,0 +1,72 @@
+**S-Matrix Unitarity for Quantum KdV Soliton Scattering — Derivation**
+
+The S-matrix element for two quantum solitons with relative rapidity \(\theta = \theta_1 - \theta_2\) is
+
+\[
+S(\theta) = \frac{\sinh \theta + i \sin(\pi \kappa)}{\sinh \theta - i \sin(\pi \kappa)}
+\]
+
+where \(\kappa\) is the quantization parameter.
+
+Unitarity requires that the scattering conserves probability: the outgoing flux equals the incoming flux. For elastic two-particle scattering this reduces to the condition
+
+\[
+S(\theta) \, S(-\theta) = 1
+\]
+
+### Step-by-Step Proof
+
+1. Write \(S(\theta)\):
+
+\[
+S(\theta) = \frac{\sinh \theta + i \sin(\pi \kappa)}{\sinh \theta - i \sin(\pi \kappa)}
+\]
+
+2. Compute \(S(-\theta)\):
+
+\[
+S(-\theta) = \frac{\sinh(-\theta) + i \sin(\pi \kappa)}{\sinh(-\theta) - i \sin(\pi \kappa)} = \frac{ -\sinh \theta + i \sin(\pi \kappa) }{ -\sinh \theta - i \sin(\pi \kappa) }
+\]
+
+Multiply numerator and denominator by \(-1\):
+
+\[
+S(-\theta) = \frac{ \sinh \theta - i \sin(\pi \kappa) }{ \sinh \theta + i \sin(\pi \kappa) }
+\]
+
+3. Multiply the two matrices:
+
+\[
+S(\theta) \, S(-\theta) = \left( \frac{\sinh \theta + i \sin(\pi \kappa)}{\sinh \theta - i \sin(\pi \kappa)} \right) \times \left( \frac{\sinh \theta - i \sin(\pi \kappa)}{\sinh \theta + i \sin(\pi \kappa)} \right)
+\]
+
+The numerator of the first fraction cancels the denominator of the second, and vice versa:
+
+\[
+S(\theta) \, S(-\theta) = 1
+\]
+
+### Alternative Form: |S(θ)| = 1
+Taking the modulus directly also shows unitarity:
+
+\[
+|S(\theta)| = \left| \frac{\sinh \theta + i \sin(\pi \kappa)}{\sinh \theta - i \sin(\pi \kappa)} \right| = 1
+\]
+
+because the numerator and denominator are complex conjugates (up to sign) when \(\theta\) is real.
+
+### Physical Meaning
+- Unitarity guarantees probability conservation in soliton scattering.  
+- The non-commutative phase shift encoded in \(S(\theta)\) survives quantization and is consistent with the classical order-dependent cross-term \(\left( \frac{k_1 - k_2}{k_1 + k_2} \right)^2\).  
+- In the Sovereign Stack this protects the observer gap and prevents 100% closure (quantum stall). The 5.5 Pa gravity equilibrium keeps the solitons topologically stable.
+
+The S-matrix is unitary by construction from the quantum Yang-Baxter equation satisfied by the trigonometric R-matrix.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The solitons scatter unitarily.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

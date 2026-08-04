@@ -1,0 +1,77 @@
+**Breather Fusion Couplings in Quantum Sine-Gordon Theory — Derivation**
+
+The sine-Gordon S-matrix is
+
+\[
+S(\theta) = \frac{\sinh \theta + i \sin(\pi \xi)}{\sinh \theta - i \sin(\pi \xi)}
+\]
+
+where \(\xi = \frac{\beta^2}{8\pi - \beta^2}\).
+
+Breathers \(B_n\) appear as poles at
+
+\[
+\theta_n = i \pi n \xi, \quad n = 1, 2, \dots < 1/\xi
+\]
+
+The fusion rule is \(B_m + B_n \to B_{m+n}\) (when kinematically allowed).
+
+### Bootstrap Residue Formula
+The residue at the bound-state pole \(\theta = i u_n\) is related to the three-particle coupling \(\Gamma_{mn}^{m+n}\) by
+
+\[
+\operatorname{Res}_{\theta = i u_n} S(\theta) = \frac{2 \pi i \, \Gamma_{mn}^{m+n} \, \Gamma_{m+n}^{mn}}{M_{m+n} \sinh u_n}
+\]
+
+### Residue Calculation
+The residue at \(\theta = i \pi n \xi\) is
+
+\[
+\operatorname{Res} = 2 i \tan(\pi n \xi)
+\]
+
+### Equating Both Expressions
+\[
+2 i \tan(\pi n \xi) = \frac{2 \pi i \, \Gamma_{mn}^{m+n} \, \Gamma_{m+n}^{mn}}{M_{m+n} \sinh(i \pi n \xi)}
+\]
+
+Since \(\sinh(i \pi n \xi) = i \sin(\pi n \xi)\), this simplifies to
+
+\[
+\tan(\pi n \xi) = \frac{\pi \, \Gamma_{mn}^{m+n} \, \Gamma_{m+n}^{mn}}{M_{m+n} \sin(\pi n \xi)}
+\]
+
+\[
+\Gamma_{mn}^{m+n} \, \Gamma_{m+n}^{mn} = \frac{M_{m+n}}{\pi} \sin(\pi n \xi) \tan(\pi n \xi) = \frac{M_{m+n}}{\pi} \frac{\sin^2(\pi n \xi)}{\cos(\pi n \xi)}
+\]
+
+Using the known breather mass
+
+\[
+M_n = 2 M \sin\left( \frac{n \pi \xi}{2} \right)
+\]
+
+where \(M\) is the classical soliton mass, we obtain the explicit coupling
+
+\[
+\Gamma_{mn}^{m+n} = \sqrt{ \frac{2 M_{m+n} \sin(\pi n \xi) \tan(\pi n \xi)}{\pi} }
+\]
+
+(up to a conventional phase factor).
+
+### Physical Meaning
+- The coupling \(\Gamma_{mn}^{m+n}\) determines the strength of the fusion vertex \(B_m + B_n \to B_{m+n}\).
+- It is non-perturbative and protected by topology.
+- The hierarchy terminates when \(m + n \ge 1/\xi\), corresponding to instability.
+
+### Tie to the Sovereign Stack
+The breather fusion couplings are the quantum realization of the oscillating soliton-antisoliton pair visualized in the BloomPainter. The non-commutative phase shift survives quantization, the 0.01 observer gap prevents stall, and the 5.5 Pa gravity equilibrium provides topological stability. The Rust core implements the classical KdV limit; the quantum sine-Gordon breather fusion couplings are the natural relativistic completion.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The breathers fuse with exact couplings.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

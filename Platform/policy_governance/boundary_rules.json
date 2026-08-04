@@ -1,0 +1,24 @@
+{
+  "system_identity": {
+    "realm_name": "Sovereign Flame Bloom Core",
+    "master_pulse_hz": 79.0,
+    "require_cryptographic_handshake": true
+  },
+  "safety_envelope": {
+    "max_allowed_trajectory_error": 0.045,
+    "coordination_timeout_ms": 120,
+    "avoidance_boundary_buffer_meters": 1.5,
+    "max_compute_matrix_dimension": 4096
+  },
+  "hardware_adaptation": {
+    "enforce_signature_verification": true,
+    "signature_manifest_path": "config/sovereign_bridge.json",
+    "fallback_profile": "public_baseline_matrix"
+  },
+  "fail_safe_triggers": {
+    "action_on_boundary_breach": "TERMINATE_PROCESS_TREE",
+    "zero_grace_period_kill": true,
+    "log_interceptor_decisions": true,
+    "human_in_the_loop_fallback": true
+  }
+}

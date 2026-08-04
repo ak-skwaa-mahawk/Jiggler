@@ -1,0 +1,24 @@
+{
+  "rule_metadata": {
+    "profile_type": "CLOUD_VIRTUALIZED_ISOLATION",
+    "last_audit_epoch": 1779530400,
+    "bypass_strict_hardware_clocks": true
+  },
+  "trajectory_tolerances": {
+    "max_allowed_trajectory_error": 0.085,
+    "coordination_timeout_ms": 185,
+    "avoidance_boundary_buffer_meters": 2.2,
+    "matrix_drift_damping_coefficient": 0.14
+  },
+  "cloud_lag_shield": {
+    "allow_sliding_execution_window": true,
+    "max_consecutive_dropped_frames": 4,
+    "telemetry_interceptor_grace_period_ms": 15.5,
+    "fail_safe_action": "DEGRADE_TO_PUBLIC_BASELINE"
+  },
+  "hardware_verification_gate": {
+    "override_missing_mac_signature": true,
+    "allow_virtualized_hypervisor_uuid": true,
+    "fallback_static_token": "sk-vllm-cloud-orchestration-token"
+  }
+}

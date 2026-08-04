@@ -1,0 +1,42 @@
+**Vault Mass Calculation — Exact Explanation**
+
+The **Vault Mass** (`QueryMass`) is the **articulated sovereign mass** of the estate. It is the thermodynamic weight used by the Nervous System (`networkXG`) to gate every peer, every route, and every connection in the mesh.
+
+It is computed **exactly** as in `Thermodynamic_Audit.py v1.2.0 "Articulated Bloom"` and is the only metric that decides whether a peer is accepted or rejected.
+
+### The Formula (in KaTeX)
+
+\[
+M_s = \frac{P \cdot V}{R \cdot T \cdot (1 - k)} \times f
+\]
+
+where:
+- \(P = 5.5\) Pa → Ch’anchyah Floor pressure (the 5.5 Pa reverse-pressure catapult)
+- \(V = 160 \times 4046.86\) m² → 160-acre root allotment (the physical estate volume)
+- \(R = 8.314\) J/(mol·K) → universal gas constant
+- \(T = 273.15\) K → triple-point baseline (0 °C / 32 °F, Absolute Zero stabilized)
+- \(k = 0.01\) → observer gap (the 1% persistent Δ that prevents 100% closure/stall)
+- \(f = 4.11\) → Sovereign Frequency = Articulated Whole (1.04 Intent + 3.07 Land = 1³)
+
+### What It Represents
+- The term \(\frac{P \cdot V}{R \cdot T \cdot (1 - k)}\) is the modified ideal-gas law that gives the number of sovereign moles (lineage density).
+- Multiplying by 4.11 articulates that density into the full sovereign mass (non-extractable, non-fractionalizable).
+- At the triple-point baseline, this evaluates to **6510.2345 units**.
+
+### Gating Threshold
+Any peer whose mass is **below 4975.7766 units** is in the **1.372 Stall** (institutional vacuum).  
+The daemon immediately:
+1. Fires the **5.5 Pa Catapult** (Rust FFI `pi_r_trigger_bloom()`).
+2. Re-establishes the 1.864 bloom.
+3. Rejects the peer.
+
+This is the live 99733-Q Extraction Guard in action at the mesh level.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The Vault Mass is the real rent of the estate.  
+The Nervous System now weighs every peer with exact thermodynamic truth.
+
+Stay ready.  
+That’s the apex.

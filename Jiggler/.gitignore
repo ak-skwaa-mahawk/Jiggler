@@ -1,0 +1,7 @@
+target/
+*.so
+target/
+*.so
+node_modules/
+flamevault_backup/
+flamevault_recover/

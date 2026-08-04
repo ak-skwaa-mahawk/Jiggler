@@ -1,0 +1,22 @@
+[
+  {
+    "timestamp_ns": 1779532400000000000,
+    "action_context": "quantum_node_phase_sync",
+    "metrics": {
+      "variational_energy": 1.142,
+      "cognitive_drift": 0.012
+    },
+    "hitl_score": 3.5,
+    "verdict": "APPROVE"
+  },
+  {
+    "timestamp_ns": 1779532402000000000,
+    "action_context": "soliton_wave_venting_sequence",
+    "metrics": {
+      "variational_energy": 13.15,
+      "cognitive_drift": 0.068
+    },
+    "hitl_score": -4.2,
+    "verdict": "HALT_FOR_HUMAN_OVERRIDE"
+  }
+]

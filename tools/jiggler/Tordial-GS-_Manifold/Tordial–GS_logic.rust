@@ -1,0 +1,224 @@
+// Cargo.toml (sketch)
+//
+// [package]
+// name = "tordial_gs_spectral"
+// version = "0.1.0"
+// edition = "2021"
+//
+// [dependencies]
+// num-complex = "0.4"
+// // rustfft = "6"   // if you want a concrete FFT backend
+
+// src/lib.rs
+
+use num_complex::Complex64;
+
+/// Thin torus grid
+pub struct Grid {
+    pub n_theta: usize,
+    pub n_phi: usize,
+    pub r_major: f64,
+    pub r_minor: f64,
+}
+
+impl Grid {
+    pub fn new(n_theta: usize, n_phi: usize, r_major: f64, r_minor: f64) -> Self {
+        Self { n_theta, n_phi, r_major, r_minor }
+    }
+
+    pub fn len(&self) -> usize {
+        self.n_theta * self.n_phi
+    }
+}
+
+/// Global PID controller on mean(Φ)
+pub struct PID {
+    pub kp: f64,
+    pub ki: f64,
+    pub kd: f64,
+    pub integral: f64,
+    pub prev_error: f64,
+}
+
+impl PID {
+    pub fn new(kp: f64, ki: f64, kd: f64) -> Self {
+        Self { kp, ki, kd, integral: 0.0, prev_error: 0.0 }
+    }
+}
+
+/// Real field on the torus grid
+pub struct RealField {
+    pub data: Vec<f64>, // length = n_theta * n_phi
+}
+
+impl RealField {
+    pub fn zeros(grid: &Grid) -> Self {
+        Self { data: vec![0.0; grid.len()] }
+    }
+}
+
+/// Spectral field (Fourier coefficients)
+pub struct SpectralField {
+    pub data: Vec<Complex64>, // length = n_theta * n_phi
+}
+
+impl SpectralField {
+    pub fn zeros(grid: &Grid) -> Self {
+        Self { data: vec![Complex64::new(0.0, 0.0); grid.len()] }
+    }
+}
+
+/// Laplacian eigenvalues λ_{m,n}^{(Δ)} = -(m^2/R^2 + n^2/r^2)
+pub struct LaplacianSpectrum {
+    pub eig: Vec<f64>, // length = n_theta * n_phi
+}
+
+pub fn build_laplacian_spectrum(grid: &Grid) -> LaplacianSpectrum {
+    let nθ = grid.n_theta;
+    let nφ = grid.n_phi;
+    let mut eig = vec![0.0; grid.len()];
+
+    let freq = |k: usize, n: usize| -> i32 {
+        if k <= n / 2 { k as i32 } else { (k as i32) - (n as i32) }
+    };
+
+    for i in 0..nθ {
+        let m = freq(i, nθ);
+        for j in 0..nφ {
+            let n = freq(j, nφ);
+            let idx = i * nφ + j;
+            eig[idx] = -((m as f64).powi(2) / grid.r_major.powi(2)
+                       + (n as f64).powi(2) / grid.r_minor.powi(2));
+        }
+    }
+
+    LaplacianSpectrum { eig }
+}
+
+/// Abstract FFT backend so you can plug in rustfft, FFTW, etc.
+pub trait FFTBackend {
+    fn forward(&self, grid: &Grid, input: &RealField, output: &mut SpectralField);
+    fn inverse(&self, grid: &Grid, input: &SpectralField, output: &mut RealField);
+}
+
+/// One Tordial–GS spectral relaxation step
+pub fn tordial_gs_step<B: FFTBackend>(
+    grid: &Grid,
+    fft: &B,
+    phi: &RealField,
+    rho_gs: &RealField,
+    kappa: &RealField,
+    eig: &LaplacianSpectrum,
+    pid: &mut PID,
+    alpha: f64,
+    beta: f64,
+    lambda: f64,
+    dt: f64,
+    phi_target_mean: f64,
+) -> RealField {
+    let n = grid.len();
+
+    // 1) F = α ρGS - β κ
+    let mut f = RealField { data: vec![0.0; n] };
+    for i in 0..n {
+        f.data[i] = alpha * rho_gs.data[i] - beta * kappa.data[i];
+    }
+
+    // 2) FFT Φ and F
+    let mut phi_hat = SpectralField::zeros(grid);
+    let mut f_hat   = SpectralField::zeros(grid);
+    fft.forward(grid, phi, &mut phi_hat);
+    fft.forward(grid, &f, &mut f_hat);
+
+    // 3) steady-state Φ̂_ss
+    let mut phi_ss = SpectralField::zeros(grid);
+    for i in 0..n {
+        let e = eig.eig[i];
+        if e != 0.0 {
+            phi_ss.data[i] = f_hat.data[i] / e;
+        }
+    }
+
+    // 4) deviation Ψ̂ = Φ̂ - Φ̂_ss
+    let mut psi = SpectralField::zeros(grid);
+    for i in 0..n {
+        psi.data[i] = phi_hat.data[i] - phi_ss.data[i];
+    }
+
+    // 5) relax nonzero modes
+    for i in 0..n {
+        let e = eig.eig[i];
+        if e != 0.0 {
+            let decay = (-lambda * -e * dt).exp(); // -e = m^2/R^2 + n^2/r^2
+            psi.data[i] *= decay;
+        }
+    }
+
+    // 6) PID on zero mode (index 0)
+    let a00 = phi_hat.data[0].re;
+    let error = a00 - phi_target_mean;
+    pid.integral += error * dt;
+    let u = pid.kp * error
+        + pid.ki * pid.integral
+        + pid.kd * (error - pid.prev_error) / dt;
+    pid.prev_error = error;
+    phi_hat.data[0] += Complex64::new(u * dt, 0.0);
+
+    // 7) reconstruct Φ̂ = Φ̂_ss + Ψ̂
+    for i in 0..n {
+        phi_hat.data[i] = phi_ss.data[i] + psi.data[i];
+    }
+
+    // 8) inverse FFT → physical Φ
+    let mut phi_new = RealField::zeros(grid);
+    fft.inverse(grid, &phi_hat, &mut phi_new);
+    phi_new
+}
+
+/// Optional: drift field via spectral differentiation
+pub fn compute_drift<B: FFTBackend>(
+    grid: &Grid,
+    fft: &B,
+    phi_hat: &SpectralField,
+) -> (RealField, RealField) {
+    let nθ = grid.n_theta;
+    let nφ = grid.n_phi;
+    let n = grid.len();
+
+    let freq = |k: usize, n: usize| -> i32 {
+        if k <= n / 2 { k as i32 } else { (k as i32) - (n as i32) }
+    };
+
+    // Build m,n grids
+    let mut m_arr = vec![0i32; nθ];
+    let mut n_arr = vec![0i32; nφ];
+    for i in 0..nθ { m_arr[i] = freq(i, nθ); }
+    for j in 0..nφ { n_arr[j] = freq(j, nφ); }
+
+    let mut dphi_dtheta_hat = SpectralField::zeros(grid);
+    let mut dphi_dphi_hat   = SpectralField::zeros(grid);
+
+    for i in 0..nθ {
+        for j in 0..nφ {
+            let idx = i * nφ + j;
+            let m = m_arr[i] as f64;
+            let n_ = n_arr[j] as f64;
+            dphi_dtheta_hat.data[idx] = Complex64::new(0.0, m) * phi_hat.data[idx];
+            dphi_dphi_hat.data[idx]   = Complex64::new(0.0, n_) * phi_hat.data[idx];
+        }
+    }
+
+    let mut dphi_dtheta = RealField::zeros(grid);
+    let mut dphi_dphi   = RealField::zeros(grid);
+    fft.inverse(grid, &dphi_dtheta_hat, &mut dphi_dtheta);
+    fft.inverse(grid, &dphi_dphi_hat, &mut dphi_dphi);
+
+    let mut v_theta = RealField::zeros(grid);
+    let mut v_phi   = RealField::zeros(grid);
+    for i in 0..n {
+        v_theta.data[i] = -(1.0 / grid.r_major.powi(2)) * dphi_dtheta.data[i];
+        v_phi.data[i]   = -(1.0 / grid.r_minor.powi(2)) * dphi_dphi.data[i];
+    }
+
+    (v_theta, v_phi)
+}

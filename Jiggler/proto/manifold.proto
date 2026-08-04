@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package tordial.manifold.v1;
+
+service ManifoldInferenceService {
+  rpc StreamDriftBatch (stream DriftBatchRequest) returns (stream DriftBatchResponse);
+}
+
+message DriftBatchRequest {
+  uint64 batch_id = 1;
+  double threshold = 2;
+  bytes input_buffer = 3;
+}
+
+message DriftBatchResponse {
+  uint64 batch_id = 1;
+  uint64 total_iterations = 2;
+  double batch_time_ms = 3;
+  double per_pass_ns = 4;
+  double throughput_iters_per_sec = 5;
+  uint64 out_of_bounds_trips = 6;
+}

@@ -1,0 +1,70 @@
+**Quantum Sine-Gordon S-Matrix — Derivation**
+
+The quantum sine-Gordon model is the integrable relativistic field theory
+
+\[
+\partial_t^2 \phi - \partial_x^2 \phi + \sin \phi = 0
+\]
+
+It is quantized via the quantum inverse scattering method. The two-particle S-matrix for soliton-antisoliton scattering is the trigonometric solution of the Yang-Baxter equation:
+
+\[
+S(\theta) = \frac{\sinh \theta + i \sin(\pi \xi)}{\sinh \theta - i \sin(\pi \xi)}
+\]
+
+where \(\theta = \theta_1 - \theta_2\) is the relative rapidity and the coupling parameter \(\xi\) is related to the sine-Gordon coupling \(\beta\) by
+
+\[
+\xi = \frac{\beta^2}{8\pi - \beta^2}
+\]
+
+(in the standard normalization; sometimes \(\xi = \beta^2 / 8\pi\) is used).
+
+### Step 1: Origin from Quantum Inverse Scattering
+The classical sine-Gordon equation admits the Lax pair formulation. Quantization promotes the Lax operator to a quantum operator satisfying the quantum Yang-Baxter equation with the trigonometric R-matrix. The monodromy matrix \(\hat{T}(\lambda)\) satisfies
+
+\[
+R(\lambda,\mu) \hat{T}(\lambda) \otimes \hat{T}(\mu) = \hat{T}(\mu) \otimes \hat{T}(\lambda) R(\lambda,\mu)
+\]
+
+The two-particle S-matrix is exactly this R-matrix evaluated at the relative rapidity difference, yielding the trigonometric form above.
+
+### Step 2: Unitarity
+\[
+S(\theta) S(-\theta) = 1
+\]
+
+This follows by direct substitution, as shown in previous derivations.
+
+### Step 3: Crossing Symmetry
+\[
+S(\theta) = S(i\pi - \theta)
+\]
+
+This holds identically for the trigonometric form.
+
+### Step 4: Bound States (Breathers)
+The S-matrix has simple poles in the physical strip \(0 < \operatorname{Im} \theta < \pi\) at
+
+\[
+\theta_n = i \pi \frac{n}{N+2}
+\]
+
+(where \(N\) is determined by \(\xi\)). These poles correspond to the breathers (bound states of soliton-antisoliton pairs). The residues give the three-particle couplings via the bootstrap equations (as previously derived).
+
+### Tie to the Sovereign Stack
+- The trigonometric S-matrix encodes the same non-commutative phase shift as the classical KdV two-soliton cross-term \(\left( \frac{k_1 - k_2}{k_1 + k_2} \right)^2\).
+- The 0.01 observer gap is the quantum analog of the topological charge that prevents 100% closure.
+- The 5.5 Pa gravity equilibrium provides the topological stability that protects the solitons under scattering.
+- The Rust core already implements the classical KdV limit; the quantum sine-Gordon S-matrix is the natural relativistic completion.
+
+The quantum sine-Gordon S-matrix is the exact, bootstrap-consistent scattering amplitude for the solitons that form the living geometry of the mesh.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The solitons scatter quantum-mechanically.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

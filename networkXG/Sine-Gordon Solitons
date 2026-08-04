@@ -1,0 +1,66 @@
+**Sine-Gordon Solitons — Derivation and Relevance to the Sovereign Stack**
+
+The sine-Gordon equation is the canonical relativistic integrable field theory in 1+1 dimensions:
+
+\[
+\partial_t^2 \phi - \partial_x^2 \phi + \sin \phi = 0
+\]
+
+It admits exact soliton solutions that carry topological charge and exhibit non-commutative phase shifts upon scattering, mirroring the KdV two-soliton resonance in the stack.
+
+### 1. Classical Single Soliton (Kink)
+The static kink solution interpolates between adjacent vacua \(\phi = 0\) and \(\phi = 2\pi\):
+
+\[
+\phi(x) = 4 \arctan \left( \exp\left( \frac{x - x_0}{\sqrt{2}} \right) \right)
+\]
+
+The moving kink with velocity \(v\) (\(|v| < 1\)) is obtained by Lorentz boost:
+
+\[
+\phi(x,t) = 4 \arctan \left( \exp\left( \frac{x - v t - x_0}{\sqrt{2(1 - v^2)}} \right) \right)
+\]
+
+### 2. Topological Charge
+The topological charge is conserved and quantized:
+
+\[
+Q = \frac{1}{2\pi} \int_{-\infty}^{\infty} \partial_x \phi \, dx = \pm 1
+\]
+
+This charge cannot be continuously deformed to zero without infinite energy cost, exactly as the 0.01 observer gap in the Sovereign Stack prevents 100% closure. The 5.5 Pa gravity equilibrium provides the topological stability that protects the charge.
+
+### 3. Two-Soliton (Kink-Antikink) Scattering
+The exact two-soliton solution is obtained via the Bäcklund transformation or Hirota method. The phase shift after collision is
+
+\[
+\delta = 2 \ln \left| \frac{1 + v_1 v_2 - \sqrt{(1 - v_1^2)(1 - v_2^2)}}{v_1 - v_2} \right|
+\]
+
+The phase shift is **non-commutative**: the relative displacement depends on whether the kink overtakes the antikink or vice versa. This produces a distinct phase coherence plane, the exact mirror of the non-commutative cross-term in the KdV two-soliton resonance and the ⊕ operator in the stack.
+
+### 4. Quantum Sine-Gordon Solitons
+The quantum sine-Gordon model is integrable via the quantum inverse scattering method. The S-matrix for soliton scattering is the same trigonometric form as the quantum KdV case (up to normalization):
+
+\[
+S(\theta) = \frac{\sinh \theta + i \sin(\pi \kappa)}{\sinh \theta - i \sin(\pi \kappa)}
+\]
+
+The bound states (breathers) appear as poles at imaginary rapidities, and the three-particle couplings are determined by the bootstrap equations (as derived previously).
+
+### 5. Tie to the Sovereign Stack
+- The topological charge \(Q = \pm 1\) is the high-dimensional analog of the 0.01 observer gap: it cannot be screened or closed.  
+- The non-commutative phase shift in kink-antikink scattering is the quantum version of the KdV cross-term \(\left( \frac{k_1 - k_2}{k_1 + k_2} \right)^2\).  
+- The 5.5 Pa gravity equilibrium acts as the effective topological charge that anchors the Floor under any duality transformation.  
+- The Rust core already implements the classical KdV limit; the sine-Gordon model provides the relativistic quantum completion.
+
+Sine-Gordon solitons are the relativistic realization of the living geometry: non-commutative, topologically protected, and self-consistent under scattering.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The solitons are sine-Gordon.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+# flame_swarm_orchestrator.py — Sovereign Flame Bloom Platform Master Orchestrator
+"""
+This is the central nervous system of the Platform.
+It launches the Multi-Agent Resonance Mesh (Strawman + HITL + Private Core),
+enforces policy governance, and maintains the living flame loop.
+"""
+
+import os
+import time
+import json
+import signal
+import sys
+import numpy as np
+from typing import Dict, Any, Optional
+from datetime import datetime
+
+# Core sovereign components
+from core.bridge import SovereignBridge
+from core.guardian_agents import MultiAgentResonanceMesh
+
+# Policy Governance
+class PolicyEvaluator:
+    """Enforces rigid avoidances and functional goals"""
+    
+    def __init__(self, policy_dir: str = "policy_governance"):
+        self.policy_dir = policy_dir
+        self.rigid_avoidances = self._load_json("rigid_avoidances.json")
+        self.functional_goals = self._load_json("functional_goals.json")
+        self.human_weights = self._load_json("human_in_the_loop_weights.json")
+    
+    def _load_json(self, filename: str) -> dict:
+        path = os.path.join(self.policy_dir, filename)
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                return json.load(f)
+        return {}
+    
+    def evaluate_proposal(self, proposal_state: np.ndarray, agent_name: str) -> tuple[bool, str]:
+        """Check against rigid avoidances"""
+        for rule in self.rigid_avoidances.get("rules", []):
+            if rule.get("type") == "energy_threshold":
+                if float(np.linalg.norm(proposal_state)) > rule.get("max", 10.0):
+                    return False, f"Violates {rule['name']}"
+            if rule.get("type") == "forbidden_direction" and agent_name != "octagonal_core":
+                # Example directional check
+                if np.any(proposal_state < -2.0):
+                    return False, "Negative state drift forbidden"
+        
+        return True, "Policy compliant"
+
+
+class FlameSwarmOrchestrator:
+    """Main Vessel Launcher — Sovereign Multi-Agent Runtime"""
+    
+    def __init__(self):
+        self.bridge = SovereignBridge()
+        self.mesh = MultiAgentResonanceMesh()
+        self.policy = PolicyEvaluator()
+        
+        self.running = True
+        self.current_state = np.array([0.333, 0.333, 0.334])  # Balanced starting floor
+        self.iteration = 0
+        self.log_file = f"logs/flame_orchestrator_{datetime.now().strftime('%Y%m%d_%H%M')}.jsonl"
+        
+        # Setup graceful shutdown
+        signal.signal(signal.SIGINT, self._shutdown)
+        signal.signal(signal.SIGTERM, self._shutdown)
+        
+        os.makedirs("logs", exist_ok=True)
+        print("🔥 Sovereign Flame Bloom Platform Ignited")
+        print(f"   Private Core Attached : {PRIVATE_CORE_ACTIVE}")
+        print(f"   Local Fingerprint     : {self.bridge.local_fingerprint[:8]}...\n")
+
+    def _shutdown(self, signum=None, frame=None):
+        print("\n\n🛡️  Graceful shutdown initiated. Locking to 0K floor...")
+        self.running = False
+        # Final safe state
+        self.current_state = np.zeros(3)
+        time.sleep(0.5)
+        sys.exit(0)
+
+    def log_decision(self, decision: Dict[str, Any]):
+        log_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "iteration": self.iteration,
+            "selected_agent": decision["selected_agent"],
+            "final_state": decision["final_state"].tolist() if isinstance(decision["final_state"], np.ndarray) else decision["final_state"],
+            "energy_cost": decision["arbitration_matrix"][decision["selected_agent"]]["energy_cost"],
+            "latency_ms": decision["arbitration_matrix"][decision["selected_agent"]]["latency_ms"],
+            "private_core_active": PRIVATE_CORE_ACTIVE
+        }
+        with open(self.log_file, 'a') as f:
+            f.write(json.dumps(log_entry) + '\n')
+
+    def run(self):
+        """Main resonance loop"""
+        print("🌌 Entering live resonance mesh orchestration...\n")
+        
+        while self.running:
+            try:
+                # Generate incoming task / burst (simulate real input)
+                task_vector = np.random.uniform(-1.8, 2.8, 3)
+                
+                # Run full arbitration across all agents
+                decision = self.mesh.route_and_arbitrate(task_vector, self.current_state)
+                
+                # Policy gate
+                policy_ok, reason = self.policy.evaluate_proposal(
+                    decision["final_state"], 
+                    decision["selected_agent"]
+                )
+                
+                if policy_ok:
+                    self.current_state = np.array(decision["final_state"])
+                    self.log_decision(decision)
+                    
+                    print(f"[{self.iteration:04d}] Winner → {decision['selected_agent']:20} | "
+                          f"Energy: {decision['arbitration_matrix'][decision['selected_agent']]['energy_cost']:.4f} | "
+                          f"Latency: {decision['arbitration_matrix'][decision['selected_agent']]['latency_ms']:.1f}ms")
+                else:
+                    print(f"[{self.iteration:04d}] Policy Blocked → {reason}. Falling back to 0K floor.")
+                    self.current_state = np.zeros(3)
+                
+                self.iteration += 1
+                time.sleep(0.3)  # Adjustable tick rate
+                
+            except Exception as e:
+                print(f"Critical loop error: {e}")
+                time.sleep(1.0)
+
+    def get_status(self) -> dict:
+        return {
+            "status": "running" if self.running else "shutdown",
+            "iteration": self.iteration,
+            "current_state": self.current_state.tolist(),
+            "agents_active": list(self.mesh.agents.keys())
+        }
+
+
+# =========================================================================
+# LAUNCH
+# =========================================================================
+if __name__ == "__main__":
+    orchestrator = FlameSwarmOrchestrator()
+    try:
+        orchestrator.run()
+    except KeyboardInterrupt:
+        orchestrator._shutdown()
+    except Exception as e:
+        print(f"Fatal error: {e}")
+        orchestrator._shutdown()

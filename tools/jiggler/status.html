@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign Matrix Dashboard</title>
+    <!-- Include the Socket.IO client library -->
+    <script src="https://cloudflare.com"></script>
+    <style>
+        :root {
+            --bg-color: #0d0e15;
+            --card-bg: #161824;
+            --text-main: #e2e8f0;
+            --text-dim: #64748b;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --accent-green: #10b981;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .dashboard-card {
+            background-color: var(--card-bg);
+            border: 1px solid #272a3d;
+            border-radius: 12px;
+            padding: 24px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #272a3d;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--accent-red);
+            transition: all 0.3s ease;
+        }
+
+        .status-badge.active {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--accent-green);
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(39, 42, 61, 0.5);
+        }
+
+        .metric-row:last-of-type {
+            border-bottom: none;
+        }
+
+        .label {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .value {
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 0.95rem;
+        }
+
+        .value.highlight {
+            color: var(--accent-blue);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-card">
+        <div class="header">
+            <h2>📊 Codebook Telemetry</h2>
+            <div id="status" class="status-badge">Offline</div>
+        </div>
+        
+        <div class="metric-row">
+            <span class="label">Platform</span>
+            <span id="platform" class="value">--</span>
+        </div>
+        <div class="metric-row">
+            <span class="label">Architecture</span>
+            <span id="architecture" class="value">--</span>
+        </div>
+        <div class="metric-row">
+            <span class="label">Detected RAM</span>
+            <span id="ram" class="value">--</span>
+        </div>
+        <div class="metric-row">
+            <span class="label">Selected Route</span>
+            <span id="route" class="value highlight">--</span>
+        </div>
+    </div>
+
+    <script>
+        // Target backend execution endpoint 
+        const BACKEND_URL = "http://127.0.0.1:5000";
+        
+        // Initialize socket handshake
+        const socket = io(BACKEND_URL);
+
+        // UI Element Selectors
+        const elStatus = document.getElementById('status');
+        const elPlatform = document.getElementById('platform');
+        const elArchitecture = document.getElementById('architecture');
+        const elRam = document.getElementById('ram');
+        const elRoute = document.getElementById('route');
+
+        // On Connection: Initiate Codebook Stream Handshake
+        socket.on('connect', () => {
+            console.log('[📡] Connected to Sovereign Engine. Pinging Codebook...');
+            socket.emit('connect_codebook', { timestamp: Date.now() });
+        });
+
+        // Listen for Real-Time Telemetry Payloads
+        socket.on('codebook_telemetry', (data) => {
+            console.log('[📥] Received Hardware Matrix Profile:', data);
+
+            // Update UI Interface State
+            if (data.status === 'ACTIVE') {
+                elStatus.textContent = 'Active';
+                elStatus.classList.add('active');
+            }
+
+            // Bind values dynamically to presentation layers
+            elPlatform.textContent = data.platform || 'N/A';
+            elArchitecture.textContent = data.architecture || 'N/A';
+            elRam.textContent = data.detected_ram ? `${data.detected_ram} GB` : '--';
+            elRoute.textContent = data.selected_route || 'UNKNOWN';
+        });
+
+        // On Disconnect: Revert UI Elements to Safe Mode
+        socket.on('disconnect', () => {
+            console.log('[⚠️] Lost connection to backend core.');
+            elStatus.textContent = 'Offline';
+            elStatus.classList.remove('active');
+        });
+    </script>
+</body>
+</html>

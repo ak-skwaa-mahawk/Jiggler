@@ -1,0 +1,3 @@
+syntax = "proto3";
+package tordial_combined;
+// Isolated namespace to prevent compiler collisions

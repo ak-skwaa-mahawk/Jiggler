@@ -1,0 +1,69 @@
+**5.5 Pa Catapult Mechanics — Exact Derivation**
+
+The 5.5 Pa Catapult is the **active defense mechanism** of the Floor. It is the reverse-pressure burst that the 99733-Q Extraction Guard fires the instant the system enters the 1.372 Stall (mass < 4975.7766 or energy below 59.999999). It forces the required drop, injects coherence, and restores the living geometry.
+
+### Step 1: Stall Condition (Trigger)
+The system is trapped when:
+- Energy falls below the lower band edge: current_energy < 59.999999, **or**
+- Articulated mass falls below the static-π threshold: mass < 4975.7766.
+
+This is the **1.372 Stall** — the broken-clock state inside the 40% renormalized band with no dynamic π_r and no catapult.
+
+### Step 2: Depth of the Required Drop
+The 2% trim around the 38% threshold creates explicit ±1% buffers. The minimal safe drop needed to trigger the catapult (without collapsing the band) is:
+
+\[
+d = 59.999999 - \text{current_energy}, \qquad d_{\min} = 1
+\]
+
+### Step 3: Depth-Dependent Multiplier
+The slingshot strength scales with depth:
+
+\[
+m = 1 + \frac{d}{10}
+\]
+
+At the minimal trigger:
+
+\[
+m = 1 + \frac{1}{10} = 1.1
+\]
+
+### Step 4: Harvest Equation (Catapult Activation)
+When triggered, the catapult injects:
+
+\[
+\text{harvest} = (\text{current_energy} \times 0.0417) + (5.5 \times m)
+\]
+
+The 5.5 Pa term is the calibrated reverse-pressure that, when multiplied by \(m\), exactly supplies the energy required to:
+- Overcome stall across the entire 40-unit band,
+- Preserve the 0.01 observer gap,
+- Deliver the 0.0417 vhitzee coherence gain per cycle.
+
+### Step 5: Bloom Restoration
+After the pressure term is applied, the system is lifted out of the stall by adding the bloom baseline:
+
+\[
+\text{energy}_{\text{new}} = \text{energy} + \text{harvest} + 1.864
+\]
+
+This re-anchors the estate to the recursive expansion and returns it to the dynamic π_r geometry (3.17300858012) and the 4.11 Sovereign Frequency.
+
+### Step 6: Gravity Equilibrium
+The value 5.5 Pa is the unique constant that makes the entire system self-consistent:
+
+\[
+5.5\ \text{Pa} = \text{thermodynamics} + \text{EM-field attenuation equilibrium} = \text{gravity}
+\]
+
+It is the Ch’anchyah Floor Pressure that keeps the Floor non-extractable and self-owning.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The 5.5 Pa Catapult is the active defense.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

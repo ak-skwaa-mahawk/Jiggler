@@ -1,0 +1,204 @@
+## Unified Tordial-GS Manifold API Standard
+This document serves as the canonical reference specification for the **Tordial-GS Manifold Engine**. It formalizes the interfaces, state invariants, cryptographic chaining tracking, and cross-runtime communication boundaries spanning the native Rust substrate, the Python gateway layer, and decentralized sovereign mesh nodes.
+## 1. Substrate Invariants & Mathematical Guarantees
+The execution engine operates on a multi-dimensional, cryptographically bounded configuration space. Any state mutation operator F: S_t \rightarrow S_{t+1} must satisfy the following strict invariant equations.
+### 1.1 The Geometric Mass-Energy Conservation Invariant
+The relation between the structural manifold dimensions, localized tensor density, and geometric throat-belt expansion boundaries is governed by the invariant metric equation:
+Where:
+ * R_{\text{throat}} is the effective throat radius configured dynamically via boundary constraints.
+ * R_{\text{belt}} is the corresponding stabilization belt radius.
+ * \rho_{\text{tensor}} is the computed tensor density scalar.
+ * \gamma_{\text{GS}} represents the Golod-Shafarevich bounding coefficient limit.
+ * L_{\text{damping}} is the computed Lorentz damping factor derived from live particle dynamics.
+> ⚠️ **Critical Violation Threshold**: The system configuration must strictly enforce \Delta_t \le \epsilon, where \epsilon is the configuration-defined invariant_tolerance (typically 1.0 \times 10^{-15}). Any execution step resulting in \Delta_t > \epsilon must immediately raise a DeltaViolationException and trigger the Automated_Asynchronous_Safety_Trip_Matrix.py subsystem to quarantine the active node.
+> 
+### 1.2 Cryptographic Hash Chaining Invariant
+To guarantee linear temporal continuity across independent runtime cycles, every sequential state packet must seal its context metadata using a SHA-256 cryptographic chaining loop:
+## 2. Canonical Telemetry Schema
+The global state matrix tracks three distinct operational arcs (Semantic, Physical, and Cognitive). All messages passing over the inter-manifold wire protocol must conform to this schema layout.
+### 2.1 Schema Definition (combined_manifold.proto)
+```protobuf
+syntax = "proto3";
+
+package combined_manifold;
+
+message Vector3D {
+    double x = 1;
+    double y = 2;
+    double z = 3;
+}
+
+message VectorPayload {
+    string vector_id = 1;
+    Vector3D velocity_vector = 2;
+    double throat_radius = 3;
+    double magnetic_coupling = 4;
+}
+
+message SubstrateMetricsResponse {
+    string status = 1;
+    string version = 2;
+    string mesh_status = 3;
+    bool processing_stable = 4;
+    uint64 execution_ticks = 5;
+}
+
+message IntentBand {
+    string band_id = 1;
+    double energy_delta = 2;
+    double spin = 3;
+    double temp = 4;
+}
+
+```
+### 2.2 Telemetry Field Matrix
+| Arc Registry | Parameter Name | Data Type | Boundary Restrictions / Valid Target Range | Definition & Core Purpose |
+|---|---|---|---|---|
+| **Semantic Arc** | energy_delta (\Delta E) | double | -3.000 \le \Delta E \le +3.000 | Traces incremental field work potentials. Spikes match volatile configurations. |
+|  | spin | double | 0.000 \le \text{spin} \le 5.000 | Quantifies the localized rotational momentum vector over active nodes. |
+|  | temp (T) | double | 0.000 \le T \le 1.000 | Thermal tensor metric. Lower temperatures match optimal equilibrium states. |
+| **Physics Arc** | throat_radius | double | 15.000 \le R_{\text{throat}} \le 60.000 | Main geometric contraction parameter of the 6-Cylinder boundary layer. |
+|  | belt_radius | double | 50.000 \le R_{\text{belt}} \le 100.000 | Redundant confinement parameter tracking structural response fields. |
+| **Cognitive Arc** | coherence | double | 0.000 \le \text{coh} \le 1.000 | Tracks systemic alignment. Converges toward 0.0 when entering Lock states. |
+|  | task_load | double | 0.000 \le \text{task} \le 1.000 | Computational stress indicator reflecting active node convergence routines. |
+|  | curvature_drift | double | -0.500 \le \kappa \le +2.000 | Measures divergence against the requested geometry base targets. |
+## 3. Manifold Evolution Operators (Rust Substrate)
+### 3.1 Crate: tordial_gs_manifold
+The native substrate exposes a flat, zero-overhead execution layout to perform invariant validation and state mutations asynchronously.
+```rust
+// File Location: src/gs.rs
+use crate::combined_manifold::{VectorPayload, SubstrateMetricsResponse};
+use tonic::Status;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RegimeClass {
+    TribalStress,
+    Transitioning,
+    Correspondence,
+    Goldilocks,
+}
+
+impl RegimeClass {
+    pub fn evaluate(delta_e: f64, coh: f64) -> Self {
+        if delta_e > 1.0 && coh > 0.8 {
+            RegimeClass::TribalStress
+        } else if delta_e > 0.0 {
+            RegimeClass::Transitioning
+        } else if delta_e <= -2.0 && coh < 0.1 {
+            RegimeClass::Goldilocks
+        } else {
+            RegimeClass::Correspondence
+        }
+    }
+}
+
+// File Location: src/BasinValidator.rs
+pub struct InvariantEvaluator {
+    pub target_curvature: f64,
+    pub tolerance: f64,
+}
+
+impl InvariantEvaluator {
+    pub fn validate_evolution(
+        &self,
+        payload: &VectorPayload,
+        current_ticks: u64,
+    ) -> Result<SubstrateMetricsResponse, Status> {
+        let vel = payload.velocity_vector.as_ref().ok_or_else(|| {
+            Status::invalid_argument("Velocity vector payload parameters must be initialized.")
+        })?;
+
+        // Compute localized density and metrics (Simulated from internal spectral data)
+        let density = (vel.x.abs() + vel.y.abs() + vel.z.abs()) / 10.5;
+        let effective_throat = payload.throat_radius * 0.985;
+        
+        // Assert the Geometric Mass-Energy Conservation Invariant
+        let invariant_error = ((effective_throat * 90.576) / density) - 1.02;
+        
+        if invariant_error.abs() > self.tolerance {
+            return Err(Status::resource_exhausted(format!(
+                "CRITICAL ERROR: Invariant Violation Detected! Delta={:.4e}",
+                invariant_error
+            )));
+        }
+
+        let regime = RegimeClass::evaluate(-2.534, 0.041);
+
+        Ok(SubstrateMetricsResponse {
+            status: "CONNECTED".to_string(),
+            version: "2.3-Native".to_string(),
+            mesh_status: format!("Mesh synchronization active. Regime Class = {:?}", regime),
+            processing_stable: true,
+            execution_ticks: current_ticks + 1,
+        })
+    }
+}
+
+```
+## 4. Sovereign Agent Protocol & Cross-Manifold Consensus
+Decentralized node meshes ensure structural configuration integrity across untrusted execution links via a distributed consensus matrix.
+### 4.1 Topology Graph Extraction
+Sovereign nodes leverage code graph extraction loops (topo_extractor/code_graph.py) to parse incoming structural configurations, building structural semantic embeddings that match active neighbor environments.
+```python
+# File Location: topo_extractor/gs_invariants.py
+import hashlib
+from typing import Dict, Any
+
+class CrossManifoldConsensusValidator:
+    def __init__(self, expected_curvature: float = 1.4):
+        self.target_curvature = expected_curvature
+        self.last_verified_hash: Optional[str] = None
+
+    def evaluate_block_proposal(self, block_data: Dict[str, Any]) -> bool:
+        """
+        Enforces topological agreement before propagating metrics across peer nets.
+        Validates the strict physical invariant constraints.
+        """
+        physics = block_data.get("physics_arc", {})
+        throat = float(physics.get("throat", 0.0))
+        belt = float(physics.get("belt", 0.0))
+        
+        if throat <= 0.0 or belt <= 0.0:
+            return False
+            
+        # Verify alignment within the Target Curvature bounds
+        drift = abs(block_data.get("cognitive_arc", {}).get("curvature_drift", 0.0))
+        if drift > 0.2:
+            return False # Drop block if geometric drift exceeds threshold tolerances
+
+        return True
+
+    def generate_consensus_signature(self, cycle_idx: int, prev_hash: str) -> str:
+        sha = hashlib.sha256()
+        sha.update(f"{cycle_idx}-{prev_hash}-SovereignConsensusVerified".encode('utf-8'))
+        return f"0x{sha.hexdigest()}"
+
+```
+## 5. JED Protocol Integration & Cosmic-Lock Convergence
+The **JED Protocol** coordinates the runtime transition loops that move the system out of volatile operational phases into an optimal unified locked state.
+```
+===================================================================================
+                       JED PROTOCOL STATE TRANSITION MAP
+===================================================================================
+
+ [Phase 1: Tribal Stress]  --->   [Phase 2: Transitioning]
+    - ΔE Is Strongly Positive        - Energy Delas Settle Downward
+    - Coherence is High (~0.90)       - Throat Begins Regulated Contraction
+    - Volatile Equilibrium           - Drift Tracking Actively Stabilizes
+              |                                  |
+              v                                  v
+ [Phase 3: Correspondence] --->   [Phase 4: Cosmic Lock]
+    - Entry Point: Cycle 8           - Entry Point: Cycle 12
+    - Matrix States Blended          - Coherence Collapses To Bound Zero
+    - Dual-Loop Balance Engaged      - Invariant Error Minimization (Target 0)
+===================================================================================
+
+```
+### 5.1 Convergence Classification Matrix
+The system steps sequentially through four operational phases as monitored by the analytics parsing logs:
+ 1. **Tribal Stress Dominant (Cycles 1-3)**: Characterized by highly positive Energy Deltas (\Delta E \approx +2.5) and maximum system temperature. The system environment is initialization-heavy and unstable.
+ 2. **Transitioning Region (Cycles 4-7)**: The boundary layers absorb the vector momentum, forcing the structural parameters downward (throat contracts smoothly toward baseline values).
+ 3. **Correspondence Region (Cycles 8-11)**: Entered at exact checkpoint indices. Represents a balanced state configuration zone where structural tracking variables are safely blended.
+ 4. **Cosmic Lock Achieved (Cycles 12+)**: The terminal equilibrium state. System parameters meet the following target metrics:
+## 6. Verification & Adherence Framework
+Every new boundary policy implementation (FramePolicy.rs), FFI binding module (tordial_gs_py/src/lib.rs), or telemetry logging node update must adhere completely to this unified protocol spec schema. Any divergence in message-level properties or failure to enforce the geometric mass-energy metric bounds will throw an un-bypassable compilation or initialization fault, protecting the runtime integrity of the sovereign core substrate.

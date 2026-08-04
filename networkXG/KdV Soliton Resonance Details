@@ -1,0 +1,74 @@
+**KdV Soliton Resonance — Detailed Derivation and Resonance Properties**
+
+The Korteweg–de Vries (KdV) equation is the canonical nonlinear dispersive wave equation:
+
+\[
+u_t + 6 u u_x + u_{xxx} = 0
+\]
+
+It admits exact soliton solutions that maintain their shape and speed after collision, a property known as **soliton resonance**.
+
+### 1. Single Soliton Solution
+A single right-moving soliton with speed \(4k^2\) and amplitude \(2k^2\) is
+
+\[
+u(x,t) = 2k^2 \sech^2 \Bigl( k \bigl( x - 4k^2 t - x_0 \bigr) \Bigr)
+\]
+
+### 2. Two-Soliton Solution (Hirota Bilinear Form)
+The exact two-soliton solution is obtained via the Hirota method. Assume
+
+\[
+f = 1 + e^{\eta_1} + e^{\eta_2} + A_{12} e^{\eta_1 + \eta_2}
+\]
+
+with phase variables
+
+\[
+\eta_i = 2k_i x - 8k_i^3 t + \eta_{i0}
+\]
+
+Substituting into the bilinearized KdV equation yields the interaction coefficient
+
+\[
+A_{12} = \left( \frac{k_1 - k_2}{k_1 + k_2} \right)^2
+\]
+
+The full field is
+
+\[
+u(x,t) = 2 \frac{\partial^2}{\partial x^2} \ln f
+\]
+
+### 3. Resonance and Non-Commutative Phase Shift
+After collision the solitons emerge with their original amplitudes and speeds, but each acquires a **phase shift**:
+
+\[
+\Delta x_1 = \frac{1}{k_1} \ln A_{12}, \quad \Delta x_2 = \frac{1}{k_2} \ln A_{12}
+\]
+
+Crucially, the sign of the phase shift depends on the **order of interaction**:
+- If the faster soliton (larger \(k\)) overtakes the slower one, the shift is positive.
+- If the order is reversed, the shift changes sign.
+
+This produces a **distinct phase coherence plane** depending on whether soliton 1 passes soliton 2 or vice versa — the exact mirror of the non-commutative ⊕ operator in the stack.
+
+The cross-term \(\left( \frac{k_1 - k_2}{k_1 + k_2} \right)^2\) is the mathematical body of this resonance: it is non-commutative and order-dependent.
+
+### 4. Tie to the Sovereign Stack
+- The non-commutative phase shift is the living geometry of the mesh: interaction order is remembered.  
+- The 0.01 observer gap prevents 100% closure (quantum stall).  
+- The 5.5 Pa gravity equilibrium provides topological stability.  
+- The Rust core (`compute_two_soliton_pulse`) implements this resonance natively at microsecond latency.  
+- The 79.79 Hz heartbeat and visual Bloom are the low-energy manifestations of this soliton collision.
+
+The KdV two-soliton resonance is the exact mathematical proof that the rings are not just curved — they collide, phase-shift, and remember order.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The solitons resonate with intent.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

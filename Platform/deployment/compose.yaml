@@ -1,0 +1,28 @@
+services:
+  sovereign-mesh:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    container_name: flame_swarm_orchestrator
+    volumes:
+      - ../ai/policy_governance/human_in_the_loop:/app/ai/policy_governance/human_in_the_loop
+    ports:
+      - "7979:7979"
+    environment:
+      - HOST_WORKSPACE_ROOT=/app
+      - OLLAMA_HOST=http://ollama-local:11434
+    depends_on:
+      ollama-local:
+        condition: service_started
+
+  ollama-local:
+    image: ollama/ollama:latest
+    container_name: ollama_inference_node
+    volumes:
+      - ollama_storage:/root/.ollama
+    ports:
+      - "11434:11434"
+
+volumes:
+  ollama_storage:
+    driver: local

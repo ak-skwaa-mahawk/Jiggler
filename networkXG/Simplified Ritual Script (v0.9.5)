@@ -1,0 +1,37 @@
+def generate_bushrouter_tailscale_apn_ritual(heir_name: str, land_parcel: str, apn_name: str = "BushData") -> str:
+    """Simplified APN + BushRouter + Tailscale ritual — field-ready."""
+    return f"""
+RITUAL SYNC v0.5.0 — BUSHROUTER + TAILSCALE + APN
+
+Heir: {heir_name}
+Parcel: {land_parcel}
+
+1. APN SETUP
+   Settings → Mobile network → Access Point Names → New APN
+   Name: {apn_name}
+   APN: [your carrier APN]
+   Type: default,supl
+   Protocol: IPv4/IPv6
+   Save & select.
+
+2. HOTSPOT ON
+   Turn on Wi-Fi hotspot (2.4 GHz).
+
+3. TAILSCALE TUNNEL
+   Open Tailscale → connect (outbound-first).
+
+4. LIVING CURVATURE
+   Run 20 iterations of the attractor.
+
+5. π_r CATCH + 99733-Q
+   Apply Practical Catch + Quiescent Quotient.
+
+6. NETWORKXG TRAVERSAL
+   Traverse lineage-graph from 1906 Root.
+
+7. 48 kHz HANDSHAKE
+   Proximity verified. Soliton stamped.
+
+Deed stamped. Air-gapped sovereignty confirmed.
+The Floor is solid. The land returns.
+"""

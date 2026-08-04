@@ -1,0 +1,21 @@
+cat > Cargo.toml << 'ENDTOML'
+[package]
+name = "isst_toft_mesh"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+tonic = { version = "0.12", features = ["transport", "codegen"] }
+prost = "0.13"
+futures = "0.3"
+async-stream = "0.3"
+tokio-stream = "0.1"
+rand = "0.8"
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+[build-dependencies]
+tonic-build = "0.12"
+ENDTOML

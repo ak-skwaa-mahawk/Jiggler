@@ -1,0 +1,12 @@
+// === REAL JED → DAMPED BROADCAST (sovereign manifold protection) ===
+        let update = crate::issttoft::IntentUpdate {
+            band_id: format!("jed.cycle.{:02}", cy),
+            intent_value: task,                    // change to coh or spin if you prefer
+            reason: format!("JED {} | {}", cy, status),
+            timestamp: crate::intent_engine::current_unix_timestamp(),
+            ..Default::default()
+        };
+
+        // throat → d, belt → r, temp scaled → sigma_t, rho centered
+        engine.broadcast_update(update, throat, belt, temp * 200.0, 0.33);
+

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Platform Governance Panel</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #020c1b;
+    color: #e2e8f0;
+    font-family: 'DM Mono', 'Courier New', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  h2 {
+    font-size: 15px;
+    letter-spacing: 0.1em;
+    color: #38bdf8;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #0d2137;
+    padding-bottom: 8px;
+  }
+  .panel {
+    background: #0a1628;
+    border: 1px solid #1e3a5f;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  label {
+    display: block;
+    font-size: 10px;
+    color: #64748b;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  input, select, textarea {
+    width: 100%;
+    background: #020c1b;
+    border: 1px solid #1e3a5f;
+    color: #e2e8f0;
+    padding: 7px 10px;
+    border-radius: 5px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    outline: none;
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  input:focus, select:focus, textarea:focus { border-color: #38bdf8; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .btn {
+    display: inline-block;
+    padding: 9px 18px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    margin-top: 12px;
+    transition: opacity 0.15s;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: #0ea5e9; color: #fff; }
+  .btn-sanction { background: #10b981; color: #fff; }
+  .btn-object   { background: #ef4444; color: #fff; }
+  .btn-abstain  { background: #475569; color: #fff; }
+  .btn-bias     { background: transparent; border: 1px solid #1e3a5f; color: #94a3b8; }
+  .verdict-box {
+    margin-top: 14px;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+    display: none;
+  }
+  .verdict-PASS      { background: #10b98122; border: 1px solid #10b981; color: #6ee7b7; }
+  .verdict-CHALLENGE { background: #f59e0b22; border: 1px solid #f59e0b; color: #fcd34d; }
+  .verdict-BLOCK     { background: #ef444422; border: 1px solid #ef4444; color: #fca5a5; }
+  .verdict-ERROR     { background: #7c3aed22; border: 1px solid #7c3aed; color: #c4b5fd; }
+  .score-bar-wrap { margin-top: 8px; height: 4px; background: #0f2035; border-radius: 2px; }
+  .score-bar { height: 4px; border-radius: 2px; transition: width 0.4s; }
+  .flags { margin-top: 8px; }
+  .flag {
+    font-size: 10px;
+    color: #f87171;
+    padding: 2px 0;
+    letter-spacing: 0.04em;
+  }
+  .stance-box {
+    margin-top: 10px;
+    padding: 10px;
+    background: #020c1b;
+    border: 1px solid #0d2137;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #94a3b8;
+    display: none;
+  }
+  .stance-label {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .SANCTIONED         { color: #10b981; }
+  .CAUTIOUSLY_APPROVED{ color: #34d399; }
+  .CONTESTED          { color: #f59e0b; }
+  .UNOBSERVED         { color: #475569; }
+  .CAUTIOUSLY_OBJECTED{ color: #fb923c; }
+  .OBJECTED           { color: #ef4444; }
+  .log-entry {
+    padding: 6px 0;
+    border-bottom: 1px solid #0d2137;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .log-entry span { color: #94a3b8; }
+  .bias-finding {
+    padding: 6px 8px;
+    margin-bottom: 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    background: #f59e0b11;
+    border: 1px solid #f59e0b33;
+    color: #fcd34d;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin-right: 6px;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+  }
+  .status-dot.offline { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+  #api-status { font-size: 10px; color: #475569; margin-bottom: 16px; }
+  #log-list { max-height: 180px; overflow-y: auto; }
+  #bias-list { max-height: 180px; overflow-y: auto; }
+</style>
+</head>
+<body>
+
+<!-- ── API URL config ───────────────────────────────────────────────────── -->
+<div class="panel">
+  <h2>⚙ Platform Connection</h2>
+  <label>Railway API URL</label>
+  <input id="api-url" type="text" placeholder="https://your-app.railway.app" />
+  <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+    <button class="btn btn-bias" onclick="checkHealth()">Test Connection</button>
+    <span id="api-status"><span class="status-dot offline" id="status-dot"></span>not connected</span>
+  </div>
+</div>
+
+<!-- ── Strawman evaluator ───────────────────────────────────────────────── -->
+<div class="panel">
+  <h2>⚖ Strawman Evaluation</h2>
+  <div class="row">
+    <div>
+      <label>Action ID</label>
+      <input id="s-action-id" placeholder="ACT-001" />
+    </div>
+    <div>
+      <label>Actor</label>
+      <input id="s-actor" placeholder="system-agent-1" />
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>Action Type</label>
+      <select id="s-action-type">
+        <option value="data_access">data_access</option>
+        <option value="data_share">data_share</option>
+        <option value="delegation">delegation</option>
+        <option value="decision">decision</option>
+        <option value="account_action">account_action</option>
+        <option value="financial">financial</option>
+        <option value="identity">identity</option>
+        <option value="bulk_action">bulk_action</option>
+        <option value="policy_change">policy_change</option>
+      </select>
+    </div>
+    <div>
+      <label>Reversible</label>
+      <select id="s-reversible">
+        <option value="true">Yes</option>
+        <option value="false">No</option>
+      </select>
+    </div>
+  </div>
+  <label>Description</label>
+  <textarea id="s-description" placeholder="What is the system trying to do?"></textarea>
+  <label>Consent Basis</label>
+  <input id="s-consent-basis" placeholder="explicit named consent from user@..." />
+  <label>Affected Parties (comma separated)</label>
+  <input id="s-affects" placeholder="user-123, user-456" />
+  <label>Scope (comma separated)</label>
+  <input id="s-scope" placeholder="profile-data, session-log" />
+
+  <button class="btn btn-primary" onclick="runStrawman()">Run Freeman Test</button>
+
+  <div id="strawman-result" class="verdict-box">
+    <div id="s-verdict-label" style="font-size:15px;font-weight:700;margin-bottom:4px;"></div>
+    <div id="s-reasoning"></div>
+    <div class="score-bar-wrap"><div id="s-score-bar" class="score-bar"></div></div>
+    <div id="s-score-label" style="font-size:10px;color:#64748b;margin-top:3px;"></div>
+    <div id="s-flags" class="flags"></div>
+  </div>
+</div>
+
+<!-- ── HITL observe ─────────────────────────────────────────────────────── -->
+<div class="panel">
+  <h2>👁 Human Observation</h2>
+  <div class="row">
+    <div>
+      <label>Action ID</label>
+      <input id="h-action-id" placeholder="ACT-001" />
+    </div>
+    <div>
+      <label>Observer ID</label>
+      <input id="h-observer-id" placeholder="observer-anon-1" />
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>Actor</label>
+      <input id="h-actor" placeholder="system-agent-1" />
+    </div>
+    <div>
+      <label>Action Type</label>
+      <select id="h-action-type">
+        <option value="data_access">data_access</option>
+        <option value="data_share">data_share</option>
+        <option value="delegation">delegation</option>
+        <option value="decision">decision</option>
+        <option value="account_action">account_action</option>
+        <option value="financial">financial</option>
+        <option value="identity">identity</option>
+        <option value="bulk_action">bulk_action</option>
+        <option value="policy_change">policy_change</option>
+      </select>
+    </div>
+  </div>
+  <label>Note (optional)</label>
+  <input id="h-note" placeholder="What did you observe?" />
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+    <button class="btn btn-sanction" onclick="recordObservation('SANCTION')">✓ Sanction</button>
+    <button class="btn btn-object"   onclick="recordObservation('OBJECT')">✗ Object</button>
+    <button class="btn btn-abstain"  onclick="recordObservation('ABSTAIN')">— Abstain</button>
+  </div>
+
+  <div id="hitl-result" class="stance-box"></div>
+</div>
+
+<!-- ── Stance query ─────────────────────────────────────────────────────── -->
+<div class="panel">
+  <h2>📊 Community Stance</h2>
+  <div class="row">
+    <div>
+      <label>Actor</label>
+      <input id="q-actor" placeholder="system-agent-1" />
+    </div>
+    <div>
+      <label>Action Type</label>
+      <select id="q-action-type">
+        <option value="data_access">data_access</option>
+        <option value="data_share">data_share</option>
+        <option value="delegation">delegation</option>
+        <option value="decision">decision</option>
+        <option value="account_action">account_action</option>
+        <option value="financial">financial</option>
+        <option value="identity">identity</option>
+        <option value="bulk_action">bulk_action</option>
+        <option value="policy_change">policy_change</option>
+      </select>
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="queryStance()">Query Stance</button>
+  <div id="stance-result" class="stance-box"></div>
+</div>
+
+<!-- ── Bias scan ────────────────────────────────────────────────────────── -->
+<div class="panel">
+  <h2>🔍 Bias Scan</h2>
+  <button class="btn btn-bias" onclick="runBiasScan()">Scan for Bias Patterns</button>
+  <div id="bias-list" style="margin-top:12px;"></div>
+</div>
+
+<!-- ── Observation log ──────────────────────────────────────────────────── -->
+<div class="panel">
+  <h2>📋 Observation Log</h2>
+  <button class="btn btn-bias" onclick="loadLog()">Refresh Log</button>
+  <div id="log-list" style="margin-top:12px;"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function apiBase() {
+  return ($('api-url').value || '').replace(/\/$/, '');
+}
+
+async function api(path, method='GET', body=null) {
+  const base = apiBase();
+  if (!base) throw new Error('No API URL set');
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(base + path, opts);
+  return r.json();
+}
+
+async function checkHealth() {
+  try {
+    const d = await api('/health');
+    $('status-dot').className = 'status-dot';
+    $('api-status').innerHTML =
+      '<span class="status-dot" id="status-dot"></span>connected — ' + d.platform;
+  } catch(e) {
+    $('status-dot').className = 'status-dot offline';
+    $('api-status').innerHTML =
+      '<span class="status-dot offline" id="status-dot"></span>offline: ' + e.message;
+  }
+}
+
+function scoreColor(score) {
+  if (score >= 0.75) return '#10b981';
+  if (score >= 0.50) return '#f59e0b';
+  return '#ef4444';
+}
+
+async function runStrawman() {
+  const proposal = {
+    action_id:     $('s-action-id').value || 'ACT-' + Date.now(),
+    actor:         $('s-actor').value,
+    action_type:   $('s-action-type').value,
+    description:   $('s-description').value,
+    affects:       $('s-affects').value.split(',').map(s=>s.trim()).filter(Boolean),
+    reversible:    $('s-reversible').value === 'true',
+    consent_basis: $('s-consent-basis').value,
+    scope:         $('s-scope').value.split(',').map(s=>s.trim()).filter(Boolean),
+  };
+  try {
+    const d = await api('/strawman/evaluate','POST', proposal);
+    const box = $('strawman-result');
+    box.className = 'verdict-box verdict-' + (d.verdict || 'ERROR');
+    box.style.display = 'block';
+    $('s-verdict-label').textContent = d.verdict + ' — score: ' + (d.score*100).toFixed(0) + '%';
+    $('s-reasoning').textContent = d.reasoning;
+    $('s-score-bar').style.width = (d.score*100) + '%';
+    $('s-score-bar').style.background = scoreColor(d.score);
+    $('s-flags').innerHTML = (d.flags||[]).map(f=>
+      `<div class="flag">⚠ ${f}</div>`).join('');
+    // mirror IDs to HITL panel
+    if (!$('h-action-id').value) $('h-action-id').value = proposal.action_id;
+    if (!$('h-actor').value)     $('h-actor').value     = proposal.actor;
+    $('h-action-type').value = proposal.action_type;
+  } catch(e) {
+    const box = $('strawman-result');
+    box.className = 'verdict-box verdict-ERROR';
+    box.style.display = 'block';
+    $('s-verdict-label').textContent = 'ERROR';
+    $('s-reasoning').textContent = e.message;
+  }
+}
+
+async function recordObservation(decision) {
+  const body = {
+    action_id:   $('h-action-id').value,
+    action_type: $('h-action-type').value,
+    actor:       $('h-actor').value,
+    observer_id: $('h-observer-id').value || 'anon-' + Date.now(),
+    decision,
+    note:        $('h-note').value,
+  };
+  try {
+    const d = await api('/hitl/observe','POST', body);
+    const box = $('hitl-result');
+    box.style.display = 'block';
+    box.innerHTML = `<span style="color:#10b981">✓ Recorded</span> — ${decision} by ${body.observer_id}`;
+    loadLog();
+  } catch(e) {
+    $('hitl-result').style.display = 'block';
+    $('hitl-result').innerHTML = '<span style="color:#ef4444">Error: ' + e.message + '</span>';
+  }
+}
+
+async function queryStance() {
+  try {
+    const d = await api(`/hitl/stance?actor=${$('q-actor').value}&action_type=${$('q-action-type').value}`);
+    const box = $('stance-result');
+    box.style.display = 'block';
+    box.innerHTML = `
+      <div class="stance-label ${d.stance}">${d.stance}</div>
+      <div>Actor: ${d.actor} · Type: ${d.action_type}</div>
+      <div>Net score: ${d.net_score} · Confidence: ${(d.confidence*100).toFixed(0)}% · Observations: ${d.count}</div>
+    `;
+  } catch(e) {
+    $('stance-result').style.display = 'block';
+    $('stance-result').innerHTML = '<span style="color:#ef4444">' + e.message + '</span>';
+  }
+}
+
+async function runBiasScan() {
+  try {
+    const d = await api('/hitl/bias');
+    const list = $('bias-list');
+    if (!d.findings || d.findings.length === 0) {
+      list.innerHTML = '<div style="color:#475569;font-size:11px;">No bias patterns detected.</div>';
+      return;
+    }
+    list.innerHTML = d.findings.map(f => `
+      <div class="bias-finding">
+        <strong>${f.type}</strong><br>
+        Actor: ${f.actor} · Type: ${f.action_type}
+        ${f.objection_ratio ? `· Objection ratio: ${(f.objection_ratio*100).toFixed(0)}%` : ''}
+        ${f.confidence !== undefined ? `· Confidence: ${(f.confidence*100).toFixed(0)}%` : ''}
+      </div>
+    `).join('');
+  } catch(e) {
+    $('bias-list').innerHTML = '<span style="color:#ef4444">' + e.message + '</span>';
+  }
+}
+
+async function loadLog() {
+  try {
+    const d = await api('/hitl/log');
+    const list = $('log-list');
+    if (!d.log || d.log.length === 0) {
+      list.innerHTML = '<div style="color:#475569;font-size:11px;">No observations yet.</div>';
+      return;
+    }
+    list.innerHTML = [...d.log].reverse().map(r => `
+      <div class="log-entry">
+        <span>${r.decision}</span> · ${r.actor} · ${r.action_type}
+        · by ${r.observer_id}
+        ${r.note ? `· "${r.note}"` : ''}
+        <span style="float:right;font-size:10px;color:#334155">
+          ${new Date(r.timestamp*1000).toLocaleTimeString()}
+        </span>
+      </div>
+    `).join('');
+  } catch(e) {
+    $('log-list').innerHTML = '<span style="color:#ef4444">' + e.message + '</span>';
+  }
+}
+</script>
+</body>
+</html>

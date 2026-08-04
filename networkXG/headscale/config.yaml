@@ -1,0 +1,19 @@
+server_url: https://your-headscale.domain
+listen_addr: 0.0.0.0:8080
+private_key_path: /etc/headscale/private.key
+derp:
+  server:
+    enabled: true
+  urls:
+    - https://your-headscale.domain/derp
+log:
+  level: info
+database:
+  type: postgres
+  postgres:
+    host: postgres
+    port: 5432
+    user: headscale
+    pass: sovereignfloor
+    name: headscale
+    sslmode: disable

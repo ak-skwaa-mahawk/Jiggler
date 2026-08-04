@@ -1,0 +1,10 @@
+// -------------------------------
+// Soil Liquidity / Mycorrhizal Vector (L_c)
+// -------------------------------
+message SoilLiquidityVector {
+  double soil_moisture_percent = 1;     // Volumetric water content (%)
+  double electrical_conductivity = 2;   // EC (dS/m) — fungal network activity
+  double nutrient_ppm = 3;              // NPK or generalized nutrient load
+  double fungal_density = 4;            // Mycelial biomass density (0–1 normalized)
+  double liquidity_index = 5;           // Derived: resource redistribution capacity
+}

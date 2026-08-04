@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.db
+*.log
+__pycache__/
+*.pyc
+*.db
+*.log
+jed_unified_telemetry.log
+target/
+__pycache__/
+*.pyc
+__pycache__/
+*.pyc
+__pycache__/

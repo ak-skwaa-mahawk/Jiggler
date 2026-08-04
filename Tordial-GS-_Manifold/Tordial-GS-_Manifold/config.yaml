@@ -1,0 +1,47 @@
+version: "1.0"
+
+tordial:
+  # Core Operational Constants
+  phi_op: 1.65036
+  pi_3d: 3.20442315
+  gear_shift_correction: 1.04
+  chase_ratio: 1.9427
+  open_chase_residue: 0.04
+
+  # Frequency & Platform
+  base_frequency_hz: 79.79
+  platform_frequency: 79.79
+
+  # Ring Governor Sigma Targets
+  governor_a_target_sigma: 135.0
+  governor_b_target_sigma: 78.0
+  governor_c_target_sigma: 108.0
+
+  # Growth & Stability Controls
+  max_nodes_per_ring: 380
+  growth_damping: 0.88
+
+  # Curvature Coupling Matrix
+  coupling_A_to_B: 0.14
+  coupling_B_to_A: 0.11
+  coupling_A_to_C: 0.09
+  coupling_C_to_A: 0.07
+  coupling_B_to_C: 0.12
+  coupling_C_to_B: 0.10
+
+  # Failover Thresholds
+  inner_failover_kappa: 2.5
+  outer_failover_curv: 1.05
+
+  # Energy Shares
+  inner_energy_share: 0.60
+  outer_energy_share: 0.40
+  bridge_energy_share: 0.25
+
+  # Visualization
+  viz_update_interval: 25
+  viz_enabled: true
+
+  # Future / Extra Parameters
+  max_sigma_target: 140
+  min_sigma_target: 78

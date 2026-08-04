@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "goals": [
+    {
+      "name": "harmonic_stability",
+      "weight": 0.45,
+      "target": "minimize_variational_energy"
+    },
+    {
+      "name": "sovereign_resonance",
+      "weight": 0.35,
+      "target": "maintain_human_override_capability"
+    },
+    {
+      "name": "phase_coherence",
+      "weight": 0.20,
+      "target": "keep_state_within_golden_ratio_bounds"
+    }
+  ]
+}

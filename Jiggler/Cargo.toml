@@ -1,0 +1,23 @@
+[package]
+name = "jiggler_native"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "jiggler_native"
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "jiggler_native"
+path = "src/main.rs"
+
+[dependencies]
+pyo3 = { version = "0.20.3", features = ["extension-module"] }
+rayon = "1.12.0"
+prost = "0.13.5"
+tonic = "0.12.3"
+tokio = { version = "1.53.1", features = ["full"] }
+tokio-stream = { version = "0.1.19", features = ["net"] }
+
+[build-dependencies]
+tonic-build = "0.12.3"

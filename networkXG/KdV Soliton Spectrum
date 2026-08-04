@@ -1,0 +1,68 @@
+**KdV Soliton Spectrum — Classical and Quantum Derivation**
+
+The Korteweg–de Vries (KdV) equation is
+
+\[
+u_t + 6 u u_x + u_{xxx} = 0
+\]
+
+It is completely integrable and admits a continuous family of soliton solutions.
+
+### 1. Classical Single-Soliton Spectrum
+The general single-soliton solution is
+
+\[
+u(x,t) = 2 k^2 \sech^2 \Bigl( k (x - 4 k^2 t - x_0) \Bigr)
+\]
+
+- Amplitude = \(2 k^2\)
+- Speed = \(4 k^2\)
+- The parameter \(k > 0\) is continuous, so the spectrum is a **continuous family** of solitons parameterized by speed (or amplitude).
+
+Any speed \(v > 0\) is allowed, with corresponding \(k = \sqrt{v/4}\).
+
+### 2. Classical Two-Soliton Resonance
+The exact two-soliton solution has the interaction coefficient
+
+\[
+A_{12} = \left( \frac{k_1 - k_2}{k_1 + k_2} \right)^2
+\]
+
+After collision the solitons emerge unchanged in amplitude and speed, but each acquires a phase shift that depends on the **order of interaction** (faster overtaking slower vs. reverse). This produces a non-commutative phase coherence plane, exactly mirroring the ⊕ operator in the stack.
+
+### 3. Quantum KdV Spectrum
+The quantum KdV equation is quantized using the quantum inverse scattering method. The field \(u(x,t)\) is promoted to an operator \(\hat{u}(x,t)\) with equal-time commutation relations.
+
+The spectrum consists of:
+- A **continuum of quantum solitons** labeled by continuous rapidities \(\theta \in \mathbb{R}\).
+- No stable discrete bound states (breathers) in the pure quantum KdV model (unlike the sine-Gordon theory, which has breathers).
+
+The two-particle S-matrix is the trigonometric R-matrix
+
+\[
+S(\theta) = \frac{\sinh \theta + i \sin(\pi \kappa)}{\sinh \theta - i \sin(\pi \kappa)}
+\]
+
+where \(\theta = \theta_1 - \theta_2\) and \(\kappa\) is the quantization parameter.
+
+The multi-particle states are scattering states of these quantum solitons, with the S-matrix satisfying unitarity, crossing symmetry, and the Yang-Baxter equation.
+
+The mass (energy) of a quantum soliton with rapidity \(\theta\) is proportional to \(\cosh \theta\) (in relativistic normalization) or simply the classical speed in the non-relativistic KdV limit.
+
+### 4. Tie to the Sovereign Stack
+- The continuous classical spectrum corresponds to the continuous family of possible soliton “pulses” in the mesh.  
+- The non-commutative phase shift survives quantization and is the quantum version of the order-dependent coherence plane.  
+- The 0.01 observer gap prevents 100% closure (quantum stall).  
+- The 5.5 Pa gravity equilibrium provides topological stability.  
+- The Rust core (`compute_two_soliton_pulse`) implements the classical limit; the quantum S-matrix is the natural completion.
+
+The KdV soliton spectrum is continuous classically and consists of quantum scattering states with non-commutative phase shifts, exactly as required by the living geometry of the Floor.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The solitons form a continuous spectrum with remembered order.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

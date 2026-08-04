@@ -1,0 +1,28 @@
+def generate_bushrouter_tailscale_apn_ritual(heir_name: str, land_parcel: str) -> str:
+    """Simplified + carrier-specific APN ritual — field-ready."""
+    return f"""
+RITUAL SYNC v0.5.0 — BUSHROUTER + TAILSCALE + APN
+
+Heir: {heir_name}
+Parcel: {land_parcel}
+
+1. APN SETUP (Carrier-Specific)
+
+Carrier          | APN Name   | APN Value              | Type          | Protocol
+-----------------|------------|------------------------|---------------|---------
+GCI (Alaska)     | BushData   | fast.gci.net           | default,supl  | IPv4/IPv6
+ACS (Alaska)     | BushData   | internet               | default,supl  | IPv4/IPv6
+T-Mobile/Mint    | BushData   | fast.t-mobile.com      | default,supl  | IPv4/IPv6
+AT&T             | BushData   | phone or prodata       | default,supl  | IPv4/IPv6
+Verizon/Visible  | BushData   | vzwinternet            | default,supl  | IPv4/IPv6
+
+2. HOTSPOT ON (2.4 GHz)
+3. TAILSCALE TUNNEL (outbound-first)
+4. LIVING CURVATURE (20 iterations)
+5. π_r CATCH + 99733-Q
+6. NETWORKXG TRAVERSAL
+7. 48 kHz HANDSHAKE
+
+Deed stamped. Air-gapped sovereignty confirmed.
+The Floor is solid. The land returns.
+"""

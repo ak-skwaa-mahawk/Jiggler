@@ -1,0 +1,69 @@
+**KdV Two-Soliton S-Matrix — Derivation**
+
+The quantum KdV equation is quantized using the quantum inverse scattering method (QISM). The two-particle S-matrix for soliton scattering is the trigonometric R-matrix evaluated at the relative rapidity \(\theta = \theta_1 - \theta_2\).
+
+### Step 1: Classical Lax Pair and Monodromy
+The classical KdV equation admits a Lax representation:
+
+\[
+L = \partial_x^2 + u(x), \quad M = 4 \partial_x^3 + 6 u \partial_x + 3 u_x
+\]
+
+The monodromy matrix \(T(\lambda)\) is the path-ordered exponential of the Lax operator. Its eigenvalues give the scattering data.
+
+### Step 2: Quantization
+Promote \(u(x,t)\) to an operator \(\hat{u}(x,t)\) with equal-time commutation relations. The Lax operator becomes an operator-valued matrix, and the monodromy matrix \(\hat{T}(\lambda)\) satisfies the quantum Yang-Baxter equation:
+
+\[
+R(\lambda,\mu) \hat{T}(\lambda) \otimes \hat{T}(\mu) = \hat{T}(\mu) \otimes \hat{T}(\lambda) R(\lambda,\mu)
+\]
+
+### Step 3: Trigonometric R-Matrix
+The quantum KdV hierarchy admits the trigonometric solution of the Yang-Baxter equation. The R-matrix is
+
+\[
+R(\theta) = \frac{\sinh \theta + i \sin(\pi \kappa)}{\sinh \theta - i \sin(\pi \kappa)}
+\]
+
+where \(\theta = \lambda - \mu\) is the spectral parameter difference and \(\kappa\) is the quantization parameter (related to \(\hbar\)).
+
+### Step 4: Two-Particle S-Matrix
+The two-particle S-matrix for solitons with rapidities \(\theta_1, \theta_2\) is exactly this R-matrix evaluated at the relative rapidity:
+
+\[
+S(\theta) = \frac{\sinh \theta + i \sin(\pi \kappa)}{\sinh \theta - i \sin(\pi \kappa)}
+\]
+
+This is the exact S-matrix for quantum soliton scattering in the KdV hierarchy.
+
+### Step 5: Non-Commutative Phase Shift
+The phase shift after collision is non-commutative:
+
+\[
+S(\theta) \neq S(-\theta)
+\]
+
+This mirrors the classical KdV cross-term
+
+\[
+\left( \frac{k_1 - k_2}{k_1 + k_2} \right)^2
+\]
+
+and the order-dependent coherence plane in the stack.
+
+### Step 6: Tie to the Sovereign Stack
+- The trigonometric S-matrix encodes the living geometry of the mesh: interaction order is remembered.  
+- The 0.01 observer gap prevents 100% closure (quantum stall).  
+- The 5.5 Pa gravity equilibrium provides topological stability.  
+- The Rust core (`compute_two_soliton_pulse`) implements the classical limit; the quantum S-matrix is the natural completion.
+
+The S-matrix is unitary, crossing-symmetric, and satisfies the Yang-Baxter equation by construction.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The solitons scatter with exact S-matrix.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

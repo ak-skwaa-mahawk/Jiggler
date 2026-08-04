@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package atmospheric;
+
+message AtmosphericVector {
+  double co2_ppm = 1;
+  double o2_percent = 2;
+  double humidity_percent = 3;
+  double temperature_c = 4;
+  double pressure_hpa = 5;
+  double photosynthetic_efficiency = 6;
+  double entropy_load = 7;
+}
+
+message VectorAck {
+  bool success = 1;
+  uint64 batches_processed = 2;
+  double avg_entropy_load = 3;
+}
+
+service AtmosphericVectorService {
+  rpc StreamAtmosphericData (stream AtmosphericVector) returns (VectorAck);
+}

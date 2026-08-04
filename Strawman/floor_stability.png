@@ -1,0 +1,21 @@
+
+---
+
+### 2. Configuration Setup: `strawman/config/threshold_bounds.json`
+
+Ensure this companion configuration file is placed under your `strawman/config/` path to feed accurate geometric constants directly to your visualization dashboard:
+
+```json
+{
+  "system_profile": "Strawman-Baseline-Shield",
+  "geometry": {
+    "dimensions": 3,
+    "alpha_phase_expansion": 1.42,
+    "beta_golden_dissipation": 11.8,
+    "target_floor_absolute": 0.0
+  },
+  "constraints": {
+    "max_variational_energy": 12.0,
+    "allowed_drift_tolerance": 0.05
+  }
+}

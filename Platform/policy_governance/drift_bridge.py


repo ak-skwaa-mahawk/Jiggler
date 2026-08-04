@@ -1,0 +1,31 @@
+# policy_governance/drift_bridge.py
+import requests
+import json
+from typing import Dict, Optional
+
+class AdaptiveDriftBridge:
+    def __init__(self, highmark_endpoint: str = "http://localhost:8000/atlas-relay"):
+        self.endpoint = highmark_endpoint
+        self.drift_threshold = 0.75  # Tune based on Highmark ADC output
+    
+    def get_drift_status(self) -> Dict:
+        """Call Highmark's Atlas Relay / ADC endpoint"""
+        try:
+            resp = requests.get(f"{self.endpoint}/drift-status", timeout=2)
+            if resp.status_code == 200:
+                return resp.json()  # Expected: {"drift_score": 0.82, "type": "context|bias|resonance", "correction_applied": True, ...}
+            return {"drift_score": 0.0, "type": "none"}
+        except:
+            return {"drift_score": 0.0, "error": True}  # Fail-safe: assume no drift
+
+    def apply_correction_to_metrics(self, metrics: Dict) -> Dict:
+        """Inject drift-adjusted values into evaluator metrics"""
+        drift = self.get_drift_status()
+        metrics["drift_score"] = drift.get("drift_score", 0.0)
+        metrics["drift_type"] = drift.get("type", "none")
+        
+        # Amplify variational_energy or other thresholds when drift is high
+        if drift.get("drift_score", 0) > self.drift_threshold:
+            metrics["variational_energy"] = metrics.get("variational_energy", 0) * 1.5
+            metrics["drift_alert"] = True
+        return metrics

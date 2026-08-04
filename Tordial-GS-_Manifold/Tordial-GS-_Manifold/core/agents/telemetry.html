@@ -1,0 +1,31 @@
+<div id="agent-dashboard">
+  <h3>TGS Agent Monitor</h3>
+  <div id="agent-status">Status: Initializing...</div>
+  <canvas id="agent-drift-chart"></canvas>
+</div>
+
+<script>
+  class TGSVisualizerAgent {
+    constructor(wsUrl) {
+      this.socket = new WebSocket(wsUrl);
+      this.initSocket();
+    }
+
+    initSocket() {
+      this.socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        this.updateDashboard(data.status, data.v_drift);
+      };
+    }
+
+    updateDashboard(status, drift) {
+      document.getElementById('agent-status').innerText = `Status: ${status}`;
+      // Logic to push drift to webgl/canvas visualization elements
+      if (drift > 2.0) {
+        console.warn("Agent detected critical geometric drift. Requesting node backup.");
+      }
+    }
+  }
+  
+  const activeAgent = new TGSVisualizerAgent("ws://localhost:8080/tgs-agent");
+</script>

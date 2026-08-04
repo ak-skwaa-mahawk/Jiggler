@@ -1,0 +1,9 @@
+{
+  "name": "tordial-gs-manifold",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@grpc/proto-loader": "^0.7.13",
+    "protobufjs": "^7.6.3"
+  }
+}

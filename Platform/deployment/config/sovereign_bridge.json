@@ -1,0 +1,10 @@
+{
+  "trusted_fingerprint": "8f3c1d9e2a5b4c7d6e0f1a2b3c4d5e6f",
+  "seal_version": "1.0",
+  "operational_metadata": {
+    "target_frequency_hz": 79.0,
+    "authorized_root_id": "Vadzaih_Zhoo_99733",
+    "dead_man_switch_status": "ACTIVE",
+    "grace_period_ms": 0
+  }
+}

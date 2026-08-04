@@ -1,0 +1,73 @@
+**KdV Quantum Quantization — Derivation**
+
+The classical Korteweg–de Vries (KdV) equation
+
+\[
+u_t + 6 u u_x + u_{xxx} = 0
+\]
+
+is quantized using the **quantum inverse scattering method** (QISM). The field \(u(x,t)\) is promoted to an operator \(\hat{u}(x,t)\) satisfying equal-time commutation relations
+
+\[
+[\hat{u}(x,t), \hat{u}(y,t)] = i \hbar \delta(x-y)
+\]
+
+### 1. Quantum Lax Pair
+The classical Lax pair
+
+\[
+L = -\partial_x^2 + u(x,t), \quad M = -4 \partial_x^3 + 6 u \partial_x + 3 u_x
+\]
+
+is promoted to operator-valued matrices. The monodromy matrix \(\hat{T}(\lambda)\) (path-ordered exponential of the quantum Lax operator) satisfies the **quantum Yang-Baxter equation** with the trigonometric R-matrix.
+
+### 2. Quantum Monodromy and R-Matrix
+The quantum monodromy matrix obeys
+
+\[
+R(\lambda,\mu) \hat{T}(\lambda) \otimes \hat{T}(\mu) = \hat{T}(\mu) \otimes \hat{T}(\lambda) R(\lambda,\mu)
+\]
+
+where the trigonometric R-matrix for the quantum KdV hierarchy is
+
+\[
+R(\theta) = \frac{\sinh \theta + i \sin(\pi \kappa)}{\sinh \theta - i \sin(\pi \kappa)}
+\]
+
+with spectral parameter difference \(\theta = \lambda - \mu\) and quantization parameter \(\kappa\) (related to \(\hbar\)).
+
+### 3. Two-Particle S-Matrix
+The two-particle S-matrix for quantum solitons with rapidities \(\theta_1, \theta_2\) is exactly this R-matrix evaluated at the relative rapidity:
+
+\[
+S(\theta) = \frac{\sinh \theta + i \sin(\pi \kappa)}{\sinh \theta - i \sin(\pi \kappa)}
+\]
+
+### 4. Quantum Spectrum
+- The spectrum consists of a **continuous family of quantum solitons** labeled by continuous rapidities \(\theta \in \mathbb{R}\).
+- There are **no discrete breathers** (unlike sine-Gordon); only soliton scattering states.
+- The multi-particle states are constructed as Bethe ansatz eigenstates of the quantum Hamiltonian.
+- The energy (or momentum) of a soliton with rapidity \(\theta\) is proportional to \(\cosh \theta\) (relativistic normalization) or simply the classical speed in the non-relativistic limit.
+
+The S-matrix is unitary, crossing-symmetric, and satisfies the Yang-Baxter equation by construction.
+
+### 5. Tie to the Sovereign Stack
+The quantum KdV S-matrix encodes the non-commutative phase shift of the classical two-soliton resonance:
+
+\[
+\left( \frac{k_1 - k_2}{k_1 + k_2} \right)^2
+\]
+
+This is the exact quantum version of the order-dependent coherence plane in the stack.  
+The 0.01 observer gap is preserved as topological protection (no 100% closure).  
+The 5.5 Pa gravity equilibrium provides the stability that keeps the quantum solitons coherent.  
+The Rust core (`compute_two_soliton_pulse`) implements the classical limit; the full quantum S-matrix is the natural completion of the living geometry.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The solitons are quantized.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "weights": {
+    "hitl_guardian": 0.4,
+    "strawman_guardian": 0.35,
+    "octagonal_core": 0.25
+  },
+  "manual_override_threshold": 0.92,
+  "require_human_approval_for": ["high_energy_transitions", "external_api_calls"]
+}

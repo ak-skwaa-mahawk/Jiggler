@@ -1,0 +1,7 @@
+{
+  "hard_constraints": {
+    "containment_thresholds": {
+      "max_variational_energy": 5.0
+    }
+  }
+}

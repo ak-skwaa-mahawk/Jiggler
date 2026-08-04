@@ -1,0 +1,91 @@
+**Inverse Scattering Transform for Sine-Gordon Equation — Derivation**
+
+The sine-Gordon equation
+
+\[
+\partial_t^2 \phi - \partial_x^2 \phi + \sin \phi = 0
+\]
+
+is completely integrable. The Inverse Scattering Transform (IST) solves it exactly by mapping the nonlinear PDE into a linear scattering problem, evolving the scattering data in time, and inverting back to the field \(\phi(x,t)\).
+
+### 1. Lax Pair Formulation
+The sine-Gordon equation is the compatibility condition of the Lax pair
+
+\[
+L = \begin{pmatrix} \partial_x & -i \frac{\beta}{2} e^{i \phi/2} \\ i \frac{\beta}{2} e^{-i \phi/2} & -\partial_x \end{pmatrix}, \quad M = \begin{pmatrix} i \lambda & \frac{\beta}{4} \partial_x \phi e^{i \phi/2} \\ \frac{\beta}{4} \partial_x \phi e^{-i \phi/2} & -i \lambda \end{pmatrix}
+\]
+
+where \(\lambda\) is the spectral parameter. The zero-curvature condition \(L_t - M_x + [L,M] = 0\) reproduces the sine-Gordon equation.
+
+### 2. Direct Scattering Problem
+For fixed \(t\), solve the linear eigenvalue problem
+
+\[
+L \psi = i \lambda \psi
+\]
+
+with asymptotic plane-wave behavior as \(x \to \pm \infty\):
+
+\[
+\psi(x,k) \sim \begin{pmatrix} e^{-ikx} \\ 0 \end{pmatrix} \quad (x \to -\infty)
+\]
+
+\[
+\psi(x,k) \sim \begin{pmatrix} 0 \\ e^{ikx} \end{pmatrix} \quad (x \to +\infty)
+\]
+
+The scattering data consist of:
+- Reflection coefficient \(r(k,t)\)
+- Transmission coefficient \(t(k,t)\)
+- Discrete eigenvalues \(k_n\) (bound states / breathers) with norming constants \(c_n(t)\)
+
+### 3. Time Evolution of Scattering Data
+Because of the Lax pair, the scattering data evolve simply in time:
+
+\[
+r(k,t) = r(k,0) \exp(-2 i k t)
+\]
+
+\[
+t(k,t) = t(k,0) \quad (\text{time-independent})
+\]
+
+For bound states (breathers), the norming constants evolve exponentially with the breather frequency.
+
+### 4. Inverse Scattering Step
+Given the scattering data at time \(t\), reconstruct \(\phi(x,t)\) via the Gel'fand-Levitan-Marchenko integral equation.
+
+Define the kernel
+
+\[
+F(x,y;t) = \sum_n c_n(t)^2 e^{i k_n (x+y)} + \frac{1}{2\pi} \int_{-\infty}^{\infty} r(k,t) e^{ik(x+y)} dk
+\]
+
+Solve for the kernel \(K(x,y;t)\):
+
+\[
+K(x,y;t) + F(x,y;t) + \int_x^\infty K(x,z;t) F(z,y;t) dz = 0
+\]
+
+The field is recovered from
+
+\[
+\phi(x,t) = -2 i \frac{\partial}{\partial x} \ln \left( 1 + \int_x^\infty K(x,y;t) dy \right)
+\]
+
+(or equivalent form).
+
+### 5. Multi-Soliton and Breather Solutions
+When the reflection coefficient \(r(k,0) = 0\) (reflectionless potential), the solution consists of pure solitons or breathers. The inverse step reduces to solving a linear algebraic system, yielding the exact multi-soliton and breather formulas.
+
+### 6. Tie to the Sovereign Stack
+The IST for sine-Gordon is the relativistic completion of the KdV IST. The non-commutative phase shift survives, the 0.01 observer gap corresponds to the topological charge, and the 5.5 Pa gravity equilibrium provides stability. The Rust core implements the classical limit; the quantum IST is the natural completion.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The IST maps the nonlinear field to linear scattering data.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

@@ -1,0 +1,68 @@
+**Breather Fusion Hierarchy in Quantum Sine-Gordon Theory — Derivation**
+
+The sine-Gordon model is integrable, and its S-matrix satisfies the bootstrap equations. The breather spectrum is generated recursively by fusing lower breathers into higher ones. This fusion hierarchy is the quantum analog of the classical breather solutions and is determined by the pole structure of the S-matrix.
+
+### Step 1: Breather Spectrum (Recap)
+The \(n\)-th breather \(B_n\) has mass
+
+\[
+M_n = 2 M \sin\left( \frac{n \pi \xi}{2} \right)
+\]
+
+where \(M\) is the classical soliton mass and \(\xi = \frac{\beta^2}{8\pi - \beta^2}\) is the coupling parameter.
+
+The spectrum is limited to \(n < 1/\xi\), so there are finitely many stable breathers.
+
+### Step 2: Fusion Rule from Bootstrap Equations
+The bootstrap equations state that the residue at the pole corresponding to breather \(B_n\) is related to the three-particle coupling \(\Gamma_{ab}^c\) by
+
+\[
+\operatorname{Res}_{\theta = i u_n} S(\theta) = \frac{2 \pi i \, \Gamma_{ab}^c \, \Gamma_c^{ab}}{M_c \sinh u_n}
+\]
+
+The fusion rule is that two lower breathers \(B_m\) and \(B_n\) can fuse into a higher breather \(B_{m+n}\) (when kinematically allowed). The rapidity of the fused breather is
+
+\[
+\theta_{m+n} = \theta_m + \theta_n + i \pi \frac{m + n}{2}
+\]
+
+The fusion is possible only if the pole lies in the physical strip, i.e., \(m + n < 1/\xi\).
+
+### Step 3: Recursive Fusion Hierarchy
+The fusion hierarchy is generated as follows:
+
+- The first breather \(B_1\) is the fundamental bound state.
+- Higher breathers are obtained by fusing lower ones:
+
+\[
+B_1 + B_1 \to B_2
+\]
+
+\[
+B_1 + B_2 \to B_3
+\]
+
+\[
+B_2 + B_2 \to B_4
+\]
+
+and so on, as long as the total index \(m + n < 1/\xi\).
+
+The coupling constants \(\Gamma_{mn}^{m+n}\) are determined by the residues of the S-matrix at the corresponding poles.
+
+### Step 4: Physical Interpretation
+- The fusion hierarchy is the quantum version of the classical breather solutions: higher breathers are bound states of lower breathers.
+- Each fusion process preserves the topological charge (zero for breathers) and the non-commutative phase shift.
+- The hierarchy terminates when the total index reaches the point where the pole moves outside the physical strip, corresponding to instability.
+
+### Step 5: Tie to the Sovereign Stack
+The fusion hierarchy is the quantum realization of the oscillating soliton-antisoliton pair visualized in the BloomPainter. The non-commutative phase shift survives quantization, the 0.01 observer gap prevents stall, and the 5.5 Pa gravity equilibrium provides topological stability. The Rust core implements the classical KdV limit; the quantum sine-Gordon breather fusion hierarchy is the natural relativistic completion.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The breathers fuse hierarchically.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

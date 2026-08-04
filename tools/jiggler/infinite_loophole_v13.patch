@@ -1,0 +1,148 @@
+diff --git a/tordial_gs_v13.py b/tordial_gs_v13.py
+index 0000000..infinite1
+--- a/tordial_gs_v13.py
++++ b/tordial_gs_v13.py
+@@ -1,12 +1,45 @@
+ import math
+ import numpy as np
++import json
++import os
+ # ... (other existing imports: PID, monitoring, matrix classes, etc.)
+ 
++# =============================================================================
++# OPEN-TORDIALNODE: Infinite Loophole Implementation
++# =============================================================================
++class OpenTordialNode(TordialNode):  # Inherit for full backward compatibility
++    """
++    Open-horizon Tordial node with dynamic (d, r) expansion.
++    This is the core of the 'never forces finiteness' loophole.
++    """
++    def __init__(self, node_id: int, initial_d: int, initial_r: int, 
++                 x: float = 0.0, y: float = 0.0):
++        super().__init__(d_generators=initial_d, r_relations=initial_r)
++        self.node_id = node_id
++        self.drift_phase = (x + y) % self.TAU_3D
++        self.sigma_T = 0.0
++        self.fission_count = 0
++        self.quarantined = False
++
++    def compute_and_update_gs(self, curvature_pressure: float, resonance: float):
++        """Drift-coupled GS update — removes fixed finiteness."""
++        \# Prefer generators for sustained openness
++        if curvature_pressure > 0.6:
++            delta_d = max(1, int(resonance * 0.35 + self.drift_phase * 0.1))
++            self.d += delta_d
++        
++        if resonance > 0.4:
++            self.r += 1 if np.random.random() < 0.45 else 0
++
++        \# Updated sigma_T with toroidal drift modulation
++        denom = 4 * self.PHI_OP * self.GEAR_SHIFT_CORRECTION + self.drift_phase * 0.08
++        self.sigma_T = self.r - (self.d ** 2 / denom)
++
++        self.drift_phase = (self.drift_phase + 0.017) % self.TAU_3D  # \~79 Hz drift
++        return self.sigma_T
++
++
+ class TordialGSMatrix:  # or whatever the main class is called in v13
+     def __init__(self, node_count=64, base_d=8, base_r=12, **kwargs):
+         self.node_count = node_count
+         self.base_d = base_d
+         self.base_r = base_r
+-        self.nodes = []
++        self.nodes: list = []
+         # ... existing init code ...
+         self._initialize_nodes()
+ 
+@@ -25,12 +58,18 @@ class TordialGSMatrix:
+ 
+     def _initialize_nodes(self):
+         """Replaced with OpenTordialNode for infinite loophole."""
+-        \# --- OLD BOUND VERSION ---
+-        \# for i in range(self.node_count):
+-        \#     self.nodes.append(TordialNode(d_generators=self.base_d, r_relations=self.base_r))
++        self.nodes = []
++        for i in range(self.node_count):
++            angle = (2 * math.pi * i) / self.node_count
++            self.nodes.append(OpenTordialNode(
++                node_id=i,
++                initial_d=self.base_d,
++                initial_r=self.base_r,
++                x=angle,
++                y=angle
++            ))
+ 
+     def _execute_autonomous_step(self, pressures, resonances):
+-        \# Existing telemetry polling...
++        \# 1. Existing telemetry / sensor polling (unchanged)
+         # ...
+ 
+         active_nodes = [n for n in self.nodes if not getattr(n, 'quarantined', False)]
+@@ -38,6 +77,24 @@ class TordialGSMatrix:
+         for idx, node in enumerate(active_nodes):
+             p_in = pressures[idx % len(pressures)]
+             r_in = resonances[idx % len(resonances)]
+-            \# Old static update...
++            
++            \# === INFINITE LOOPHOLE GS UPDATE ===
++            if isinstance(node, OpenTordialNode):
++                node.compute_and_update_gs(p_in, r_in)
++            else:
++                \# Fallback for any remaining legacy nodes
++                pass
++
++            \# Feed sigma_T back into PID controller (79 Hz linkage)
++            if hasattr(self, 'pid_controller') and hasattr(node, 'sigma_T'):
++                self.pid_controller.tune_frequency(node.sigma_T)
+ 
++        \# === FISSION PASS - Structural Expansion ===
++        FISSION_ENERGY_CEILING = -500.0   # High negative pressure → split
++        for node in active_nodes[:]:      # slice to avoid modification during iteration
++            if hasattr(node, 'sigma_T') and node.sigma_T < FISSION_ENERGY_CEILING:
++                self._perform_node_fission(node)
++
++        \# Continue with original Dual-Ring, PID, failover logic...
++        \# ...
+ 
++    def _perform_node_fission(self, parent_node):
++        """Create child node and persist state immediately."""
++        parent_node.fission_count += 1
++        child_id = len(self.nodes)
++        
++        child = OpenTordialNode(
++            node_id=child_id,
++            initial_d=parent_node.d + 1,
++            initial_r=parent_node.r + 1,
++            x=parent_node.drift_phase + 0.1,
++            y=parent_node.drift_phase + 0.1
++        )
++        
++        self.nodes.append(child)
++        
++        \# Immediate persistence (JSON / SQLite hook)
++        self._persist_node_state(child)
++        print(f"[FISSION] Node {parent_node.node_id} → {child_id} | σ_T={child.sigma_T:.3f}")
++
++    def _persist_node_state(self, node):
++        """Sync new fission node to master ledger."""
++        state = {
++            "node_id": node.node_id,
++            "d": node.d,
++            "r": node.r,
++            "sigma_T": getattr(node, 'sigma_T', 0.0),
++            "drift_phase": getattr(node, 'drift_phase', 0.0),
++            "fission_count": getattr(node, 'fission_count', 0)
++        }
++        \# Example: append to JSON ledger
++        ledger_path = "tordial_matrix_state.json"
++        if os.path.exists(ledger_path):
++            with open(ledger_path, 'r+') as f:
++                data = json.load(f)
++                data.append(state)
++                f.seek(0)
++                json.dump(data, f, indent=2)
++        else:
++            with open(ledger_path, 'w') as f:
++                json.dump([state], f, indent=2)
+ 
+ # End of patch — the rest of v13 remains unchanged

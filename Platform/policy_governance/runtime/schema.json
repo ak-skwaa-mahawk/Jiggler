@@ -1,0 +1,20 @@
+{
+  "ruleset_id": "dynamic_ops_001",
+  "version": "1.0.0",
+  "rules": [
+    {
+      "rule_id": "deny_external_write_unverified",
+      "rule_type": "avoidance",
+      "effect": "deny",
+      "priority": 10,
+      "conditions": {
+        "host.trust_level": "< authenticated",
+        "action.category": "external_write"
+      },
+      "metadata": {
+        "description": "Block external writes on unauthenticated hosts",
+        "severity": "critical"
+      }
+    }
+  ]
+}

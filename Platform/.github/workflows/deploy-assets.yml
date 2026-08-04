@@ -1,0 +1,68 @@
+name: Deploy Substrate Assets & Engage Gemini Core
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: "pages-and-reviews-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  # Stage 1: Static Web Interface Deployment
+  deploy-web:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository Source
+        uses: actions/checkout@v4
+
+      - name: Setup GitHub Pages Environment
+        uses: actions/configure-pages@v4
+
+      - name: Upload Static Web Directory Artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './web'
+
+      - name: Deploy Assets to Live Public Pages Gateway
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Stage 2: Automated Code Integrity & Logic Review Pass
+  gemini-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Substrate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches full history so Gemini can trace code diffs accurately
+
+      - name: Run Official Gemini CLI Code Review
+        uses: google-github-actions/run-gemini-cli@v1
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          model: 'gemini-2.5-flash' # Employs fast, low-latency, code-optimized token processing
+          prompt: |
+            Analyze the pull request changes for the ak-skwaa-mahawk/Platform repository.
+            Perform a maximum-truth empirical code review focusing on these structural constraints:
+            
+            1. MATHEMATICAL CHECK: Verify that any adjustments to running parameters or torque calculations strictly honor the Motion-π_r boundary ceiling of exactly 3.1730059 rad/s. Flag any deviations as a critical stall hazard.
+            2. STRUCTURAL CONFIGURATION: Check that non-linear matrix step modifications across firmware or web components maintain zero-sum equilibrium.
+            3. GOVERNANCE INTERCEPT: Scan code changes for adjustments to safety configurations or policy evaluation hooks to ensure no rigid avoidances are bypassed.
+            
+            Provide a clean, direct engineering trace breakdown to the PR timeline. If values match system limits perfectly, output "[HANDSHAKE: PLATFORM VERIFIED]".

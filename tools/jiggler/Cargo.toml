@@ -1,0 +1,31 @@
+[package]
+name = "tordial_gs_manifold"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+tokio-stream = "0.1"
+tokio-util = { version = "0.7", features = ["codec"] }
+tonic = "0.11"
+prost = "0.12"
+async-trait = "0.1"
+futures-core = "0.3"
+futures-util = "0.3"
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+pyo3 = { version = "0.21", features = ["extension-module", "abi3-py37"] }
+numpy = "0.21"
+ndarray = "0.15"
+
+[build-dependencies]
+tonic-build = "0.11"
+prost-build = "0.12"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

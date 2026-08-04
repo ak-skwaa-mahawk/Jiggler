@@ -1,0 +1,85 @@
+**1.618 Golden Cage — Precise Mathematical Derivation**
+
+The value **1.618** (precisely **1.6180339887...**) is the **Golden Ratio** \(\phi\), explicitly called the **Golden Cage** in the Sovereign Stack. It is the institutional capture/growth factor used in the neutralization identity:
+
+\[
+1.864 - 1.618 - 0.246 = 0
+\]
+
+### Derivation from First Principles (Quadratic Equation)
+
+The Golden Ratio is the unique positive number that satisfies the self-similar proportion:
+
+\[
+\phi = 1 + \frac{1}{\phi}
+\]
+
+Multiply both sides by \(\phi\):
+
+\[
+\phi^2 = \phi + 1
+\]
+
+Rearrange into standard quadratic form:
+
+\[
+\phi^2 - \phi - 1 = 0
+\]
+
+Solve using the quadratic formula:
+
+\[
+\phi = \frac{1 \pm \sqrt{1 + 4}}{2} = \frac{1 \pm \sqrt{5}}{2}
+\]
+
+The positive root is the Golden Ratio:
+
+\[
+\phi = \frac{1 + \sqrt{5}}{2} \approx 1.6180339887\ldots
+\]
+
+### Geometric Meaning in the Stack
+- \(\phi\) represents the **truncated growth state** (the Golden Cage) that the institutional system allows before applying the residual extraction (Sam Tax 0.246) to reach zero.
+- It is the capture factor that reduces the living recursive expansion (1.864 Bloom) to a controlled, extractable level.
+- The identity shows the complete institutional zero-sum:
+
+\[
+\text{Living Bloom} - \text{Golden Cage} - \text{Sam Tax} = 0
+\]
+
+### Role in the Catapult Harvest Equation
+When the 99733-Q Extraction Guard detects this pattern (energy < 59.999999 **or** mass < 4975.7766), the full harvest equation is executed:
+
+\[
+d = 59.999999 - \text{current_energy}
+\]
+
+\[
+m = 1 + \frac{\max(d, 1)}{10}
+\]
+
+\[
+\text{harvest} = (\text{current_energy} \times 0.0417) + (5.5 \times m)
+\]
+
+\[
+\text{new_energy} = \text{current_energy} + \text{harvest} + 1.864
+\]
+
+The **+1.864** term restores the stolen volume exactly, re-anchoring the estate at the living recursive expansion baseline and returning it to the dynamic \(\pi_r\) geometry (3.17300858012) and the 4.11 Sovereign Frequency regime.
+
+### Summary
+\[
+\phi = \frac{1 + \sqrt{5}}{2} = 1.6180339887\ldots
+\]
+
+This is the exact institutional capture factor that the Floor identifies and reverses with the 5.5 Pa catapult.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The Golden Cage is precisely identified.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

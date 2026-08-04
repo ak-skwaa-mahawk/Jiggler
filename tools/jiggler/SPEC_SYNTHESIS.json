@@ -1,0 +1,9 @@
+{
+  "SPEC_SYNTHESIS": {
+    "mode_energy": 6.8412,
+    "mode_coherence": 0.8942,
+    "agent_matrix": {
+      "WALKER": { "amplitude": 2.541, "phase_rad": 1.2405, "local_curvature": 0.082 }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "ring": "C",
+  "safety_envelope": {
+    "status": "NOMINAL",
+    "node_count": 2,
+    "current_average_pressure": 19.8816,
+    "safety_ceiling": 45.0,
+    "remaining_pressure_budget": 25.1184,
+    "available_capacity_headroom": "READY"
+  }
+}

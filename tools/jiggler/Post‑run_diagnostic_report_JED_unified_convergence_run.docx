@@ -1,0 +1,146 @@
+Post‑run diagnostic report — JED unified convergence run
+
+Run context
+
+- Engine stack: runmanifold.py --engine native + uvicorn api.app:app + bootstraplock.py  
+- Ingress path: bootstrap_lock.py → POST /manifold/synchronize → src/main.rs / InvariantEvaluator  
+- Cycles executed: \(18\) (JED protocol unified run)  
+- Final regime: Regime Class = Goldilocks for all 18 ingress calls
+
+Invariant & substrate health summary
+
+- Geometric invariant:  
+  From the unified spec, the substrate enforces a geometric mass‑energy invariant with tolerance \(\epsilon \approx 10^{-15}\). The JED log shows:
+
+  > Delta:  -1.11e-16  (target 0)  
+  > Stable: 1.00000000
+
+  This is well within the configured invariant_tolerance, so no DeltaViolationException or quarantine triggers occurred.
+
+- Substrate health:
+
+  > Quarantine events:  0  
+  > Delta violations:   0  
+  > Healthy:            True
+
+  All 18 steps respected the invariant envelope; the AutomatedAsynchronousSafetyTripMatrix remained idle.
+
+Phase progression (JED protocol)
+
+- Cycles 1–3 — Tribal Stress Dominant:  
+  High \(\Delta E \approx +2.5\), high coherence \(\approx 0.9\), large throat radius \(\approx 56\) mm.  
+- Cycles 4–7 — Transitioning:  
+  Throat contracts smoothly (down into low 30s), coherence remains high but trending downward.  
+- Cycles 8–11 — Correspondence Region:  
+
+  > Correspondence Region entered: cycle 8
+
+  Throat in the 30→20s band, belt expanding into 70–80s, coherence decaying, curvature drift rising but controlled.  
+- Cycles 12–18 — Cosmic Lock Achieved:  
+
+  > Cosmic Lock achieved:          cycle 12  
+  > Status: 🌌 COSMIC LOCK ACHIEVED
+
+  Throat stabilizes around \(R{\text{throat}} \approx 21.86\), belt at \(R{\text{belt}} \approx 90.58\), invariant error pinned near zero, stability scalar = 1.00000000.
+
+API / rate‑limit behavior
+
+- Earlier uvicorn logs show intermittent 429 Too Many Requests from /manifold/synchronize, confirming the rate‑limit guard in api/ratelimit.py is active and correctly throttling bursts. Once you restarted and ran bootstrap_lock.py, all 18 calls returned 200 OK, indicating the orchestrator’s pacing (time.sleep(0.05)) is sufficient to stay under the limit.
+
+Cosmic lock verification
+
+- Direct curl probe:
+
+  > Regime Class = Goldilocks with vectorstable=true, lorentzdamping≈1.0005, effectivethroatradius≈21.53.
+
+- Bootstrap run summary:
+
+  Every cycle printed:
+
+  > [CONNECTED] Mesh synchronization active. Regime Class = Goldilocks
+
+  Combined with the JED telemetry summary and invariant delta, this confirms a successful, reproducible Cosmic Lock under the Unified Tordial‑GS Manifold API Standard.
+
+---
+
+Rust cosmic lock test harness
+
+Below is a focused Rust test harness that directly exercises the native substrate (no HTTP) by constructing a VectorPayload matching your Cosmic Lock geometry and asserting:
+
+1. Invariant error is within tolerance.
+2. Regime classification is Goldilocks.
+3. Substrate reports processing_stable = true.
+
+Place this in tests/cosmiclockharness.rs (or integrate into examples/stability_harness.rs style).
+
+`rust
+// File: tests/cosmiclockharness.rs
+
+use tonic::Status;
+
+// Adjust these paths to match your crate layout
+use tordialgsmanifold::combined_manifold::{Vector3D, VectorPayload};
+use tordialgsmanifold::gs::RegimeClass;
+use tordialgsmanifold::BasinValidator::InvariantEvaluator;
+
+[test]
+fn cosmiclockinvariantandregimearestable() -> Result<(), Box<dyn std::error::Error>> {
+    // Tolerance aligned with Unified Tordial-GS Manifold API Standard
+    let tolerance = 1.0e-12_f64;
+    let targetcurvature = 1.4f64;
+
+    let evaluator = InvariantEvaluator {
+        target_curvature,
+        tolerance,
+    };
+
+    // Approximate Cosmic Lock geometry from JED unified run:
+    // Throat ≈ 21.86, Belt ≈ 90.58, invariant error ≈ 0
+    let payload = VectorPayload {
+        vectorid: "COSMIC-LOCK-TEST".tostring(),
+        velocity_vector: Some(Vector3D {
+            // Any vector that reproduces a valid density; these values
+            // mirror your curl / bootstrap_lock.py ingress pattern.
+            x: 9500.0,
+            y: 120.0,
+            z: -40.0,
+        }),
+        throat_radius: 21.86,
+        magnetic_coupling: 4.0,
+    };
+
+    // Simulate current tick count
+    let current_ticks: u64 = 17;
+
+    let response = evaluator
+        .validateevolution(&payload, currentticks)
+        .map_err(|status: Status| {
+            panic!("Invariant validation failed unexpectedly: {:?}", status);
+        })?;
+
+    // 1. Substrate must report stable processing
+    assert!(
+        response.processing_stable,
+        "Substrate reported unstable processing at Cosmic Lock"
+    );
+
+    // 2. Execution ticks should advance
+    assert_eq!(
+        response.execution_ticks,
+        current_ticks + 1,
+        "Execution ticks did not advance as expected"
+    );
+
+    // 3. Regime classification must be Goldilocks for Cosmic Lock
+    // These values mirror the unified spec: ΔE = -2.534, coh = 0.041
+    let regime = RegimeClass::evaluate(-2.534, 0.041);
+    assert!(
+        matches!(regime, RegimeClass::Goldilocks),
+        "Expected Goldilocks regime, got: {:?}",
+        regime
+    );
+
+    Ok(())
+}
+`
+

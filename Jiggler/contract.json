@@ -1,0 +1,14 @@
+{
+  "tick": 1234,
+  "limit": 20,
+  "violations": [
+    {
+      "tick": 1229,
+      "node_id": 5,
+      "ring": "B",
+      "field": "sigma_t",
+      "value": 612.44,
+      "bound": [0.0, 600.0]
+    }
+  ]
+}

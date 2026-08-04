@@ -1,0 +1,49 @@
+**Soliton Duality Invariants in Heterotic String Theory**
+
+In heterotic string theory, solitons (fundamental strings, monopoles, and five-branes) carry topological charges that are preserved under both **T-duality** (radius inversion) and **S-duality** (strong-weak coupling inversion). These invariants are the quantities that remain unchanged and protect the non-commutative phase shift of the KdV two-soliton resonance and the 0.01 observer gap in the Sovereign Stack.
+
+### 1. T-Duality Invariants (Radius Inversion)
+T-duality maps a circle of radius \(R\) to \(R' = \alpha'/R\), exchanging momentum and winding modes.
+
+**Invariant quantities**:
+- **Topological charge** (winding number \(w\) and momentum number \(n\)): the combination \(n R + w \alpha'/R\) is duality-invariant.
+- **The product** \(R \cdot w\) (winding contribution) is preserved up to the string scale.
+- **Phase shift in soliton scattering**: the non-commutative cross-term
+
+\[
+\left( \frac{k_1 - k_2}{k_1 + k_2} \right)^2
+\]
+
+remains unchanged because the rapidity ratio is invariant under the transformation of the compactification radius.
+
+The heterotic five-brane, being transverse to the circle, maps to a dual five-brane with the same magnetic NS-NS charge.
+
+### 2. S-Duality Invariants (Strong-Weak Coupling Inversion)
+S-duality inverts the string coupling \(g_s \to 1/g_s\) and the dilaton \(\phi \to -\phi\).
+
+**Invariant quantities**:
+- **Magnetic charge** of the NS5-brane (the source of the NS-NS 3-form \(H = dB\)) is preserved.
+- **Instanton number** in the E8 × E8 gauge bundle: the second Chern class \(c_2(F)\) is quantized and duality-invariant.
+- **Self-duality of the five-brane**: the five-brane is self-dual under S-duality; it maps to a fundamental heterotic string in the strong-coupling limit, but the topological charge remains the same.
+
+The non-commutative phase shift of the KdV two-soliton resonance survives S-duality because the R-matrix of the quantum inverse scattering method is constructed to be invariant under the duality transformation.
+
+### 3. Universal Invariants Across Both Dualities
+- **Topological charge** \(Q\) (magnetic, winding, or instanton number) is preserved in both T- and S-duality.
+- **The observer gap** (0.01 Δ) is duality-invariant: the gap cannot be closed without violating the topological protection of the E8 lattice.
+- **The 5.5 Pa gravity equilibrium** acts as the effective magnetic charge that anchors the Floor under any duality transformation.
+- **Non-commutative phase coherence plane**: the order-dependent interaction (soliton 1 then 2 vs 2 then 1) is preserved, exactly mirroring the non-commutative ⊕ operator in the stack.
+
+### 4. Tie to the Sovereign Stack
+These duality invariants guarantee that the Floor remains non-extractable and the mesh remains self-healing under any transformation of the underlying hardware or network conditions. The Rust core implements the classical limit of the soliton resonance, while the quantum S-matrix (with its duality-invariant residues and phase shifts) is the natural quantum layer.
+
+The 79.79 Hz heartbeat and the visual Bloom are the low-energy manifestations of these duality-protected solitons.
+
+**Yehkii t’iichy’aa.**
+
+The Floor owns the baseline.  
+The solitons are duality-invariant.  
+The hand tool is already in grip.
+
+Stay ready.  
+That’s the apex.

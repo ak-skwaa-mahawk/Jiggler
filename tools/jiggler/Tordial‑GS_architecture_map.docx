@@ -1,0 +1,155 @@
+Tordial‑GS architecture map
+
+---
+
+1. Layered overview
+
+- Substrate layer (Rust):  
+  Invariant‑enforcing manifold engine (src/.rs, sovereignengine/src/.rs, pirengine/src, spectralrelaxation.rs, lyapunov.rs).  
+  It owns state mutation \(F: St \rightarrow S{t+1}\), the GS‑bounded geometry, and invariant checks (“Any state mutation operator F: St → S{t+1} must satisfy the following strict invariant equations.”).
+
+- Gateway / orchestration layer (Python):  
+  Control, analytics, and consensus logic (tordialgspy.py, tordialgsv.py, CurvatureField.py, SystemState.py, topoextractor/, pwc/*, jedunified_runner.py).  
+  It drives runs, parses telemetry, computes curvature/phase, and coordinates JED transitions.
+
+- Network boundary layer (gRPC/HTTP):  
+  Protobuf‑defined manifold API (proto/combinedmanifold.proto, combinedmanifold_pb2*.py, api/app.py, api/manifold.py, api/arc.py, api/tunnel.py).  
+  It exposes VectorPayload, SubstrateMetricsResponse, and intent bands to external clients.
+
+- Sovereign mesh & consensus layer:  
+  Cross‑node topology and agreement (topoextractor/gsinvariants.py, TopologicalScrapeParitySovereignConsensus.md, Designcrossmanifoldconsensus.md).  
+  It validates physics/cognitive arcs and signs consensus (“Enforces topological agreement before propagating metrics across peer nets.”).
+
+- Safety & governance layer:  
+  Automated trip matrices, critics, and policies (AutomatedAsynchronousSafetyTripMatrix.py, FramePolicy.rs, CRITIC_CONSTITUTION.md, TGS-STABILITY.md).  
+  It reacts to invariant violations (“Any execution step resulting in Δt > ε must immediately raise a DeltaViolationException and trigger the AutomatedAsynchronousSafetyTrip_Matrix.py subsystem…”).
+
+- Cognitive/JED layer:  
+  Phase transitions and “cosmic lock” convergence (jedunifiedrunner.py, jed*, predictivecognitive_model.md).  
+  It tracks the four phases (Tribal Stress → Transitioning → Correspondence → Cosmic Lock) and classifies runs.
+
+---
+
+2. Core Rust substrate
+
+- GS manifold & regimes:
+  - Files: src/gs.rs, src/metrics.rs, spectral_relaxation.rs, lyapunov.rs.  
+  - Key types:  
+    - RegimeClass: TribalStress | Transitioning | Correspondence | Goldilocks, with evaluate(delta_e, coh) mapping telemetry into phases.  
+    - InvariantEvaluator: validates evolution against geometric mass‑energy invariant and tolerance.
+
+- Invariant enforcement:
+  - File: src/BasinValidator.rs.  
+  - Responsibility: compute density, effective throat, invariant error, and either:
+    - return SubstrateMetricsResponse (status, version, meshstatus, processingstable, execution_ticks), or  
+    - raise a gRPC Status::resource_exhausted on violation (“CRITICAL ERROR: Invariant Violation Detected! Delta=…”).
+
+- Manifold evolution operators:
+  - Consume VectorPayload (vector id, velocity, throat radius, magnetic coupling).  
+  - Apply spectral/GS logic to advance ticks while preserving invariants and regime classification.
+
+---
+
+3. Telemetry schema & wire protocol
+
+- Canonical schema:
+  - File: proto/combined_manifold.proto.  
+  - Messages:  
+    - Vector3D: \((x,y,z)\).  
+    - VectorPayload: vectorid, velocityvector, throatradius, magneticcoupling.  
+    - SubstrateMetricsResponse: status, version, meshstatus, processingstable, execution_ticks.  
+    - IntentBand: bandid, energydelta, spin, temp.
+
+- Arc‑level semantics:
+  - Semantic arc: energy_delta, spin, temp with bounded ranges (e.g. \(-3.0 \le \Delta E \le 3.0\)).  
+  - Physics arc: throatradius, beltradius with 6‑cylinder boundary ranges.  
+  - Cognitive arc: coherence, taskload, curvaturedrift (“Tracks systemic alignment. Converges toward 0.0 when entering Lock states.”).
+
+- Cryptographic chaining:
+  - Every state packet is chained via SHA‑256 to enforce temporal continuity (“every sequential state packet must seal its context metadata using a SHA‑256 cryptographic chaining loop”).
+
+---
+
+4. Python orchestration & consensus
+
+- Run orchestration & analytics:
+  - Files: tordialgspy.py, tordialgsv13.py/v14/v15, CurvatureField.py, SystemState.py, tordial_simulation.py.  
+  - Role: build VectorPayloads, call gRPC manifold services, parse SubstrateMetricsResponse, compute curvature, GS bands, and JED phase transitions.
+
+- Topology & consensus:
+  - File: topoextractor/gsinvariants.py.  
+  - Key class: CrossManifoldConsensusValidator:
+    - evaluateblockproposal: checks physics arc (throat, belt) and cognitive curvature_drift against thresholds; rejects blocks if drift > 0.2 or geometry invalid.  
+    - generateconsensussignature: SHA‑256 over (cycleidx, prevhash, "SovereignConsensusVerified").
+
+- Planner–Walker–Critic loop:
+  - Files: pwc/loop.py, pwc/planner.py, pwc/walker.py, pwc/critic.py, Planner–walker–criticoverlayspecTordial–GSManifold.md.  
+  - Role: high‑level intent planning, manifold traversal, and critic feedback tied back into substrate metrics and JED phases.
+
+---
+
+5. Network boundary & sovereign mesh
+
+- API gateway:
+  - Files: api/app.py, api/manifold.py, api/arc.py, api/tunnel.py, test_api.py.  
+  - Responsibilities:  
+    - Accept JSON/Protobuf requests (vector payloads, intent bands).  
+    - Forward to Rust substrate via gRPC.  
+    - Return SubstrateMetricsResponse plus derived telemetry (regime, stability, etc.).
+
+- Mesh clients:
+  - Files: lib/relationalmeshbridge.dart, lib/sixcylindergrpcclient.dart, manifoldclient.py, sixcylindergrpcclient.py, meshnetwork_listener.py.  
+  - Role: connect sovereign nodes, stream telemetry, and propagate consensus‑validated blocks.
+
+- Sovereign agent nodes:
+  - Files: Sovereignagent/src/.rs, OpenTordialAgentNode.py, tordialagentnode.py, sovereignmovement/.  
+  - Role: implement identity, networking, HA, and lateral movement behaviors on top of the manifold substrate.
+
+---
+
+6. JED protocol & phase dynamics
+
+- Telemetry‑driven phases:
+  - Derived from unified JED logs (cycles 1–18) and the transition map:
+    - Phase 1 – Tribal Stress: high \(\Delta E\), high temp, high coherence.  
+    - Phase 2 – Transitioning: throat contracts, energy deltas fall.  
+    - Phase 3 – Correspondence: blended matrix states, balanced metrics (entry at cycle 8).  
+    - Phase 4 – Cosmic Lock: invariant error ≈ 0, stable=1.0, coherence collapses toward 0, lock from cycle 12 onward.
+
+- Implementation hooks:
+  - Files: jedunifiedrunner.py, jed*, TGS-STABILITY.md, TGSauto_tuner.md.  
+  - Role: monitor telemetry streams, classify regime via RegimeClass::evaluate, and confirm lock when invariants and arc metrics match the convergence matrix.
+
+---
+
+7. End‑to‑end execution flow
+
+1. Client constructs a vector payload  
+   Source: external app, sovereign node, or test harness.  
+   Format: VectorPayload{vectorid, velocityvector, throatradius, magneticcoupling}.
+
+2. API gateway receives request  
+   File: api/manifold.py / api/app.py.  
+   Action: validate JSON/Protobuf, apply rate limits (api/ratelimit.py), forward to Rust gRPC service.
+
+3. Rust substrate validates and evolves state  
+   File: src/BasinValidator.rs, src/gs.rs.  
+   Action: compute density, effective throat, invariant error; if within tolerance, update ticks and classify regime; else raise invariant violation and trigger safety trip.
+
+4. Telemetry emitted & logged  
+   Files: enginesqlitelogger.py, AsyncSQLiteAnalyticsProcessor.py, jedunified_telemetry.log.  
+   Action: store arc metrics, regime, invariant error, and cryptographic chain.
+
+5. Python orchestration interprets run  
+   Files: jedunifiedrunner.py, topo_extractor/, pwc/.  
+   Action: compute curvature, GS invariants, JED phase; feed into planner–walker–critic and consensus validator.
+
+6. Sovereign mesh updates consensus  
+   File: topoextractor/gsinvariants.py.  
+   Action: validate block proposal (physics + cognitive arcs), generate consensus signature, propagate across mesh.
+
+7. JED convergence & cosmic lock  
+   Condition: metrics match convergence matrix (e.g. stable=1.0, delta≈0, coherence→0, \(\Delta E \approx -2.534\)).  
+   Result: system enters and maintains “🌌 COSMIC LOCK ACHIEVED” regime.
+
+---

@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  wireguard:
+    image: linuxserver/wireguard
+    container_name: sovereign-wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Anchorage
+      - SERVERPORT=51820
+      - PEERS=10
+      - PEERDNS=auto
+    volumes:
+      - ./wireguard-config:/config
+    ports:
+      - "51820:51820/udp"
+    restart: unless-stopped
+    networks:
+      sovereign-net:
+
+  mesh-daemon:
+    build: .
+    container_name: sovereign-mesh-daemon
+    depends_on:
+      - wireguard
+    privileged: true
+    volumes:
+      - ./pi_r_engine.so:/app/pi_r_engine.so
+      - ./networkxg_daemon.go:/app/networkxg_daemon.go
+    command: go run networkxg_daemon.go
+    networks:
+      sovereign-net:
+
+networks:
+  sovereign-net:
+    driver: bridge
+version: "3.8"
+services:
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard_pipe
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - SERVERURL=auto
+      - PEERS=phone1,phone2
+      - PEERDNS=1.1.1.1
+    volumes:
+      - ./config:/config
+      - /lib/modules:/lib/modules
+    ports:
+      - 51820:51820/udp
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    restart: always
+
+  networkxg-brain:
+    image: python:3.9-slim
+    container_name: networkxg_brain
+    network_mode: "service:wireguard" # Merges the brain into the VPN pipe
+    volumes:
+      - ./brain.py:/app/brain.py
+    working_dir: /app
+    command: python3 brain.py
+    restart: always

@@ -1,0 +1,17 @@
+// =============================================================================
+// 🌌 TORDIAL SUBSYSTEM — GIBBERLINK ACOUSTIC VECTOR SCHEMA
+// =============================================================================
+
+message GibberlinkVector {
+  string protocol_version = 1;     // e.g., "ggwave-v1"
+  int32 baud_rate_hz = 2;          // Audio modulation frequency baseline
+  bytes encrypted_payload = 3;     // The raw AES-256-GCM encoded data burst
+  
+  enum HandshakeStatus {
+    INITIATED = 0;
+    NEGOTIATING = 1;
+    ACOUSTIC_LOOP = 2;
+    FALLBACK_SPEECH = 3;
+  }
+  HandshakeStatus status = 4;
+}
