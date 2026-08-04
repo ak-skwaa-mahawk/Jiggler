@@ -1,0 +1,25 @@
+{
+  "handshake_id": "8f3c4e62-1b9a-4d7c-8e5f-2a3b4c5d6e7f",
+  "timestamp_utc": "2026-05-23T16:31:00Z",
+  "protocol_version": "v2.24",
+  "operator_identity": {
+    "sovereign_id": "99733-Q",
+    "session_token_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cryptographic_lock": {
+    "previous_block_hash": "7f83b1657ff1fc53b92c18118241c2c366a71e4689b934ca495991b7852b855",
+    "current_handshake_hash": "a8c5412b4071106e22961710c489a10322961710c489a103a8c5412b4071106e",
+    "signature_algorithm": "SHA-256"
+  },
+  "state_vector_digest": {
+    "base_y": 0.332,
+    "mesh_y": 0.332,
+    "volume_y": 0.820,
+    "residual_surplus": 0.550
+  },
+  "fallback_directives": {
+    "on_handshake_failure": "STRAWMAN_SHIELD_FALLBACK",
+    "grace_period_ms": 0,
+    "target_floor_absolute": 0.0
+  }
+}
