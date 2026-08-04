@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "exported_at": 1785000000,
+  "last_macro_snapshot": {
+    "step": 4785,
+    "simulated_time": 0.0,
+    "global_phase_x": 1.0,
+    "global_phase_y": 1.0,
+    "macro_forcing_ceiling": 1000.0,
+    "phase_relaxation_rate": 0.15,
+    "attractor_strength": 1.0,
+    "effective_lyapunov_exponent": 0.0,
+    "manifold_coupling_term": 1.0,
+    "resonance_hz": 7.9083,
+    "coherence_index": 0.5
+  },
+  "glyph_resonance_hz": 7.9083,
+  "metadata_tag": "SOVEREIGN_OUT_OF_BAND_MATRIX_v2",
+  "active_ensemble": [
+    {
+      "actor_id": 101,
+      "position": 0.0,
+      "velocity": 0.0,
+      "glyph_resonance_hz": 7.9083,
+      "coherence_index": 0.5
+    },
+    {
+      "actor_id": 102,
+      "position": 0.0,
+      "velocity": 0.0,
+      "glyph_resonance_hz": 7.9583,
+      "coherence_index": 0.5
+    },
+    {
+      "actor_id": 103,
+      "position": 0.0,
+      "velocity": 0.0,
+      "glyph_resonance_hz": 7.8583,
+      "coherence_index": 0.5
+    }
+  ]
+}

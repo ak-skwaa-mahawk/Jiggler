@@ -5,3 +5,7 @@ target/
 node_modules/
 flamevault_backup/
 flamevault_recover/
+__pycache__/
+*.pyc
+*.pipe
+*.bin

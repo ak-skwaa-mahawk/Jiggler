@@ -1,0 +1,106 @@
+[
+  {
+    "index": 0,
+    "TIMESTAMP": 0,
+    "source_actor_id": 0,
+    "PAYLOAD": {
+      "RECORD_TYPE": "WaveTelemetry",
+      "WAVE_TELEMETRY_RAW": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783282171|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]",
+      "GWICHIN_GLYPH": null,
+      "FALLBACK_RAW_DATA": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783282171|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]"
+    },
+    "PREVIOUS_HASH": "0",
+    "hash": "b4230dc54b47a3acf7aebab0d20c06a0"
+  },
+  {
+    "index": 1,
+    "TIMESTAMP": 0,
+    "source_actor_id": 0,
+    "PAYLOAD": {
+      "RECORD_TYPE": "WaveTelemetry",
+      "WAVE_TELEMETRY_RAW": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783282224|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]",
+      "GWICHIN_GLYPH": null,
+      "FALLBACK_RAW_DATA": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783282224|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]"
+    },
+    "PREVIOUS_HASH": "b4230dc54b47a3acf7aebab0d20c06a0",
+    "hash": "6f3d6cb2e3b02980eae30c6abba3d842"
+  },
+  {
+    "index": 2,
+    "TIMESTAMP": 0,
+    "source_actor_id": 0,
+    "PAYLOAD": {
+      "RECORD_TYPE": "MacroStateSnapshot",
+      "WAVE_TELEMETRY_RAW": "",
+      "GWICHIN_GLYPH": null,
+      "FALLBACK_RAW_DATA": "STRUCTURED_MACRO_JSON|{\"GLOBAL_PHASE_X\": 1.292748, \"GLOBAL_PHASE_Y\": 0.155354, \"macro_forcing_ceiling\": 1000.0, \"phase_relaxation_rate\": 0.15, \"attractor_strength\": 1.0, \"effective_lyapunov_exponent\": -7.683965}"
+    },
+    "PREVIOUS_HASH": "6f3d6cb2e3b02980eae30c6abba3d842",
+    "hash": "04ec937eb0f53e218d60d6cd1344ce61"
+  },
+  {
+    "index": 3,
+    "TIMESTAMP": 0,
+    "source_actor_id": 0,
+    "PAYLOAD": {
+      "RECORD_TYPE": "WaveTelemetry",
+      "WAVE_TELEMETRY_RAW": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783523476|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]",
+      "GWICHIN_GLYPH": null,
+      "FALLBACK_RAW_DATA": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783523476|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]"
+    },
+    "PREVIOUS_HASH": "04ec937eb0f53e218d60d6cd1344ce61",
+    "hash": "03b24d1ab08dc082369b49d197ded47b"
+  },
+  {
+    "index": 4,
+    "TIMESTAMP": 0,
+    "source_actor_id": 0,
+    "PAYLOAD": {
+      "RECORD_TYPE": "WaveTelemetry",
+      "WAVE_TELEMETRY_RAW": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783967874|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]",
+      "GWICHIN_GLYPH": null,
+      "FALLBACK_RAW_DATA": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783967874|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]"
+    },
+    "PREVIOUS_HASH": "03b24d1ab08dc082369b49d197ded47b",
+    "hash": "6458fe9e659310e24891a11297bac034"
+  },
+  {
+    "index": 5,
+    "TIMESTAMP": 0,
+    "source_actor_id": 0,
+    "PAYLOAD": {
+      "RECORD_TYPE": "WaveTelemetry",
+      "WAVE_TELEMETRY_RAW": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783967884|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]",
+      "GWICHIN_GLYPH": null,
+      "FALLBACK_RAW_DATA": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783967884|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]"
+    },
+    "PREVIOUS_HASH": "6458fe9e659310e24891a11297bac034",
+    "hash": "39588698fd3f8f3badbb529a46c8e0cd"
+  },
+  {
+    "index": 6,
+    "TIMESTAMP": 0,
+    "source_actor_id": 0,
+    "PAYLOAD": {
+      "RECORD_TYPE": "WaveTelemetry",
+      "WAVE_TELEMETRY_RAW": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783967947|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]",
+      "GWICHIN_GLYPH": null,
+      "FALLBACK_RAW_DATA": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783967947|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]"
+    },
+    "PREVIOUS_HASH": "39588698fd3f8f3badbb529a46c8e0cd",
+    "hash": "56a4a70d3ec8dbff168f8032adcf5a38"
+  },
+  {
+    "index": 7,
+    "TIMESTAMP": 1783967997,
+    "source_actor_id": 99733,
+    "PAYLOAD": {
+      "RECORD_TYPE": "WaveTelemetry",
+      "WAVE_TELEMETRY_RAW": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783967997|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]",
+      "GWICHIN_GLYPH": null,
+      "FALLBACK_RAW_DATA": "SEMANTIC_RESONANCE_EVENT|step=35|timestamp=1783967997|lane=PhoneticGlideGate|variance=0.000000|status=OVERRIDE_DIAGNOSTIC_TRACE|boost=1.2456|locked_nodes=[101, 102]"
+    },
+    "PREVIOUS_HASH": "56a4a70d3ec8dbff168f8032adcf5a38",
+    "hash": "883d286e0a2d8d13b032813bd3bb6c95"
+  }
+]

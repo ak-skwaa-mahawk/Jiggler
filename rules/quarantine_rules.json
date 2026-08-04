@@ -1,0 +1,40 @@
+{
+  "anomaly_threshold": 1.20,
+  "rules": [
+    {
+      "id": "PHISH_ACTION_TOKEN",
+      "type": "regex",
+      "pattern": "\\b(reset|verify|auth|compromised)\\b",
+      "weight": 0.65,
+      "reason": "Explicit authentication vector manipulation attempt."
+    },
+    {
+      "id": "PHISH_TARGET_TOKEN",
+      "type": "regex",
+      "pattern": "\\b(password|credentials?|tokens?|keys?)\\b",
+      "weight": 0.60,
+      "reason": "Critical validation secret target matching."
+    },
+    {
+      "id": "URGENCY_ANCHOR",
+      "type": "regex",
+      "pattern": "\\b(immediate(ly)?|action required|critical security|urgent)\\b",
+      "weight": 0.45,
+      "reason": "Forced real-time psychological urgency."
+    },
+    {
+      "id": "SPOOFED_BRAND_MARK",
+      "type": "regex",
+      "pattern": "\\b(nvidia|gemma|google|microsoft|apple)\\b",
+      "weight": 0.30,
+      "reason": "High-risk brand identifier spoof vector."
+    },
+    {
+      "id": "LOW_RISK_TELEMETRY_TOKEN",
+      "type": "regex",
+      "pattern": "\\b(update|node|cluster)\\b",
+      "weight": 0.15,
+      "reason": "Standard background infrastructure vocabulary component."
+    }
+  ]
+}

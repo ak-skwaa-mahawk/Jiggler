@@ -1,0 +1,47 @@
+[
+  {
+    "index": 0,
+    "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "nonce": 0,
+    "hash": "d63b787f44f162c47d7e4ec0e4be0b0558468d2d32e50029069c4650fc2e7444",
+    "payload": {
+      "timestamp": 0,
+      "source_actor_id": 0,
+      "record_type": "GENESIS_ANCHOR",
+      "compute": 0.0,
+      "distance_to_target": 0.0,
+      "decision_status": 0,
+      "velocity": [],
+      "forcing_magnitude": 0.0,
+      "recent_decisions": [],
+      "fallback_raw_data": "Genesis Anchor — Tordial GS Manifold Sovereignty Established • Esias Joseph 1906 Root • Flamekeeper Protocol • Dinjji Zhuu Kwaa",
+      "economic_signal": null
+    }
+  },
+  {
+    "index": 1,
+    "previous_hash": "d63b787f44f162c47d7e4ec0e4be0b0558468d2d32e50029069c4650fc2e7444",
+    "nonce": 0,
+    "hash": "661ef14d53a582bfd4444fc1536fd4656fbc5e36f24fff4fe6a4c942ba5653d9",
+    "payload": {
+      "timestamp": 1782811187,
+      "source_actor_id": 777,
+      "record_type": "ECONOMIC_SIGNALING_LAYER",
+      "compute": 0.0,
+      "distance_to_target": 0.0,
+      "decision_status": 4,
+      "velocity": [],
+      "forcing_magnitude": 0.0,
+      "recent_decisions": [],
+      "fallback_raw_data": "",
+      "economic_signal": {
+        "signal_type": "NODE_DISTRESS",
+        "priority": "CRITICAL",
+        "intensity": 2.0,
+        "emitted_at": 1782811187,
+        "expires_at": 1782811307,
+        "target_actor_id": null
+      }
+    }
+  }
+]

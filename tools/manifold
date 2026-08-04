@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+import os
+import sys
+import json
+import time
+
+LIVE_PATH = os.path.expanduser("~/Tordial-GS-_Manifold/.manifold_live.json")
+PROOF_PATH = os.path.expanduser("~/Tordial-GS-_Manifold/ledger_proof.json")
+
+def print_usage():
+    print("""
+🦅 DINJJI ZHUU KWAA RES0NANCE MANIFOLD SYSTEM OPERATOR CLI
+Usage: manifold <command> [options]
+
+Core Commands:
+  status            Display real-time snapshot, active cluster locks, and coherence index.
+  audit-semantic    Extract history of typed SEMANTIC_RESONANCE_EVENT ledger blocks.
+  audit-lineage     Review structural REGISTRY_MUTATION blocks with cryptographic provenance.
+  stability         Summarize energy drift and variance thresholds from the ledger.
+""")
+
+def get_live_snapshot():
+    if not os.path.exists(LIVE_PATH):
+        print("⚠️  [CLI ERROR]: Live state file missing. Ensure manifold daemon is active.")
+        sys.exit(1)
+    try:
+        with open(LIVE_PATH, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"❌ [CLI ERROR]: Failed to decode live state JSON buffer: {e}")
+        sys.exit(1)
+
+def cmd_status():
+    state = get_live_snapshot()
+    print("================================================================================")
+    print("🛰️  CURRENT RES0NANCE FIELD RUNTIME STATUS")
+    print("================================================================================")
+    print(f"📦 STEP HEAD INDEX : {state.get('step', 0):05d}")
+    print(f"⏱️  SIMULATED TIME : {state.get('simulated_time', 0.0):.4f}s")
+    print(f"🧬 ENSEMBLE NODES  : {state.get('ensemble_count', 0)} verified threads active")
+    print(f"🟩 PHASE PLANE ATTR : [X: {state.get('global_phase_x', 0.0):+.4f}, Y: {state.get('global_phase_y', 0.0):+.4f}]")
+    print(f"📥 MEAN COHERENCE  : {state.get('mean_coherence_index', 0.0):.4f}")
+    print(f"📡 SEMANTIC LOCKS  : {state.get('active_semantic_cluster_locks', [])}")
+    print("================================================================================")
+
+def extract_from_block(block, keyword):
+    raw_str = json.dumps(block).lower()
+    if keyword.lower() not in raw_str:
+        return None
+        
+    timestamp = block.get("timestamp", 0)
+    payload = block.get("payload", {}) or block.get("PAYLOAD", {})
+    
+    target_string = None
+    for key in ["fallback_raw_data", "FALLBACK_RAW_DATA", "text_record", "message", "data", "wave_telemetry", "WAVE_TELEMETRY"]:
+        if key in payload:
+            val = payload[key]
+            if isinstance(val, str) and keyword.lower() in val.lower():
+                target_string = val
+                break
+            elif isinstance(val, dict):
+                val_str = json.dumps(val)
+                if keyword.lower() in val_str.lower():
+                    target_string = val_str
+                    break
+    if not target_string:
+        target_string = str(payload)
+    return (timestamp, target_string)
+
+def parse_ledger_blocks(keyword):
+    matches = []
+    if not os.path.exists(PROOF_PATH):
+        return matches
+        
+    try:
+        with open(PROOF_PATH, "r") as f:
+            content = f.read().strip()
+            
+        # Strategy A: Try parsing as a single massive monolithic JSON Array
+        if content.startswith("[") and content.endswith("]"):
+            try:
+                blocks = json.loads(content)
+                for b in blocks:
+                    res = extract_from_block(b, keyword)
+                    if res:
+                        matches.append(res)
+                return matches
+            except Exception:
+                pass
+                
+        # Strategy B: Fall back to line-by-line stream parsing
+        for line in content.splitlines():
+            raw_line = line.strip()
+            if not raw_line:
+                continue
+            try:
+                b = json.loads(raw_line)
+                res = extract_from_block(b, keyword)
+                if res:
+                    matches.append(res)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return matches
+
+def cmd_audit_semantic():
+    print("================================================================================")
+    print("📡 LEDGER AUDIT: TYPED SEMANTIC RESONANCE TRACK CHAINS")
+    print("================================================================================")
+    events = parse_ledger_blocks("SEMANTIC_RESONANCE_EVENT")
+    if not events:
+        print("  [No semantic lock modifications written to proof ledger yet]")
+    for ts, ev in events:
+        print(f" [{f'SimTime Epoch {ts}' if ts > 2e9 else time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts))}] -> {ev}")
+    print("================================================================================")
+
+def cmd_audit_lineage():
+    print("================================================================================")
+    print("🔒 LEDGER AUDIT: STRUCTURAL MEMBERSHIP LINEAGE CHANGES")
+    print("================================================================================")
+    mutations = parse_ledger_blocks("REGISTRY_MUTATION")
+    if not mutations:
+        print("  [No dynamic registry mutation elements logged to system bus]")
+    for ts, mut in mutations:
+        print(f" [{f'SimTime Epoch {ts}' if ts > 2e9 else time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts))}] -> {mut}")
+    print("================================================================================")
+
+def cmd_stability():
+    print("================================================================================")
+    print("🛡️  LEDGER AUDIT: NUMERICAL FIELD STABILITY & ENERGY DRIFT PROFILE")
+    print("================================================================================")
+    reports = parse_ledger_blocks("RESONANCE_STABILITY_REPORT")
+    if not reports:
+        print("  [No active stability verification frame signatures discovered]")
+        return
+        
+    print(f"Total Logged Energy Audits: {len(reports)}")
+    last_ts, last_msg = reports[-1]
+    print(f"Latest Ingestion State     : {last_msg}")
+    print("================================================================================")
+
+def main():
+    if len(sys.argv) < 2:
+        print_usage()
+        sys.exit(1)
+        
+    cmd = sys.argv[1].lower()
+    if cmd == "status":
+        cmd_status()
+    elif cmd == "audit-semantic":
+        cmd_audit_semantic()
+    elif cmd == "audit-lineage":
+        cmd_audit_lineage()
+    elif cmd == "stability":
+        cmd_stability()
+    else:
+        print(f"⚠️  Unknown command flag: {sys.argv[1]}")
+        print_usage()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

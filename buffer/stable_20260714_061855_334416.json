@@ -1,0 +1,25 @@
+{
+  "dispatched_at": "2026-07-14T06:18:55.334495+00:00",
+  "confidence": 1.0,
+  "coordinates": {
+    "X": 13.4682,
+    "Y": 0.0197,
+    "Z": 1.1771
+  },
+  "applied_tags": [
+    "ZONE_CORE",
+    "SYSTEM_ANCHOR",
+    "TRUSTED_GRID",
+    "STABLE_RESONANT"
+  ],
+  "core_metrics": {
+    "signal_variance_s": 0.24,
+    "rolling_average_hz": 7.8687
+  },
+  "original_signal": {
+    "length": 44,
+    "vowel_density": 0.4318,
+    "consonant_density": 0.4545,
+    "space_count": 3
+  }
+}

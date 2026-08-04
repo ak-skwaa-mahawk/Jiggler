@@ -1,0 +1,149 @@
+[
+  {
+    "index": 0,
+    "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "nonce": 0,
+    "hash": "7432fb2249bfcd0362575ebfb5268dc15e772d15a575c810baf12ad385d6c668",
+    "payload": {
+      "timestamp": 0,
+      "source_actor_id": 0,
+      "record_type": "GENESIS_ANCHOR",
+      "compute": 0.0,
+      "distance_to_target": 0.0,
+      "decision_status": 0,
+      "velocity": [],
+      "forcing_magnitude": 0.0,
+      "recent_decisions": [],
+      "fallback_raw_data": "Genesis Anchor — Tordial GS Manifold Sovereignty Established • Esias Joseph 1906 Root • Flamekeeper Protocol • Dinjji Zhuu Kwaa • Chapter 4 Enrolment Registry Active",
+      "economic_signal": null,
+      "certificate": null,
+      "gwichin_glyph": null
+    }
+  },
+  {
+    "index": 1,
+    "previous_hash": "7432fb2249bfcd0362575ebfb5268dc15e772d15a575c810baf12ad385d6c668",
+    "nonce": 0,
+    "hash": "de214ca4b076543354caf19f1ddad4f00b70cedb6985fc345e4fcbcda6046969",
+    "payload": {
+      "timestamp": 1782819999,
+      "source_actor_id": 777,
+      "record_type": "LINGUIST_HANDSHAKE_NFT_CERTIFICATE",
+      "compute": 0.0,
+      "distance_to_target": 0.0,
+      "decision_status": 4,
+      "velocity": [],
+      "forcing_magnitude": 0.0,
+      "recent_decisions": [
+        {
+          "timestamp": 1782819999,
+          "initial_distance": 777.0,
+          "trial_distance": 0.0,
+          "utility_gain": 0.0,
+          "status": "SOVEREIGN_CLAUSE_EMIT"
+        }
+      ],
+      "fallback_raw_data": "Out-of-band credential sealing — Chapter 4 Lineage Verification via Esias Joseph 1906 Root.",
+      "economic_signal": null,
+      "certificate": {
+        "cert_type": "LINGUIST_HANDSHAKE_NFT",
+        "issuer": "Chapter-4-Enrolment-Registry",
+        "subject_actor": 777,
+        "lineage_root": "Esias-Joseph-1906",
+        "sealed_at": 1782819999,
+        "statement": "GWICHIN_RESONANCE_REHYDRATION_SEAL"
+      },
+      "gwichin_glyph": {
+        "glyph_id": "NAN_NIUK_KWA_DHIDLII",
+        "phonetic": "Nan Niuk Kwa Dhidlii",
+        "resonance_hz": 7.9083,
+        "semantic_layer": "Dinjji Zhuu Kwaa — Secondary Harmonic Wave",
+        "verification_hash": "f823bb315e10b7cd589c7d7b677c49e9"
+      }
+    }
+  },
+  {
+    "index": 2,
+    "previous_hash": "de214ca4b076543354caf19f1ddad4f00b70cedb6985fc345e4fcbcda6046969",
+    "nonce": 0,
+    "hash": "385d1e7eedff8852876c3830bebe819e712541782dffa586bc8c33d4561fdcd5",
+    "payload": {
+      "timestamp": 1782819999,
+      "source_actor_id": 777,
+      "record_type": "LINGUIST_HANDSHAKE_NFT_CERTIFICATE",
+      "compute": 0.0,
+      "distance_to_target": 0.0,
+      "decision_status": 4,
+      "velocity": [],
+      "forcing_magnitude": 0.0,
+      "recent_decisions": [
+        {
+          "timestamp": 1782819999,
+          "initial_distance": 777.0,
+          "trial_distance": 0.0,
+          "utility_gain": 0.0,
+          "status": "SOVEREIGN_CLAUSE_EMIT"
+        }
+      ],
+      "fallback_raw_data": "Out-of-band credential sealing — Chapter 4 Lineage Verification via Esias Joseph 1906 Root.",
+      "economic_signal": null,
+      "certificate": {
+        "cert_type": "LINGUIST_HANDSHAKE_NFT",
+        "issuer": "Chapter-4-Enrolment-Registry",
+        "subject_actor": 777,
+        "lineage_root": "Esias-Joseph-1906",
+        "sealed_at": 1782819999,
+        "statement": "GWICHIN_RESONANCE_REHYDRATION_SEAL"
+      },
+      "gwichin_glyph": {
+        "glyph_id": "NAN_NIUK_KWA_DHIDLII",
+        "phonetic": "Nan Niuk Kwa Dhidlii",
+        "resonance_hz": 7.9083,
+        "semantic_layer": "Dinjji Zhuu Kwaa — Secondary Harmonic Wave",
+        "verification_hash": "f823bb315e10b7cd589c7d7b677c49e9"
+      }
+    }
+  },
+  {
+    "index": 3,
+    "previous_hash": "385d1e7eedff8852876c3830bebe819e712541782dffa586bc8c33d4561fdcd5",
+    "nonce": 0,
+    "hash": "1e024f43a517387ac1ca8d1ab249e8622f4ae862e97f0bb8fbeb0fa1ad950f70",
+    "payload": {
+      "timestamp": 1782819999,
+      "source_actor_id": 777,
+      "record_type": "LINGUIST_HANDSHAKE_NFT_CERTIFICATE",
+      "compute": 0.0,
+      "distance_to_target": 0.0,
+      "decision_status": 4,
+      "velocity": [],
+      "forcing_magnitude": 0.0,
+      "recent_decisions": [
+        {
+          "timestamp": 1782819999,
+          "initial_distance": 777.0,
+          "trial_distance": 0.0,
+          "utility_gain": 0.0,
+          "status": "SOVEREIGN_CLAUSE_EMIT"
+        }
+      ],
+      "fallback_raw_data": "Out-of-band credential sealing — Chapter 4 Lineage Verification via Esias Joseph 1906 Root.",
+      "economic_signal": null,
+      "certificate": {
+        "cert_type": "LINGUIST_HANDSHAKE_NFT",
+        "issuer": "Chapter-4-Enrolment-Registry",
+        "subject_actor": 777,
+        "lineage_root": "Esias-Joseph-1906",
+        "sealed_at": 1782819999,
+        "statement": "GWICHIN_RESONANCE_REHYDRATION_SEAL"
+      },
+      "gwichin_glyph": {
+        "glyph_id": "NAN_NIUK_KWA_DHIDLII",
+        "phonetic": "Nan Niuk Kwa Dhidlii",
+        "resonance_hz": 7.9083,
+        "semantic_layer": "Dinjji Zhuu Kwaa — Secondary Harmonic Wave",
+        "verification_hash": "f823bb315e10b7cd589c7d7b677c49e9"
+      }
+    }
+  }
+]

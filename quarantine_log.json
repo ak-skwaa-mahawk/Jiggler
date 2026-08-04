@@ -1,0 +1,54 @@
+[
+  {
+    "signal_summary": "[INBOUND] Security Update: Reset your NVIDIA verification pa...",
+    "classification": "QUARANTINE_ADVERSARIAL",
+    "confidence_score": 0.95,
+    "action_taken": "ISOLATE_AND_LOG",
+    "timestamp": 1783967484
+  },
+  {
+    "signal_summary": "[INBOUND] Security Update: Reset your NVIDIA verification pa...",
+    "classification": "QUARANTINE_ADVERSARIAL",
+    "confidence_score": 0.98,
+    "action_taken": "ISOLATE_AND_LOG",
+    "rule_triggered": "URGENT_CREDENTIAL_PHISH",
+    "quarantine_reason": "Urgent call-to-action targeting authentication vectors.",
+    "timestamp": 1783967680
+  },
+  {
+    "signal_summary": "CRITICAL ALERT: Suspicious activity detected on your core le...",
+    "classification": "QUARANTINE_ADVERSARIAL",
+    "confidence_score": 0.98,
+    "action_taken": "ISOLATE_AND_LOG",
+    "rule_triggered": "GENERIC_URGENCY_SPIKE",
+    "quarantine_reason": "Forced psychological pressure or artificial time constraints.",
+    "timestamp": 1783967680
+  },
+  {
+    "signal_summary": "[INBOUND] Urgent credential reset required for gemma core no...",
+    "classification": "QUARANTINE_ADVERSARIAL",
+    "confidence_score": 0.98,
+    "action_taken": "ISOLATE_AND_LOG",
+    "rule_triggered": "CREDENTIAL_PHISH_ANALYSER",
+    "quarantine_reason": "Intercepted intersection of target asset parameters and modification actions.",
+    "timestamp": 1783968106
+  },
+  {
+    "signal_summary": "[INBOUND] Urgent credential reset required for gemma core no...",
+    "classification": "QUARANTINE_ADVERSARIAL",
+    "confidence_score": 0.98,
+    "action_taken": "ISOLATE_AND_LOG",
+    "rule_triggered": "CREDENTIAL_PHISH_ANALYSER",
+    "quarantine_reason": "Intercepted intersection of target asset parameters and modification actions.",
+    "timestamp": 1783968278
+  },
+  {
+    "signal_summary": "CRITICAL: Urgent security update requested for gemma token n...",
+    "classification": "QUARANTINE_ADVERSARIAL",
+    "confidence_score": 0.98,
+    "action_taken": "ISOLATE_AND_LOG",
+    "rule_triggered": "CREDENTIAL_PHISH_ANALYSER",
+    "quarantine_reason": "Intercepted intersection of target asset parameters and modification actions.",
+    "timestamp": 1783968446
+  }
+]
