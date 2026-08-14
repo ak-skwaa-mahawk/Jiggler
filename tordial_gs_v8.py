@@ -135,7 +135,9 @@ class TordialSQLiteLedger:
 
 
 class DualRingTordialMatrix:
-    def __init__(self, node_count: int = 8, db_path="tordial_gs.db"):
+    def __init__(self, node_count: int = 8, db_path="tordial_gs.db", auto_damp: bool = False, comm1_limit: float = 0.018):
+        self.auto_damp = auto_damp
+        self.comm1_limit = comm1_limit
         self.node_count = node_count
         self.BASE_FREQUENCY_HZ = 79.0
         self.current_filtered_frequency_hz = 79.0
@@ -177,6 +179,11 @@ class DualRingTordialMatrix:
 
         calculated_holonomy = h_base + drift_h
         commutator_1_5 = c15_base + drift_c
+        if self.auto_damp and abs(commutator_1_5) >= self.comm1_limit:
+            # Active precursor damping: suppress shear towards the limit threshold
+            damp_factor = self.comm1_limit / abs(commutator_1_5)
+            commutator_1_5 = commutator_1_5 * damp_factor * 0.95
+            print(f'⚡ [PRECURSOR DAMP] Comm1 ({c15_base + drift_c:+.6f}) exceeded threshold. Damped to {commutator_1_5:+.6f}')
         commutator_2_5 = c25_base + drift_c
 
         if abs(drift_h) > 0.0 or abs(drift_c) > 0.0:
@@ -223,5 +230,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--nodes", type=int, default=10)
     parser.add_argument("--cycles", type=int, default=180)
+    parser.add_argument("--auto-damp", action="store_true", help="Enable predictive Comm1 precursor damping")
+    parser.add_argument("--comm1-limit", type=float, default=0.018, help="Soft-limit threshold for Comm1 shear")
     args = parser.parse_args()
-    DualRingTordialMatrix(node_count=args.nodes).run(cycles=args.cycles)
+    DualRingTordialMatrix(node_count=args.nodes, auto_damp=args.auto_damp, comm1_limit=args.comm1_limit).run(cycles=args.cycles)

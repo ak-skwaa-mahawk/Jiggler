@@ -232,4 +232,3 @@ if __name__ == "__main__":
         matrix.is_running = False
         httpd.server_close()
 EOF
-dos2unix main.py

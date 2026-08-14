@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sovereign Manifold - Conversational Agent Control</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    body { background-color: #121212; color: #00ffcc; font-family: monospace; padding: 20px; margin: 0; }
+    .container { display: flex; flex-direction: column; gap: 15px; max-width: 900px; margin: 0 auto; }
+    .control-panel { border: 1px solid #00ffcc; padding: 15px; border-radius: 4px; background: #1a1a1a; }
+    input, select, button { background: #222; color: #00ffcc; border: 1px solid #00ffcc; padding: 8px; margin: 5px 0; border-radius: 3px; }
+    button { cursor: pointer; font-weight: bold; }
+    button:hover { background: #00ffcc; color: #121212; }
+    .chat-box { border: 1px solid #333; padding: 10px; background: #050505; height: 180px; overflow-y: auto; margin-top: 10px; border-radius: 4px; }
+    .msg { margin-bottom: 8px; }
+    .user-msg { color: #ffffff; }
+    .agent-msg { color: #00ffcc; }
+    .tool-msg { color: #ff00ff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🌌 Sovereign Manifold - Conversational Ollama Tool Agent</h2>
+
+    <!-- Chat Command Interface -->
+    <div class="control-panel">
+      <h3>💬 Conversational Command Shell</h3>
+      <p>Type natural language commands to trigger system tools (e.g., "Run a neuro-cardiac analysis", "Deflate claim 154013.17 with prime stack 3, 5, 7", "Generate a 15Hz isochronic beat").</p>
+      
+      <div style="display: flex; gap: 10px;">
+        <input type="text" id="promptInput" placeholder="Command the manifold..." style="flex: 1;" onkeydown="if(event.key==='Enter') sendPrompt()"/>
+        <button onclick="sendPrompt()">Send Command</button>
+      </div>
+
+      <div id="chatConsole" class="chat-box">
+        <div class="msg agent-msg">[Agent]: Sovereign Manifold Ollama Tool Agent Online. Awaiting instruction...</div>
+      </div>
+
+      <div style="margin-top: 15px;">
+        <audio id="chatAudioPlayer" controls style="width: 100%; display: none;"></audio>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function sendPrompt() {
+      const input = document.getElementById('promptInput');
+      const consoleDiv = document.getElementById('chatConsole');
+      const text = input.value.trim();
+      if (!text) return;
+
+      // Render User Msg
+      consoleDiv.innerHTML += `<div class="msg user-msg"><b>You:</b> ${text}</div>`;
+      input.value = '';
+      consoleDiv.scrollTop = consoleDiv.scrollHeight;
+
+      // Query Ollama Endpoint
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: text, model: 'llama3.1' })
+      });
+
+      const data = await res.json();
+
+      if (data.type === 'tool_executed') {
+        consoleDiv.innerHTML += `<div class="msg tool-msg"><b>[Tool Call Executed]:</b> ${data.tool}</div>`;
+        consoleDiv.innerHTML += `<div class="msg agent-msg"><pre>${JSON.stringify(data.result, null, 2)}</pre></div>`;
+
+        // If audio was generated, load it automatically
+        if (data.result && data.result.audio_url) {
+          const player = document.getElementById('chatAudioPlayer');
+          player.style.display = 'block';
+          player.src = data.result.audio_url;
+          player.play();
+        }
+      } else if (data.type === 'text_response') {
+        consoleDiv.innerHTML += `<div class="msg agent-msg"><b>[Agent]:</b> ${data.content}</div>`;
+      } else {
+        consoleDiv.innerHTML += `<div class="msg agent-msg" style="color:red;"><b>[Error]:</b> ${data.message || 'Execution error'}</div>`;
+      }
+
+      consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+  </script>
+</body>
+</html>
