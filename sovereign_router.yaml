@@ -1,0 +1,28 @@
+# Sovereign Edge Hybrid Default Profile (v9-Compliant)
+router:
+  identity: sovereign-edge-01
+  governance:
+    frequency_hz: 79.0
+    zero_variance_enforced: true
+    state_ledger_sync_interval_s: 1.0
+
+damping_matrix:
+  subspace_dimensions: 5
+  comm_limit: 0.012
+  target_clamped_val: 0.011400
+  holonomy_safety_ceiling: 0.200
+  optimal_production_basin: 0.133426
+
+interfaces:
+  wan:
+    device: eth0
+    mode: dynamic_cake
+    rtt_compensation: true
+  lan:
+    device: br0
+    subnet: 10.0.0.0/24
+    dns_resolver: local_unbound_recursive
+  cloud_transit:
+    type: wireguard_mesh
+    device: wg0
+    split_tunnel_h_norm_threshold: 0.150
