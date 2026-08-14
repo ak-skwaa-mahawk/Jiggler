@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-tordial-routed: Sovereign Edge Hybrid Control Plane (v9 Live Telemetry Coupled)
+tordial-routed: Sovereign Edge Hybrid Control Plane
+(v9 Telemetry + Closed-Loop CAKE + WireGuard Entropy Steering)
 """
 
 import time
@@ -8,11 +9,14 @@ import sqlite3
 import numpy as np
 from pathlib import Path
 from tools.kernel_telemetry import KernelNetTelemetry
+from tools.cake_actuator import CakeActuator
+from tools.wireguard_overlay import WireGuardOverlayRouter
 
 # --- DEFAULT PRODUCTION PARAMETERS (v9 Baseline) ---
 COMM_LIMIT = 0.012
 COMM_TARGET = COMM_LIMIT * 0.95  # 0.011400
 HOLONOMY_SAFETY_CEILING = 0.200
+ENTROPY_OVERLAY_THRESHOLD = 0.150
 LOOP_HZ = 79.0
 SLEEP_INTERVAL = 1.0 / LOOP_HZ
 
@@ -32,6 +36,8 @@ def init_db():
             comm2 REAL,
             comm3 REAL,
             comm4 REAL,
+            actuator_mbps REAL,
+            transit_route TEXT,
             rollback_flag INTEGER
         )
     """)
@@ -59,13 +65,21 @@ def run_control_plane():
     conn = init_db()
     cursor = conn.cursor()
     telemetry_reader = KernelNetTelemetry(interface="wlan0")
+    actuator = CakeActuator(interface="wlan0", base_rate_mbps=100.0)
+    overlay_router = WireGuardOverlayRouter(
+        wg_interface="wg0",
+        direct_interface="wlan0",
+        entropy_threshold=ENTROPY_OVERLAY_THRESHOLD
+    )
     
     cycle_count = 0
     phase = 0.0
     
     print(f"[+] tordial-routed daemon active @ {LOOP_HZ} Hz.")
-    print(f"[+] Live Kernel Netdev Telemetry Attached [wlan0 / fallback].")
-    print(f"[+] Full-spectrum micro-damping active (|Comm_i| <= {COMM_TARGET:.6f})")
+    print(f"[+] Live Ingest: Attached [wlan0 / fallback]")
+    print(f"[+] CAKE Actuator: Attached [Dynamic Bandwidth Shaper]")
+    print(f"[+] WireGuard Overlay: Steering Enabled (Threshold: ‖Ω‖_F > {ENTROPY_OVERLAY_THRESHOLD:.3f})")
+    print(f"[+] Micro-Damping Active (|Comm_i| <= {COMM_TARGET:.6f})")
 
     try:
         while True:
@@ -73,7 +87,7 @@ def run_control_plane():
             cycle_count += 1
             phase = (phase + 0.05) % (2 * np.pi)
 
-            # 1. Live Ingest from Kernel Netdev
+            # 1. Live Telemetry Ingest
             telemetry = telemetry_reader.read_live_telemetry()
 
             # 2. Subspace Evaluation
@@ -91,12 +105,20 @@ def run_control_plane():
                 rollback = 1
                 damped_comms = np.clip(damped_comms, -COMM_TARGET * 0.5, COMM_TARGET * 0.5)
 
-            # 6. Ledger Commit Every 79 Cycles (~1.0s)
+            # 6. Actuator Push (CAKE Modulation)
+            applied, current_mbps = actuator.apply_control_action(
+                damped_comms[0], damped_comms[1], h_norm, rollback
+            )
+
+            # 7. Dynamic WireGuard Overlay Steering
+            transit_route, changed = overlay_router.evaluate_transit_route(h_norm, rollback)
+
+            # 8. Ledger Commit Every 79 Cycles (~1.0s)
             if cycle_count % int(LOOP_HZ) == 0:
                 cursor.execute("""
                     INSERT INTO flow_ledger 
-                    (timestamp, queue_depth, rtt_variance, holonomy_norm, comm1, comm2, comm3, comm4, rollback_flag)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (timestamp, queue_depth, rtt_variance, holonomy_norm, comm1, comm2, comm3, comm4, actuator_mbps, transit_route, rollback_flag)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     time.time(),
                     float(telemetry[0]),
@@ -106,12 +128,14 @@ def run_control_plane():
                     float(damped_comms[1]),
                     float(damped_comms[2]),
                     float(damped_comms[3]),
+                    current_mbps,
+                    transit_route,
                     rollback
                 ))
                 conn.commit()
-                print(f"[CYCLE {cycle_count:06d}] H-Norm: {h_norm:.6f} | Comm1: {damped_comms[0]:+.6f} | Comm2: {damped_comms[1]:+.6f} | Rollback: {rollback}")
+                print(f"[CYCLE {cycle_count:06d}] H-Norm: {h_norm:.6f} | Comm1: {damped_comms[0]:+.6f} | CAKE: {current_mbps:.1f}M | Route: {transit_route} | Rollback: {rollback}")
 
-            # 7. 79.0 Hz Loop Pacing
+            # 9. 79.0 Hz Loop Pacing
             elapsed = time.perf_counter() - t0
             sleep_time = max(0.0, SLEEP_INTERVAL - elapsed)
             time.sleep(sleep_time)
