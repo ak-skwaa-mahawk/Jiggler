@@ -1,10 +1,10 @@
 {
   "protocol": "Tordial-GS-Sovereign-Router",
   "version": "v9.0-FINAL",
-  "timestamp_utc": "2026-08-15T04:12:10Z",
+  "timestamp_utc": "2026-08-15T04:13:22Z",
   "frequency_hz": 79.0,
   "agent1_manifold_merkle_slice": "0x8cbc7997f807c2f3",
-  "agent2_routed_flow_merkle_slice": "0x0da0e6e2173df186",
-  "joint_merkle_root": "0xaec0d229a0297c600fb8e1b03fd868e3",
+  "agent2_routed_flow_merkle_slice": "0x6185e7c5733f5c77",
+  "joint_merkle_root": "0x60d3c7a2c8b64f3e08ee84dbd65e6261",
   "quorum_verdict": "UNANIMOUS_APPROVED"
 }
