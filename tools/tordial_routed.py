@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 tordial-routed: Sovereign Edge Hybrid Control Plane
-(v9 Telemetry + Closed-Loop CAKE + WireGuard Entropy Steering)
+(v9 Telemetry + Universal Driver Layer + Closed-Loop CAKE + WireGuard Split-Tunnel)
 """
 
 import time
@@ -11,6 +11,7 @@ from pathlib import Path
 from tools.kernel_telemetry import KernelNetTelemetry
 from tools.cake_actuator import CakeActuator
 from tools.wireguard_overlay import WireGuardOverlayRouter
+from src.drivers import get_driver
 
 # --- DEFAULT PRODUCTION PARAMETERS (v9 Baseline) ---
 COMM_LIMIT = 0.012
@@ -18,7 +19,7 @@ COMM_TARGET = COMM_LIMIT * 0.95  # 0.011400
 HOLONOMY_SAFETY_CEILING = 0.200
 ENTROPY_OVERLAY_THRESHOLD = 0.150
 LOOP_HZ = 79.0
-SLEEP_INTERVAL = 1.0 / LOOP_HZ
+BASE_INTERVAL = 1.0 / LOOP_HZ
 
 DB_PATH = Path("tordial_routed.db")
 
@@ -71,11 +72,13 @@ def run_control_plane():
         direct_interface="wlan0",
         entropy_threshold=ENTROPY_OVERLAY_THRESHOLD
     )
+    driver = get_driver()
     
     cycle_count = 0
     phase = 0.0
     
     print(f"[+] tordial-routed daemon active @ {LOOP_HZ} Hz.")
+    print(f"[+] Active Runtime Driver: {driver.__class__.__name__} ({getattr(driver, 'platform_name', 'desktop')})")
     print(f"[+] Live Ingest: Attached [wlan0 / fallback]")
     print(f"[+] CAKE Actuator: Attached [Dynamic Bandwidth Shaper]")
     print(f"[+] WireGuard Overlay: Steering Enabled (Threshold: ‖Ω‖_F > {ENTROPY_OVERLAY_THRESHOLD:.3f})")
@@ -105,15 +108,18 @@ def run_control_plane():
                 rollback = 1
                 damped_comms = np.clip(damped_comms, -COMM_TARGET * 0.5, COMM_TARGET * 0.5)
 
-            # 6. Actuator Push (CAKE Modulation)
+            # 6. Universal Driver Coordinate Shift Emission
+            driver.emit_event(float(damped_comms[0]), float(damped_comms[1]))
+
+            # 7. Actuator Push (CAKE Modulation)
             applied, current_mbps = actuator.apply_control_action(
                 damped_comms[0], damped_comms[1], h_norm, rollback
             )
 
-            # 7. Dynamic WireGuard Overlay Steering
+            # 8. Dynamic WireGuard Overlay Steering
             transit_route, changed = overlay_router.evaluate_transit_route(h_norm, rollback)
 
-            # 8. Ledger Commit Every 79 Cycles (~1.0s)
+            # 9. Ledger Commit Every 79 Cycles (~1.0s)
             if cycle_count % int(LOOP_HZ) == 0:
                 cursor.execute("""
                     INSERT INTO flow_ledger 
@@ -133,12 +139,12 @@ def run_control_plane():
                     rollback
                 ))
                 conn.commit()
-                print(f"[CYCLE {cycle_count:06d}] H-Norm: {h_norm:.6f} | Comm1: {damped_comms[0]:+.6f} | CAKE: {current_mbps:.1f}M | Route: {transit_route} | Rollback: {rollback}")
+                print(f"\n[CYCLE {cycle_count:06d}] H-Norm: {h_norm:.6f} | Comm1: {damped_comms[0]:+.6f} | CAKE: {current_mbps:.1f}M | Route: {transit_route} | Rollback: {rollback}")
 
-            # 9. 79.0 Hz Loop Pacing
+            # 10. 79.0 Hz Jittered Loop Pacing via Universal Driver
             elapsed = time.perf_counter() - t0
-            sleep_time = max(0.0, SLEEP_INTERVAL - elapsed)
-            time.sleep(sleep_time)
+            remaining = max(0.0, BASE_INTERVAL - elapsed)
+            driver.sleep_jittered(remaining, variance=0.02)
 
     except KeyboardInterrupt:
         print("\n[!] Daemon stopped gracefully.")
