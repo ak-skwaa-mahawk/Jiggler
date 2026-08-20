@@ -65,7 +65,7 @@ class Particle6D:
     dw: float = 0.0; dv: float = 0.0; du: float = 0.0
     phase: int = 0            # 0=INTAKE, 1=TRANSIT, 2=EXHAUST, 3=RETURN
     life: int = 0
-    max_life: int = 280
+    max_life: int = 1200
 
 class PhysicsEngine6D:
     def __init__(self, count: int = 200):
@@ -83,7 +83,7 @@ class PhysicsEngine6D:
         )
 
     def step(self, state: SystemState, dt: float = 0.05):
-        throat = state.core.throat * 0.5
+        throat = state.core.throat * 0.6
         belt_r = state.belt.radius
 
         while len(self.particles) < self.count:
@@ -99,29 +99,46 @@ class PhysicsEngine6D:
             r = math.hypot(p.x, p.y)
             ax = ay = az = aw = av = 0.0
 
-            if p.phase == 0:     # INTAKE
-                target_factor = throat / (r + 1e-9)
-                ax = -1.5 * (p.x / belt_r) * target_factor
-                ay = -1.5 * (p.y / belt_r) * target_factor
-                if r < throat * 1.1: p.phase = 1
-            elif p.phase == 1:   # TRANSIT
-                ax = -1.0 * p.y * state.spin * GEAR_SHIFT
-                ay = 1.0 * p.x * state.spin * GEAR_SHIFT
-                if r > belt_r * 0.75: p.phase = 2
-            elif p.phase == 2:   # EXHAUST
-                ax = 2.0 * (p.x / (r + 1e-9)) * SHADOW
-                ay = 2.0 * (p.y / (r + 1e-9)) * SHADOW
-                if r > belt_r * 0.95: p.phase = 3
-            elif p.phase == 3:   # RETURN
-                ax = -2.5 * p.x; ay = -2.5 * p.y
-                if r < throat * 1.4: p.phase = 0
+            if p.phase == 0:  # INTAKE: Radial inward suction + spin induction
+                nx, ny = p.x / (r + 1e-9), p.y / (r + 1e-9)
+                ax = -25.0 * nx - 5.0 * ny * state.spin
+                ay = -25.0 * ny + 5.0 * nx * state.spin
+                if r <= throat * 1.25:
+                    p.phase = 1
 
-            p.dx += ax * dt; p.dy += ay * dt
-            drag = 1.0 - (0.04 * state.pressure)
-            p.dx *= drag; p.dy *= drag
-            p.x += p.dx; p.y += p.dy
+            elif p.phase == 1:  # TRANSIT: Vortex angular acceleration + centrifugal expansion
+                tx, ty = -p.y / (r + 1e-9), p.x / (r + 1e-9)
+                nx, ny = p.x / (r + 1e-9), p.y / (r + 1e-9)
+                spin_force = 18.0 * state.spin * GEAR_SHIFT
+                centrifugal = 12.0 * (state.spin ** 2)
+                ax = tx * spin_force + nx * centrifugal
+                ay = ty * spin_force + ny * centrifugal
+                if r >= belt_r * 0.70:
+                    p.phase = 2
+
+            elif p.phase == 2:  # EXHAUST: Outward boundary expulsion
+                nx, ny = p.x / (r + 1e-9), p.y / (r + 1e-9)
+                ax = 20.0 * nx * SHADOW
+                ay = 20.0 * ny * SHADOW
+                if r >= belt_r * 0.92:
+                    p.phase = 3
+
+            elif p.phase == 3:  # RETURN: Hyperbolic recirculation loop back to throat
+                nx, ny = p.x / (r + 1e-9), p.y / (r + 1e-9)
+                ax = -22.0 * nx
+                ay = -22.0 * ny
+                if r <= throat * 1.85:
+                    p.phase = 0
+
+            p.dx += ax * dt
+            p.dy += ay * dt
+            drag = 1.0 - (0.02 * state.pressure)
+            p.dx *= drag
+            p.dy *= drag
+            p.x += p.dx * dt * 20.0
+            p.y += p.dy * dt * 20.0
             live.append(p)
-            
+
         self.particles = live
 
 
@@ -129,110 +146,142 @@ class PhysicsEngine6D:
 
 class UnifiedAsyncControlBroker:
     """
-    Combined communication layer. Operates an outbound asynchronous telemetry 
+    Combined communication layer. Operates an outbound asynchronous telemetry
     broadcast stream while concurrently listening for incoming control RPC payloads.
     """
     def __init__(self, log_filepath: str = "async_system.log", base_port: int = 8890, rpc_port: int = 8891):
         self.log_filepath = log_filepath
         self.base_port = base_port
         self.rpc_port = rpc_port
-        self.queue: asyncio.Queue = asyncio.Queue(maxsize=300)
-        self.stream_clients = set()
-        
-        # Concurrent dictionary for state sharing across different async loop context tasks
-        self.shared_runtime_modifiers = {"spin": 1.5, "pressure": 1.0, "temp": 0.15, "belt_mod": 1.0}
+        self.queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
         self.is_running = False
-
-    def enqueue_frame_sync(self, state: SystemState, delta: float, engine: PhysicsEngine6D):
-        """Thread-safe synchronous data ingestion mechanism hook."""
-        frame = {
-            "timestamp": state.timestamp, "spin": state.spin, "pressure": state.pressure,
-            "temp": state.temp, "stability": 1.0 - abs(delta), "particle_count": len(engine.particles)
+        self.shared_runtime_modifiers = {
+            "spin": 1.5,
+            "pressure": 1.0,
+            "temp": 0.0,
+            "belt_mod": 1.0
         }
-        try:
-            self.queue.put_nowait(frame)
-        except asyncio.QueueFull:
-            pass
 
     async def start(self):
         self.is_running = True
-        with open(self.log_filepath, "a", encoding="utf-8") as f:
-            f.write(f"\n# --- ENGINE SYSTEM ONLINE: {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+        self._disk_task = asyncio.create_task(self._disk_writer_loop())
 
-        # Spawn non-blocking logging workers
-        self._disk_task = asyncio.create_task(self._disk_worker())
-        self._net_task = asyncio.create_task(self._broadcast_worker())
-
-        # Start the Telemetry Output Stream Server
-        self._stream_server = await asyncio.start_server(self._accept_stream_client, "127.0.0.1", self.base_port)
-        # Start the Inbound Remote Procedure Call (RPC) Server
-        self._rpc_server = await asyncio.start_server(self._handle_rpc_connection, "127.0.0.1", self.rpc_port)
-        
-        print(f"📡 Telemetry Stream active: tcp://127.0.0.1:{self.base_port}")
-        print(f"🎛️ Asynchronous RPC Interface listening: tcp://127.0.0.1:{self.rpc_port}")
-
-    async def _accept_stream_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        self.stream_clients.add(writer)
+    def enqueue_frame_sync(self, state: SystemState, delta: float, engine: PhysicsEngine6D):
+        if not self.is_running:
+            return
+        payload = {
+            "timestamp": time.time(),
+            "spin": state.spin,
+            "pressure": state.pressure,
+            "temp": state.temp,
+            "belt_mod": state.belt_mod,
+            "delta": delta,
+            "particle_count": len(engine.particles)
+        }
         try:
-            while self.is_running: await asyncio.sleep(1.0)
-        except asyncio.CancelledError: pass
+            self.queue.put_nowait(payload)
+        except asyncio.QueueFull:
+            pass
+
+    async def _disk_writer_loop(self):
+        with open(self.log_filepath, "a") as f:
+            while self.is_running:
+                try:
+                    record = await asyncio.wait_for(self.queue.get(), timeout=0.5)
+                    f.write(json.dumps(record) + "\n")
+                    f.flush()
+                except asyncio.TimeoutError:
+                    continue
+                except asyncio.CancelledError:
+                    break
+
+    async def _handle_rpc_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        try:
+            data = await reader.readline()
+            if not data:
+                return
+            message = data.decode("utf-8").strip()
+            try:
+                payload = json.loads(message)
+                method = payload.get("method", "")
+                params = payload.get("params", {})
+                req_id = payload.get("id", None)
+
+                if method == "update_vectors":
+                    for key in self.shared_runtime_modifiers.keys():
+                        if key in params:
+                            self.shared_runtime_modifiers[key] = max(0.01, float(params[key]))
+                    resp = {"jsonrpc": "2.0", "result": "PARAMETERS_MUTATED_OK", "id": req_id}
+                elif method == "get_telemetry":
+                    resp = {"jsonrpc": "2.0", "result": self.shared_runtime_modifiers, "id": req_id}
+                else:
+                    resp = {"jsonrpc": "2.0", "error": {"code": -32601, "message": "Method not found"}, "id": req_id}
+            except Exception as e:
+                resp = {"jsonrpc": "2.0", "error": {"code": -32700, "message": f"Parse Failure: {str(e)}"}, "id": None}
+
+            writer.write((json.dumps(resp) + "\n").encode("utf-8"))
+            await writer.drain()
+        except ConnectionResetError:
+            pass
         finally:
-            self.stream_clients.remove(writer)
             writer.close()
             await writer.wait_closed()
 
-    async def _disk_worker(self):
-        while self.is_running:
-            frame = await self.queue.get()
-            try:
-                serialized = json.dumps(frame) + "\n"
-                await asyncio.to_thread(self._write_to_disk, serialized)
-            finally: self.queue.task_done()
+    async def stop(self):
+        self.is_running = False
+        if hasattr(self, "_disk_task"):
+            self._disk_task.cancel()
+        if hasattr(self, "_net_task"):
+            self._net_task.cancel()
+        if hasattr(self, "_stream_server"):
+            self._stream_server.close()
+        if hasattr(self, "_rpc_server"):
+            self._rpc_server.close()
 
-    def _write_to_disk(self, data: str):
-        with open(self.log_filepath, "a", encoding="utf-8") as f: f.write(data)
 
-    async def _broadcast_worker(self):
-        while self.is_running:
-            frame = await self.queue.get()
-            try:
-                if not self.stream_clients: continue
-                payload = (json.dumps(frame) + "\n").encode('utf-8')
-                header = struct.pack('!I', len(payload))
-                full_frame = header + payload
-                
-                disconnected = set()
-                for writer in self.stream_clients:
-                    try:
-                        writer.write(full_frame)
-                        await writer.drain()
-                    except (socket.error, ConnectionResetError): disconnected.add(writer)
-                for w in disconnected: self.stream_clients.discard(w)
-            finally: self.queue.task_done()
+# ── Asynchronous Primary Engine Execution Loop ───────────────────────────────
 
-    async def _handle_rpc_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        """Processes incoming requests matching a JSON-RPC format model specification."""
-        try:
-            while self.is_running:
-                data = await reader.readline()
-                if not data: break
-                
-                try:
-                    req = json.loads(data.decode('utf-8'))
-                    method = req.get("method")
-                    params = req.get("params", {})
-                    req_id = req.get("id")
-                    
-                    if method == "update_vectors":
-                        # Directly overwrite atomic variables shared with the primary solver loop
-                        for key in self.shared_runtime_modifiers.keys():
-                            if key in params:
-                                self.shared_runtime_modifiers[key] = max(0.01, float(params[key]))
-                        resp = {"jsonrpc": "2.0", "result": "PARAMETERS_MUTATED_OK", "id": req_id}
-                    elif method == "get_telemetry":
-                        resp = {"jsonrpc": "2.0", "result": self.shared_runtime_modifiers, "id": req_id}
-                    else:
-                        resp = {"jsonrpc": "2.0", "error": {"code": -32601, "message": "Method not found"}, "id": req_id}
-                except Exception as e:
+async def run_79hz_simulation(broker: UnifiedAsyncControlBroker):
+    solver = SixCylinderBoundary(base_radius=55.0)
+    engine = PhysicsEngine6D(count=250)
+    target_period = 1.0 / 79.0
+    print("⏱️ 6D Physics Array integrated into event loop. Execution locked to 79 Hz.")
+    print("Press Ctrl+C to disconnect from runtime container routines.\n")
+    frame = 0
+    try:
+        while True:
+            start_cycle = asyncio.get_event_loop().time()
+            m = broker.shared_runtime_modifiers
+            state = solver.compute(spin=m["spin"], pressure=m["pressure"], temp=m["temp"], belt_mod=m["belt_mod"])
+            delta = solver.closed_loop_delta(state)
+            engine.step(state, dt=0.04)
+            broker.enqueue_frame_sync(state, delta, engine)
 
-resp = {"jsonrpc": "2.0", "error": {"code": -32700, "message": f"Parse Failure: {str(e)}"}, "id": None}writer.write((json.dumps(resp) + "\n").encode('utf-8'))await writer.drain()except ConnectionResetError: passfinally:writer.close()await writer.wait_closed()async def stop(self):self.is_running = Falseself._disk_task.cancel()self._net_task.cancel()if hasattr(self, '_stream_server'): self._stream_server.close()if hasattr(self, '_rpc_server'): self._rpc_server.close()── Asynchronous Primary Engine Execution Loop ───────────────────────────────async def run_79hz_simulation(broker: UnifiedAsyncControlBroker):solver = SixCylinderBoundary(base_radius=55.0)engine = PhysicsEngine6D(count=250)target_period = 1.0 / 79.0print(f"⏱️ 6D Physics Array integrated into event loop. Execution locked to 79 Hz.")print("Press Ctrl+C to disconnect from runtime container routines.\n")frame = 0try:while True:start_cycle = asyncio.get_event_loop().time()# 1. Fetch parameters that may have been modified by the RPC serverm = broker.shared_runtime_modifiers# 2. Compute multi-axis geometry stepsstate = solver.compute(spin=m["spin"], pressure=m["pressure"], temp=m["temp"], belt_mod=m["belt_mod"])delta = solver.closed_loop_delta(state)# 3. Advance particle accelerations inside the updated geometric spaceengine.step(state, dt=0.04)# 4. Offload current state data directly onto the background broker queuebroker.enqueue_frame_sync(state, delta, engine)if frame % 160 == 0:print(f"[{frame:05d}] Runtime Spin: {state.spin:.2f} | Temp: {state.temp:.2f} | Drift: {delta:+.6f} | Live Engine Mass: {len(engine.particles)}")frame += 1# High-precision execution loop timing clampelapsed = asyncio.get_event_loop().time() - start_cycleremainder = target_period - elapsedif remainder > 0:await asyncio.sleep(remainder)else:await asyncio.sleep(0)except asyncio.CancelledError: passasync def main():broker = UnifiedAsyncControlBroker()await broker.start()try:await run_79hz_simulation(broker)except KeyboardInterrupt:print("\n⚡ Interrupt hook received. Dismantling event processing pipelines...")finally:await broker.stop()print("🏁 Systems unmounted safely.")
+            if frame % 160 == 0:
+                print(f"[{frame:05d}] Runtime Spin: {state.spin:.2f} | Temp: {state.temp:.2f} | Drift: {delta:+.6f} | Live Engine Mass: {len(engine.particles)}")
+            frame += 1
+
+            elapsed = asyncio.get_event_loop().time() - start_cycle
+            remainder = target_period - elapsed
+            if remainder > 0:
+                await asyncio.sleep(remainder)
+            else:
+                await asyncio.sleep(0)
+    except asyncio.CancelledError:
+        pass
+
+
+async def main():
+    broker = UnifiedAsyncControlBroker()
+    await broker.start()
+    try:
+        await run_79hz_simulation(broker)
+    except KeyboardInterrupt:
+        print("\n⚡ Interrupt hook received. Dismantling event processing pipelines...")
+    finally:
+        await broker.stop()
+        print("🏁 Systems unmounted safely.")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
