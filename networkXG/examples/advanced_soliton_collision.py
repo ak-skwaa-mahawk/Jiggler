@@ -112,3 +112,76 @@ def log_to_mlflow(energy, mass, freq=79.79):
         print(f"Logged to MLflow -> Run ID: {run_id}")
     except Exception as e:
         print(f"MLflow auto-log bypassed: {e}")
+
+# Automated MLflow REST Dispatch
+import urllib.request
+import json
+import time
+
+def auto_log_to_mlflow(energy, mass, freq=79.79):
+    try:
+        url = "http://127.0.0.1:5000/api/2.0/mlflow/runs/create"
+        payload = {
+            "experiment_id": "0",
+            "start_time": int(time.time() * 1000),
+            "tags": [{"key": "model", "value": "Zabusky_Kruskal_KdV"}]
+        }
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+        res = json.loads(urllib.request.urlopen(req).read().decode())
+        run_id = res["run"]["info"]["run_id"]
+
+        metric_url = "http://127.0.0.1:5000/api/2.0/mlflow/runs/log-metric"
+        for k, v in [("lattice_energy", energy), ("lattice_mass", mass), ("resonance_frequency", freq)]:
+            m_req = urllib.request.Request(
+                metric_url,
+                data=json.dumps({"run_id": run_id, "key": k, "value": v, "timestamp": int(time.time() * 1000), "step": 2000}).encode(),
+                headers={"Content-Type": "application/json"}
+            )
+            urllib.request.urlopen(m_req)
+
+        urllib.request.urlopen(urllib.request.Request(
+            "http://127.0.0.1:5000/api/2.0/mlflow/runs/update",
+            data=json.dumps({"run_id": run_id, "status": "FINISHED", "end_time": int(time.time() * 1000)}).encode(),
+            headers={"Content-Type": "application/json"}
+        ))
+        print(f"MLflow telemetry dispatched [Run ID: {run_id[:8]}]")
+    except Exception as e:
+        print(f"MLflow logging bypassed: {e}")
+
+auto_log_to_mlflow(0.137691, 0.260194)
+
+import urllib.request
+import json
+import time
+
+def auto_log_to_mlflow(energy, mass, freq=79.79):
+    try:
+        url = "http://127.0.0.1:5000/api/2.0/mlflow/runs/create"
+        payload = {
+            "experiment_id": "0",
+            "start_time": int(time.time() * 1000),
+            "tags": [{"key": "model", "value": "Zabusky_Kruskal_KdV"}]
+        }
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+        res = json.loads(urllib.request.urlopen(req).read().decode())
+        run_id = res["run"]["info"]["run_id"]
+
+        metric_url = "http://127.0.0.1:5000/api/2.0/mlflow/runs/log-metric"
+        for k, v in [("lattice_energy", energy), ("lattice_mass", mass), ("resonance_frequency", freq)]:
+            m_req = urllib.request.Request(
+                metric_url,
+                data=json.dumps({"run_id": run_id, "key": k, "value": v, "timestamp": int(time.time() * 1000), "step": 2000}).encode(),
+                headers={"Content-Type": "application/json"}
+            )
+            urllib.request.urlopen(m_req)
+
+        urllib.request.urlopen(urllib.request.Request(
+            "http://127.0.0.1:5000/api/2.0/mlflow/runs/update",
+            data=json.dumps({"run_id": run_id, "status": "FINISHED", "end_time": int(time.time() * 1000)}).encode(),
+            headers={"Content-Type": "application/json"}
+        ))
+        print(f"MLflow telemetry dispatched [Run ID: {run_id[:8]}]")
+    except Exception as e:
+        print(f"MLflow logging bypassed: {e}")
+
+auto_log_to_mlflow(0.137691, 0.260194)
