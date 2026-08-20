@@ -81,3 +81,34 @@ def simulate_soliton_collision():
 
 if __name__ == "__main__":
     simulate_soliton_collision()
+
+def log_to_mlflow(energy, mass, freq=79.79):
+    import urllib.request, json, time
+    try:
+        url = "http://127.0.0.1:5000/api/2.0/mlflow/runs/create"
+        payload = {
+            "experiment_id": "0",
+            "start_time": int(time.time() * 1000),
+            "tags": [{"key": "engine", "value": "networkXG_Zabusky_Kruskal"}]
+        }
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+        res = json.loads(urllib.request.urlopen(req).read().decode())
+        run_id = res["run"]["info"]["run_id"]
+
+        metric_url = "http://127.0.0.1:5000/api/2.0/mlflow/runs/log-metric"
+        for k, v in [("lattice_energy", energy), ("lattice_mass", mass), ("resonance_frequency", freq)]:
+            m_req = urllib.request.Request(
+                metric_url,
+                data=json.dumps({"run_id": run_id, "key": k, "value": v, "timestamp": int(time.time() * 1000), "step": 2000}).encode(),
+                headers={"Content-Type": "application/json"}
+            )
+            urllib.request.urlopen(m_req)
+
+        urllib.request.urlopen(urllib.request.Request(
+            "http://127.0.0.1:5000/api/2.0/mlflow/runs/update",
+            data=json.dumps({"run_id": run_id, "status": "FINISHED", "end_time": int(time.time() * 1000)}).encode(),
+            headers={"Content-Type": "application/json"}
+        ))
+        print(f"Logged to MLflow -> Run ID: {run_id}")
+    except Exception as e:
+        print(f"MLflow auto-log bypassed: {e}")
