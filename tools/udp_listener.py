@@ -6,6 +6,16 @@ import struct
 import numpy as np
 import sys
 import os
+import time
+import asyncio
+import threading
+
+try:
+    import websockets
+except ImportError:
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "websockets"])
+    import websockets
 
 sys.path.insert(0, os.path.expanduser("~"))
 try:
@@ -41,31 +51,68 @@ class ToroidalGSManifold:
     def slice_and_project(self, state_4d, damping=1.0, fov=1.5):
         calibrated = state_4d - self.baseline_impedance
         p3d = calibrated[:3]
-        
-        # Smooth depth perspective projection
         z_depth = max(abs(p3d[2]) + 1.0, 1e-4)
         x_ndc = (p3d[0] * fov) / z_depth
         y_ndc = (p3d[1] * fov) / z_depth
-        
-        # Soft saturation via tanh
         action_ndc = np.tanh(np.array([x_ndc, y_ndc])) * damping
         return p3d, action_ndc
 
-def start_telemetry_listener(host="0.0.0.0", port=9999):
+class MeshBroadcaster:
+    def __init__(self, host="0.0.0.0", port=8765):
+        self.host = host
+        self.port = port
+        self.clients = set()
+        self.loop = None
+
+    async def register(self, websocket):
+        self.clients.add(websocket)
+        logging.info(f"🌐 [WS MESH]: Client connected from {websocket.remote_address}. Active peers: {len(self.clients)}")
+        try:
+            await websocket.wait_closed()
+        finally:
+            self.clients.remove(websocket)
+            logging.info(f"🌐 [WS MESH]: Client disconnected. Active peers: {len(self.clients)}")
+
+    async def _broadcast(self, message_str):
+        if self.clients:
+            coros = [client.send(message_str) for client in self.clients]
+            await asyncio.gather(*coros, return_exceptions=True)
+
+    def broadcast(self, payload_dict):
+        if self.loop and self.clients:
+            message_str = json.dumps(payload_dict)
+            asyncio.run_coroutine_threadsafe(self._broadcast(message_str), self.loop)
+
+    def run_server(self):
+        async def main():
+            self.loop = asyncio.get_running_loop()
+            async with websockets.serve(self.register, self.host, self.port):
+                logging.info(f"🚀 [WS MESH BROADCASTER]: Active and broadcasting on ws://{self.host}:{self.port}")
+                await asyncio.Future()
+
+        asyncio.run(main())
+
+def start_telemetry_listener(host="0.0.0.0", udp_port=9999, ws_port=8765):
     engine = BurstEngine(strain_threshold=75.0, burst_budget_sats=500) if BurstEngine else None
     manifold = ToroidalGSManifold()
+    broadcaster = MeshBroadcaster(host=host, port=ws_port)
+
+    # Start Async WebSocket Broadcaster in a background thread
+    ws_thread = threading.Thread(target=broadcaster.run_server, daemon=True)
+    ws_thread.start()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind((host, port))
+    sock.bind((host, udp_port))
 
-    logging.info(f"👂 Listening for Manifold Telemetry (JSON & Binary 4D) on UDP port {port}...")
+    logging.info(f"👂 Listening for Manifold Telemetry on UDP port {udp_port}...")
 
     t = 0.0
     while True:
         try:
             data, addr = sock.recvfrom(4096)
             
+            # --- Stream Handler 1: Binary Coordinates ---
             if len(data) == 12:
                 px, py, lyap = struct.unpack('!3f', data)
                 t += 0.01
@@ -77,9 +124,25 @@ def start_telemetry_listener(host="0.0.0.0", port=9999):
 
                 damping = manifold.compute_lyapunov_damping(lyap)
                 p3d, ndc = manifold.slice_and_project(raw_4d, damping=damping)
-                logging.info(f"🌀 [4D SLICE]: Phase=({px:.3f}, {py:.3f}) | Lyap={lyap:.3f} | NDC Action={ndc}")
+
+                # Fan out to Sovereign-Estate WebSocket mesh
+                mesh_payload = {
+                    "type": "MANIFOLD_NDC_STREAM",
+                    "timestamp": time.time(),
+                    "vector": [round(float(ndc[0]), 6), round(float(ndc[1]), 6)],
+                    "p3d": [round(float(coord), 6) for coord in p3d],
+                    "stability": {
+                        "phase_x": round(float(px), 6),
+                        "phase_y": round(float(py), 6),
+                        "lyapunov": round(float(lyap), 6),
+                        "calibrated": manifold.is_calibrated
+                    }
+                }
+                broadcaster.broadcast(mesh_payload)
+                logging.info(f"🌀 [4D SLICE -> WS MESH]: Phase=({px:.3f}, {py:.3f}) | NDC Action={ndc}")
                 continue
 
+            # --- Stream Handler 2: JSON Burst Engine Telemetry ---
             raw_text = data.decode('utf-8', errors='replace').strip()
             if not raw_text:
                 continue
