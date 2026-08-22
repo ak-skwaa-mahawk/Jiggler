@@ -87,7 +87,7 @@ class MeshBroadcaster:
         async def main():
             self.loop = asyncio.get_running_loop()
             async with websockets.serve(self.register, self.host, self.port):
-                logging.info(f"🚀 [WS MESH BROADCASTER]: Active and broadcasting on ws://{self.host}:{self.port}")
+                logging.info(f"🚀 [WS MESH BROADCASTER]: Active on ws://{self.host}:{self.port}")
                 await asyncio.Future()
 
         asyncio.run(main())
@@ -110,13 +110,12 @@ def start_telemetry_listener(host="0.0.0.0", udp_port=9999, ws_port=8765):
     while True:
         try:
             data, addr = sock.recvfrom(4096)
-            
+
             # --- Stream Handler 1: Binary Coordinates ---
             if len(data) == 12:
                 px, py, lyap = struct.unpack('!3f', data)
                 t += 0.01
-                
-                # Forward Lyapunov updates to BurstEngine state
+
                 if engine:
                     engine.update_lyapunov_state(lyap)
 
@@ -141,7 +140,6 @@ def start_telemetry_listener(host="0.0.0.0", udp_port=9999, ws_port=8765):
                     }
                 }
                 broadcaster.broadcast(mesh_payload)
-                logging.info(f"🌀 [4D SLICE -> WS MESH]: Phase=({px:.3f}, {py:.3f}) | Lyap={lyap:.3f} | NDC Action={ndc}")
                 continue
 
             # --- Stream Handler 2: JSON Burst Engine Telemetry ---
@@ -169,6 +167,7 @@ def start_telemetry_listener(host="0.0.0.0", udp_port=9999, ws_port=8765):
 
                 if result:
                     sock.sendto(json.dumps(result).encode('utf-8'), addr)
+                    broadcaster.broadcast(result)
 
         except KeyboardInterrupt:
             logging.info("Stopping telemetry listener.")
