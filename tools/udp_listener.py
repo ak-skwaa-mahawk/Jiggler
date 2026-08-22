@@ -97,7 +97,6 @@ def start_telemetry_listener(host="0.0.0.0", udp_port=9999, ws_port=8765):
     manifold = ToroidalGSManifold()
     broadcaster = MeshBroadcaster(host=host, port=ws_port)
 
-    # Start Async WebSocket Broadcaster in a background thread
     ws_thread = threading.Thread(target=broadcaster.run_server, daemon=True)
     ws_thread.start()
 
@@ -117,6 +116,10 @@ def start_telemetry_listener(host="0.0.0.0", udp_port=9999, ws_port=8765):
                 px, py, lyap = struct.unpack('!3f', data)
                 t += 0.01
                 
+                # Forward Lyapunov updates to BurstEngine state
+                if engine:
+                    engine.update_lyapunov_state(lyap)
+
                 raw_4d = manifold.embed_torus_to_4d(px, py, time_w=t)
                 if not manifold.is_calibrated:
                     manifold.dynamic_null(raw_4d)
@@ -125,7 +128,6 @@ def start_telemetry_listener(host="0.0.0.0", udp_port=9999, ws_port=8765):
                 damping = manifold.compute_lyapunov_damping(lyap)
                 p3d, ndc = manifold.slice_and_project(raw_4d, damping=damping)
 
-                # Fan out to Sovereign-Estate WebSocket mesh
                 mesh_payload = {
                     "type": "MANIFOLD_NDC_STREAM",
                     "timestamp": time.time(),
@@ -139,7 +141,7 @@ def start_telemetry_listener(host="0.0.0.0", udp_port=9999, ws_port=8765):
                     }
                 }
                 broadcaster.broadcast(mesh_payload)
-                logging.info(f"🌀 [4D SLICE -> WS MESH]: Phase=({px:.3f}, {py:.3f}) | NDC Action={ndc}")
+                logging.info(f"🌀 [4D SLICE -> WS MESH]: Phase=({px:.3f}, {py:.3f}) | Lyap={lyap:.3f} | NDC Action={ndc}")
                 continue
 
             # --- Stream Handler 2: JSON Burst Engine Telemetry ---
@@ -156,14 +158,16 @@ def start_telemetry_listener(host="0.0.0.0", udp_port=9999, ws_port=8765):
                 node_id = telemetry.get("node_id", "UNKNOWN")
                 strain = float(telemetry.get("strain_percent", 0.0))
                 vitality = float(telemetry.get("vitality_score", 1.0))
+                custom_lyap = telemetry.get("lyapunov_exp", None)
 
                 result = engine.evaluate_node_telemetry(
                     node_id=node_id,
                     strain_percent=strain,
-                    vitality_score=vitality
+                    vitality_score=vitality,
+                    lyapunov_exp=custom_lyap
                 )
 
-                if result and result.get("status") == "SUCCESS":
+                if result:
                     sock.sendto(json.dumps(result).encode('utf-8'), addr)
 
         except KeyboardInterrupt:
