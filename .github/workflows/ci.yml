@@ -1,0 +1,61 @@
+name: Manifold CI & Invariant Verification
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-and-verify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest numpy websockets flake8
+
+      - name: Syntax & Linting Gate
+        run: |
+          # Stop build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Exit-zero treats all other errors as warnings
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run Manifold Mathematical Invariant Suite
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tools
+        run: |
+          pytest tests/test_manifold_invariants.py -v --tb=short
+
+      - name: Validate JSON Registry Schemas
+        run: |
+          python3 -c "
+          import json, glob, os
+          valid = True
+          for filepath in glob.glob('**/*.json', recursive=True):
+              if 'node_modules' in filepath or '.git' in filepath:
+                  continue
+              try:
+                  with open(filepath, 'r') as fp:
+                      json.load(fp)
+                  print(f'✅ [VALID JSON]: {filepath}')
+              except Exception as e:
+                  print(f'❌ [CORRUPT JSON]: {filepath} -> {e}')
+                  valid = False
+          if not valid:
+              exit(1)
+          "
