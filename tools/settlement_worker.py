@@ -18,7 +18,6 @@ try:
     from xrpl.asyncio.clients import AsyncJsonRpcClient
     from xrpl.asyncio.wallet import generate_faucet_wallet
     from xrpl.asyncio.transaction import submit_and_wait
-    from xrpl.wallet import Wallet
     from xrpl.models.transactions import Payment
     XRPL_AVAILABLE = True
 except ImportError:
@@ -33,7 +32,7 @@ class XRPLAgentSettlementWorker:
         self.ws_uri = ws_uri
         self.client = AsyncJsonRpcClient(JSON_RPC_URL) if XRPL_AVAILABLE else None
         self.sender_wallet = None
-        self.target_agent_address = None
+        self.target_wallet = None
         self.total_dispatched_drops = 0
         self.tx_ledger = []
 
@@ -42,18 +41,19 @@ class XRPLAgentSettlementWorker:
             logging.warning("⚠️  [XRPL]: xrpl-py not available. Running in simulation mode.")
             return
 
-        logging.info("⏳ [XRPL]: Provisioning sender wallet from testnet faucet...")
+        logging.info("⏳ [XRPL]: Provisioning sender and target agent wallets from testnet faucet...")
         try:
+            # Fund sender account
             self.sender_wallet = await generate_faucet_wallet(self.client, debug=False)
             logging.info(f"✅ [SENDER WALLET ACTIVE]: Address = {self.sender_wallet.classic_address}")
             
-            # Destination wallet for recipient agent node
-            receiver_wallet = Wallet.create()
-            self.target_agent_address = receiver_wallet.classic_address
-            logging.info(f"🎯 [TARGET AGENT NODE]: Address = {self.target_agent_address}")
+            # Fund target agent account to meet XRPL base reserve
+            self.target_wallet = await generate_faucet_wallet(self.client, debug=False)
+            logging.info(f"🎯 [TARGET AGENT NODE ACTIVE]: Address = {self.target_wallet.classic_address}")
         except Exception as e:
             logging.error(f"❌ [XRPL WALLET INIT FAILED]: {e}")
             self.sender_wallet = None
+            self.target_wallet = None
 
     async def execute_xrpl_settlement(self, node_id, amount_sats, effective_strain, lyapunov):
         if amount_sats <= 0:
@@ -61,7 +61,7 @@ class XRPLAgentSettlementWorker:
 
         drops_to_send = str(amount_sats)
 
-        if not XRPL_AVAILABLE or not self.sender_wallet or not self.target_agent_address:
+        if not XRPL_AVAILABLE or not self.sender_wallet or not self.target_wallet:
             logging.info(f"⚡ [SIMULATED XRPL TX]: Sent {drops_to_send} drops to node {node_id}")
             return {"status": "SIMULATED", "drops": drops_to_send}
 
@@ -69,12 +69,12 @@ class XRPLAgentSettlementWorker:
             payment_tx = Payment(
                 account=self.sender_wallet.classic_address,
                 amount=drops_to_send,
-                destination=self.target_agent_address
+                destination=self.target_wallet.classic_address
             )
 
             logging.info(
                 f"🚀 [XRPL SUBMIT]: Broadcasting {drops_to_send} drops ({int(drops_to_send)/1e6:.6f} XRP) "
-                f"from {self.sender_wallet.classic_address[:8]}... to {self.target_agent_address[:8]}... for Node {node_id}"
+                f"from {self.sender_wallet.classic_address[:8]}... to {self.target_wallet.classic_address[:8]}... for Node {node_id}"
             )
             
             tx_response = await submit_and_wait(payment_tx, self.client, self.sender_wallet)
@@ -86,7 +86,7 @@ class XRPLAgentSettlementWorker:
                 "tx_hash": tx_hash,
                 "engine_result": tx_result,
                 "recipient_node": node_id,
-                "destination_address": self.target_agent_address,
+                "destination_address": self.target_wallet.classic_address,
                 "amount_drops": drops_to_send,
                 "effective_strain": effective_strain,
                 "lyapunov": lyapunov,
