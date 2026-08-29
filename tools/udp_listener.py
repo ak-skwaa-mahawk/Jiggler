@@ -86,7 +86,7 @@ class MeshBroadcaster:
     def run_server(self):
         async def main():
             self.loop = asyncio.get_running_loop()
-            async with websockets.serve(self.register, self.host, self.port):
+            async with websockets.serve(self.register, self.host, self.port, reuse_port=True):
                 logging.info(f"🚀 [WS MESH BROADCASTER]: Active on ws://{self.host}:{self.port}")
                 await asyncio.Future()
 
@@ -97,12 +97,34 @@ def start_telemetry_listener(host="0.0.0.0", udp_port=9999, ws_port=8765):
     manifold = ToroidalGSManifold()
     broadcaster = MeshBroadcaster(host=host, port=ws_port)
 
-    ws_thread = threading.Thread(target=broadcaster.run_server, daemon=True)
-    ws_thread.start()
+    try:
+        ws_thread = threading.Thread(target=broadcaster.run_server, daemon=True)
+        ws_thread.start()
+    except Exception as e:
+        logging.warning(f"[!] WebSocket server could not bind on port {ws_port}: {e}")
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind((host, udp_port))
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    except (AttributeError, OSError):
+        pass
+    try:
+        sock.bind((host, udp_port))
+    except OSError as e:
+        if e.errno == 98:
+            logging.warning(f"[!] Port {udp_port} busy. Re-binding with fresh socket...")
+            sock.close()
+            time.sleep(0.5)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except (AttributeError, OSError):
+                pass
+            sock.bind((host, udp_port))
+        else:
+            raise e
 
     logging.info(f"👂 Listening for Manifold Telemetry on UDP port {udp_port}...")
 
