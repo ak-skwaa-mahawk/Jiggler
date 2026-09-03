@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+nohup python3 -u "$HOME/bin/manifold-stream-emitter" > "$HOME/.manifold_emitter.log" 2>&1 &
+echo "[+] Manifold telemetry stream started in background (PID: $!)."

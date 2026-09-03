@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+import csv
+from collections import defaultdict
+
+env_path = os.path.expanduser("~/.xrpl_env")
+if os.path.exists(env_path):
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("export ") and "=" in line:
+                key, val = line.replace("export ", "", 1).split("=", 1)
+                os.environ[key.strip()] = val.strip().strip('"\'')
+
+RPC_URL = os.environ.get("XRPL_RPC_URL", "https://s.altnet.rippletest.net:51234").strip()
+LEDGER_PATH = os.path.expanduser("~/.manifold_xrpl_ledger.jsonl")
+CSV_PATH = os.path.expanduser("~/.manifold_settlements.csv")
+TARGET_ADDR = os.environ.get("XRPL_TARGET_ADDRESS", "r9N4GDbG3vPujNAW9KYxWAvDUaZmEr3BRu").strip()
+
+try:
+    from xrpl.clients import JsonRpcClient
+    from xrpl.account import get_balance
+    from xrpl.wallet import Wallet
+    XRPL_AVAILABLE = True
+except ImportError:
+    XRPL_AVAILABLE = False
+
+sender_seed = os.environ.get("XRPL_SENDER_SEED")
+if sender_seed and XRPL_AVAILABLE:
+    try:
+        SENDER_ADDR = Wallet.from_seed(sender_seed.strip()).classic_address
+    except Exception:
+        SENDER_ADDR = os.environ.get("XRPL_SENDER_ADDRESS", "rUFCLJpWcd2yng9tvmCfV7Pq5yG59XTbsX").strip()
+else:
+    SENDER_ADDR = os.environ.get("XRPL_SENDER_ADDRESS", "rUFCLJpWcd2yng9tvmCfV7Pq5yG59XTbsX").strip()
+
+if not os.path.exists(LEDGER_PATH):
+    print("No transactions recorded yet in ~/.manifold_xrpl_ledger.jsonl")
+    sys.exit(0)
+
+receipts = [json.loads(line) for line in open(LEDGER_PATH) if line.strip()]
+
+if "--csv" in sys.argv:
+    if receipts:
+        # Collect ordered union of all keys across all records
+        field_set = []
+        for r in receipts:
+            for k in r.keys():
+                if k not in field_set:
+                    field_set.append(k)
+        
+        with open(CSV_PATH, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=field_set, extrasaction="ignore")
+            writer.writeheader()
+            for r in receipts:
+                row = {k: r.get(k, "") for k in field_set}
+                writer.writerow(row)
+        print(f"✅ Exported {len(receipts)} settlements to {CSV_PATH}")
+    sys.exit(0)
+
+total_drops = sum(int(r.get("amount_drops", 0)) for r in receipts)
+node_totals = defaultdict(lambda: {"drops": 0, "count": 0})
+
+for r in receipts:
+    node = r.get("recipient_node", "UNKNOWN")
+    node_totals[node]["drops"] += int(r.get("amount_drops", 0))
+    node_totals[node]["count"] += 1
+
+print("\n" + "="*86)
+print("                    🛰️  MANIFOLD TELEMETRY XRPL SETTLEMENT LEDGER")
+print("="*86)
+print(f"Total Transactions: {len(receipts)} | Total Dispatched: {total_drops:,} drops ({total_drops/1e6:.6f} XRP)\n")
+
+print(f"{'RECIPIENT NODE':<19} | {'DROPS':>6} | {'STATUS':<7} | {'ATT':^3} | {'TX HASH':<16} | EXPLORER")
+print("-" * 86)
+for r in receipts:
+    attempts = str(r.get("attempts", 1))
+    tx_hash = r.get("tx_hash", "")
+    short_hash = tx_hash[:16] + "..." if len(tx_hash) > 16 else tx_hash
+    print(f"{r.get('recipient_node', 'UNKNOWN'):<19} | {r.get('amount_drops', '0'):>6} | {r.get('status', 'N/A'):<7} | {attempts:^3} | {short_hash:<19} | https://testnet.xrpl.org/transactions/{tx_hash}")
+
+print("\n" + "-" * 86)
+print("NODE SETTLEMENT BREAKDOWN:")
+for node, stats in sorted(node_totals.items()):
+    print(f"  • {node:<19}: {stats['count']:>2} settlements | {stats['drops']:>6} drops ({stats['drops']/1e6:.6f} XRP)")
+
+if XRPL_AVAILABLE:
+    print("-" * 86)
+    print(f"ON-CHAIN LEDGER RESERVES (RPC: {RPC_URL}):")
+    client = JsonRpcClient(RPC_URL)
+    
+    try:
+        s_drops = get_balance(SENDER_ADDR, client)
+        print(f"  • Sender [{SENDER_ADDR}]: {s_drops / 1e6:,.6f} XRP ({s_drops:,} drops)")
+    except Exception as e:
+        print(f"  • Sender [{SENDER_ADDR}]: {e}")
+        
+    try:
+        t_drops = get_balance(TARGET_ADDR, client)
+        print(f"  • Target [{TARGET_ADDR}]: {t_drops / 1e6:,.6f} XRP ({t_drops:,} drops)")
+    except Exception as e:
+        print(f"  • Target [{TARGET_ADDR}]: {e}")
+print("="*86 + "\n")

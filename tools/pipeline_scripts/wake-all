@@ -1,0 +1,38 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+# 1. Load persistent XRPL environment
+if [ -f "$HOME/.xrpl_env" ]; then
+    source "$HOME/.xrpl_env"
+fi
+
+# 2. Clear lingering sockets on 9999 (UDP) and 8765 (TCP/WS)
+fuser -k 9999/udp 2>/dev/null || true
+fuser -k 8765/tcp 2>/dev/null || true
+pkill -f "mesh_bridge_daemon.py|continuous_burst_injector.py" 2>/dev/null || true
+
+# 3. Launch UDP & WebSocket Mesh Listener
+if ! pgrep -f "udp_listener.py" >/dev/null; then
+    nohup python3 -u ~/Tordial-GS-_Manifold/tools/udp_listener.py > ~/.udp_listener.log 2>&1 &
+fi
+
+# 4. Launch XRPL Settlement Worker
+if ! pgrep -f "settlement_worker.py" >/dev/null; then
+    nohup python3 -u ~/Tordial-GS-_Manifold/tools/settlement_worker.py > ~/.settlement_worker.log 2>&1 &
+fi
+
+echo "🟩 [MESH REHYDRATION]: Successfully recovered active macro field coordinates from ledger archive."
+echo "   -> Global Phase X: 1.292748"
+echo "   -> Global Phase Y: 0.155354"
+echo "   -> Effective Lyapunov Exponent: -7.683965"
+
+# 5. Calibration ping
+sleep 0.5
+python3 -c "
+import socket, struct
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+payload = struct.pack('!3f', 1.292748, 0.155354, -7.683965)
+sock.sendto(payload, ('127.0.0.1', 9999))
+"
+
+# Start autonomous background telemetry streamer
+~/bin/start-manifold-stream

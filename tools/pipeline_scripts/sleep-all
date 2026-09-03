@@ -1,0 +1,10 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+echo "🛑 Halting Manifold daemons..."
+pkill -f "settlement_worker.py" 2>/dev/null && echo "[-] settlement_worker stopped" || true
+pkill -f "manifold-stream-emitter" 2>/dev/null || true
+pkill -f "udp_listener.py" 2>/dev/null && echo "[-] udp_listener stopped" || true
+pkill -f "mesh_bridge_daemon.py|continuous_burst_injector.py" 2>/dev/null || true
+fuser -k 9999/udp 2>/dev/null || true
+fuser -k 8765/tcp 2>/dev/null || true
+echo "💤 All services stopped cleanly."
